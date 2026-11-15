@@ -1,0 +1,18 @@
+import { cp, mkdir, readFile, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { createHash } from 'node:crypto';
+const project = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const pkg = path.join(project, 'node_modules/webgazer');
+const metadata = JSON.parse(await readFile(path.join(pkg, 'package.json'), 'utf8'));
+if (metadata.version !== '3.5.3') throw new Error(`Refusing unexpected WebGazer version ${metadata.version}`);
+const out = path.join(project, 'public/vendor/webgazer-3.5.3');
+await mkdir(out, { recursive: true });
+await writeFile(path.join(out, 'runtime.html'), '<!doctype html><html><head><meta charset="UTF-8"><meta name="webgazer-runtime" content="3.5.3"><title>Local WebGazer runtime</title></head><body></body></html>');
+await cp(path.join(pkg, 'dist/webgazer.js'), path.join(out, 'webgazer.js'));
+await cp(path.join(pkg, 'src/mediapipe/face_mesh'), path.join(out, 'mediapipe/face_mesh'), { recursive: true });
+await cp(path.join(pkg, 'LICENSE.md'), path.join(out, 'LICENSE.md'));
+await cp(path.join(pkg, 'package.json'), path.join(out, 'package.json'));
+const bundle = await readFile(path.join(out, 'webgazer.js'));
+await writeFile(path.join(out, 'PROVENANCE.json'), JSON.stringify({ package: 'webgazer', version: metadata.version, registry: 'https://registry.npmjs.org/webgazer/3.5.3', repository: 'https://github.com/brownhci/WebGazer/tree/3.5.3', source: 'node_modules/webgazer (package-lock.json pins integrity)', modified: false, bundleSha256: createHash('sha256').update(bundle).digest('hex'), modelPath: '/vendor/webgazer-3.5.3/mediapipe/face_mesh', note: 'Local assets copied; real-camera and offline acceptance must still be performed on target laptop.' }, null, 2));
+console.log('Prepared official WebGazer 3.5.3 bundle, license and local MediaPipe model/WASM assets.');

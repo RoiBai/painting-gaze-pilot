@@ -1,0 +1,71 @@
+import {defaultScanpath,buildScanpath,renderScanpath,SCANPATH_ALGORITHM,SCANPATH_HEADER_PX,SCANPATH_FOOTER_PX} from './scanpath';
+import { strToU8, zipSync } from 'fflate';
+import type { GazeSample, PhaseEvent, ResponseRow, Session, ValidationRow } from './types';
+import { eligibleSamples, HEATMAP_ALGORITHM, heatmapSize, renderHeatmap } from './heatmap';
+
+export const GAZE_COLUMNS: (keyof GazeSample)[] = ['sessionId','participantId','paintingId','trialId','phase','sampleIndex','callbackTimeMs','libraryElapsedMs','viewportX','viewportY','imageX','imageY','imageNormX','imageNormY','predictionAvailable','insideImage','geometryVersion','calibrationVersion','paused','confidence'];
+export const EVENT_COLUMNS: (keyof PhaseEvent)[] = ['sessionId','participantId','timeMs','type','phase','paintingId','detail'];
+export const RESPONSE_COLUMNS: (keyof ResponseRow)[] = ['sessionId','participantId','paintingId','phase','questionId','answer','confidence','unknown','skipped','durationMs','timeMs'];
+export const VALIDATION_COLUMNS: (keyof ValidationRow)[] = ['sessionId','participantId','paintingId','kind','runId','calibrationVersion','targetId','targetX','targetY','viewportWidth','viewportHeight','timeMs','predictionX','predictionY','errorPx','settling','training'];
+export function csvCell(value:unknown):string {
+  if(value===null||value===undefined||(typeof value==='number'&&!Number.isFinite(value)))return '';
+  const text=String(value);
+  return /[",\r\n]/.test(text) ? `"${text.replaceAll('"','""')}"` : text;
+}
+export function toCSV<T extends object>(rows:T[], columns:(keyof T)[]):string {
+  return [columns.map(String).map(csvCell).join(','),...rows.map(row=>columns.map(column=>csvCell(row[column])).join(','))].join('\r\n')+'\r\n';
+}
+export function exportPrefix(session:Session):string {
+  return `${session.mode}_${session.participantId}_${session.sessionId}`.replace(/[^a-zA-Z0-9_-]/g,'_');
+}
+export function buildTextExportFiles(session:Session):Record<string,Uint8Array> {
+  if(session.dataSource!=='webgazer-camera')throw new Error('拒绝导出非摄像头研究样本。开发 fixture 只允许在测试目录使用。');
+  const scanpathParams=session.scanpath??defaultScanpath;
+  const snapshot={...session, scanpath:scanpathParams, exportMetadata:{
+    exportedAtUtc:new Date().toISOString(),
+    rendererVersion:'1.2.1',
+    terminology:'库输出的视线估计样本；回调接收时间不是摄像头曝光时间；不包含视频、眼部像素或推断的注视事件。',
+    timestampBasis:'performance.now() in original page; UTC = timeOrigin + callbackTimeMs. Interrupted recovery event retains last persisted original-page timestamp.',
+    csvEncoding:'UTF-8 BOM; RFC 4180 quoting; null and nonfinite numbers are empty cells; strings preserved verbatim',
+    heatmapAlgorithm:HEATMAP_ALGORITHM,
+    heatmapFilter:'sessionId and participantId match; free_view; paintingId matches; !paused; predictionAvailable; insideImage; finite viewport/image coordinates; normalized coordinates within [0,1]',
+    heatmapRenders:session.config.paintings.map(p=>({paintingId:p.paintingId,...heatmapSize(p,session.heatmap),headerPx:166,footerPx:80,sampleCount:eligibleSamples(session,p.paintingId).length,showAOI:false,parameters:session.heatmap})),
+    scanpathAlgorithm:SCANPATH_ALGORITHM,
+    scanpathRenders:session.config.paintings.map(p=>{const model=buildScanpath(session,p.paintingId,scanpathParams);return {paintingId:p.paintingId,...heatmapSize(p,{...session.heatmap,width:scanpathParams.width}),headerPx:SCANPATH_HEADER_PX,footerPx:SCANPATH_FOOTER_PX,fromMs:0,toMs:model.durationMs,sourceCount:model.sourceCount,displayedCount:model.displayedCount,segmentCount:model.segmentCount,parameters:scanpathParams,showAOI:false}}),
+    rates:'Observed callback count / measured active display seconds. No fixed-rate resampling.',
+  }};
+  return {
+    'gaze_samples.csv':strToU8('\ufeff'+toCSV(session.samples,GAZE_COLUMNS)),
+    'phase_events.csv':strToU8('\ufeff'+toCSV(session.events,EVENT_COLUMNS)),
+    'responses.csv':strToU8('\ufeff'+toCSV(session.responses,RESPONSE_COLUMNS)),
+    'validation.csv':strToU8('\ufeff'+toCSV(session.validation,VALIDATION_COLUMNS)),
+    'session.json':strToU8(JSON.stringify(snapshot,null,2)),
+  };
+}
+export async function canvasPNG(canvas:HTMLCanvasElement):Promise<Uint8Array> {
+  const blob=await new Promise<Blob>((resolve,reject)=>canvas.toBlob(value=>value?resolve(value):reject(new Error('PNG 编码失败。')),'image/png'));
+  return new Uint8Array(await blob.arrayBuffer());
+}
+export async function buildExportFiles(session:Session):Promise<Record<string,Uint8Array>> {
+  const snapshot=structuredClone(session);
+  const files=buildTextExportFiles(snapshot);
+  for(const painting of snapshot.config.paintings){
+    const canvas=await renderHeatmap(snapshot,painting,snapshot.heatmap,false);
+    files[`heatmap_${painting.paintingId.replace(/[^a-zA-Z0-9_-]/g,'_')}.png`]=await canvasPNG(canvas);
+    const trajectory=await renderScanpath(snapshot,painting,snapshot.scanpath??defaultScanpath);
+    files[`scanpath_${painting.paintingId.replace(/[^a-zA-Z0-9_-]/g,'_')}.png`]=await canvasPNG(trajectory);
+  }
+  return files;
+}
+export function downloadFile(name:string, bytes:Uint8Array):void {
+  const mime=name.endsWith('.csv')?'text/csv;charset=utf-8':name.endsWith('.json')?'application/json':name.endsWith('.png')?'image/png':'application/zip';
+  const blob=new Blob([bytes],{type:mime});
+  const url=URL.createObjectURL(blob),link=document.createElement('a');
+  link.href=url;link.download=name;document.body.append(link);link.click();link.remove();
+  window.setTimeout(()=>URL.revokeObjectURL(url),10000);
+}
+export async function exportZip(session:Session):Promise<void> {
+  const prefix=exportPrefix(session),files=await buildExportFiles(session);
+  const zipFiles=Object.fromEntries(Object.entries(files).map(([name,bytes])=>[`${prefix}/${name}`,bytes]));
+  downloadFile(`${prefix}.zip`,zipSync(zipFiles,{level:6}));
+}

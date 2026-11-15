@@ -1,0 +1,46 @@
+[
+  {
+    "paintingId": "ming-xingle-archery",
+    "runtimeImage": "/materials/ming-xingle-archery.svg",
+    "preservedSource": "ming-xingle-archery.jpg",
+    "sourceDimensions": {
+      "width": 960,
+      "height": 525
+    },
+    "viewportCrop": {
+      "x": 0,
+      "y": 0,
+      "width": 960,
+      "height": 525
+    },
+    "cropNote": "源站已分场景裁图；本项目保留完整源场景，不作进一步裁剪、补绘、增强或色彩修改。SVG 内嵌原 JPEG 字节，viewBox 与源图范围一致。全卷坐标未知，不伪造。",
+    "sha256": "db13854b56b9e8b9fc0b5f67a466d69dd3d33ca35f9c9c6162653f43c963251c",
+    "imageSource": "https://old.shuge.org/wp-content/uploads/2017/02/ming-xuan-zong-xing-le-tu-juan02.jpg",
+    "imageSourcePage": "https://old.shuge.org/ebook/ming-xuan-zong-xing-le-tu-juan/",
+    "contentSource": "https://minghuaji.dpm.org.cn/paint/detail?id=9hv8wtoav5a5hyr0l7pmjc765dwesqti",
+    "retrievedDate": "2026-11-16",
+    "approvalStatus": "researcher-review-pending"
+  },
+  {
+    "paintingId": "ming-xingle-cuju",
+    "runtimeImage": "/materials/ming-xingle-cuju.svg",
+    "preservedSource": "ming-xingle-cuju.jpg",
+    "sourceDimensions": {
+      "width": 960,
+      "height": 525
+    },
+    "viewportCrop": {
+      "x": 0,
+      "y": 0,
+      "width": 960,
+      "height": 525
+    },
+    "cropNote": "源站已分场景裁图；本项目保留完整源场景，不作进一步裁剪、补绘、增强或色彩修改。SVG 内嵌原 JPEG 字节，viewBox 与源图范围一致。全卷坐标未知，不伪造。",
+    "sha256": "790151f9fd55ede000078cd80b528e5883d07b922bd4902958c3458e270eb022",
+    "imageSource": "https://old.shuge.org/wp-content/uploads/2017/02/ming-xuan-zong-xing-le-tu-juan03.jpg",
+    "imageSourcePage": "https://old.shuge.org/ebook/ming-xuan-zong-xing-le-tu-juan/",
+    "contentSource": "https://minghuaji.dpm.org.cn/paint/detail?id=9hv8wtoav5a5hyr0l7pmjc765dwesqti",
+    "retrievedDate": "2026-11-16",
+    "approvalStatus": "researcher-review-pending"
+  }
+]

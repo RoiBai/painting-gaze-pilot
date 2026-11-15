@@ -1,0 +1,62 @@
+[
+  {
+    "paintingId": "ming-xingle-archery",
+    "materialVersion": "ming-scenes-test-2.0",
+    "runtimeImage": "/materials/ming-xingle-archery-v2.png",
+    "preservedSource": "ming-xingle-full.jpg",
+    "sourceDimensions": {
+      "width": 36088,
+      "height": 1966
+    },
+    "sourceSha256": "988e4e96fdf3f122cbc021797df766b76e3531b219aee17601a44698ebf02ef0",
+    "crop": {
+      "x": 29200,
+      "y": 0,
+      "width": 6888,
+      "height": 1966
+    },
+    "outputDimensions": {
+      "width": 6888,
+      "height": 1966
+    },
+    "cropSha256": "d60608c843251d7c4978daba4b5c45c3e1dd341125085e80febc5dd278f27359",
+    "imageSource": "https://shuge.7rs.net/%E5%8F%A4%E5%9B%BE/%E5%8D%B7%E8%BD%B4%E7%94%BB/%E6%98%8E%E5%AE%A3%E5%AE%97%E8%A1%8C%E4%B9%90%E5%9B%BE%E5%8D%B7.36088X1966%E5%83%8F%E7%B4%A0.%E6%95%85%E5%AE%AB%E5%8D%9A%E7%89%A9%E9%99%A2%E8%97%8F.%E7%BB%A2%E6%9C%AC%E8%AE%BE%E8%89%B2.jpg",
+    "sourceDescription": "书格公开镜像保存的完整长卷；文件名、尺寸与书格原发布说明一致。",
+    "sourcePage": "https://old.shuge.org/ebook/ming-xuan-zong-xing-le-tu-juan/",
+    "contentSource": "https://minghuaji.dpm.org.cn/paint/detail?id=9hv8wtoav5a5hyr0l7pmjc765dwesqti",
+    "retrievedDate": "2026-11-16",
+    "processing": "全高矩形像素裁切，PNG 无损保存；无缩放、补绘、插值、颜色修改或 AOI 叠加。",
+    "sharedBoundary": "两裁图在全卷 x=29200..30000 的墙体/树木分隔区域有重叠；没有把它当成独立作品或互斥全卷分割。",
+    "approvalStatus": "researcher-review-pending"
+  },
+  {
+    "paintingId": "ming-xingle-cuju",
+    "materialVersion": "ming-scenes-test-2.0",
+    "runtimeImage": "/materials/ming-xingle-cuju-v2.png",
+    "preservedSource": "ming-xingle-full.jpg",
+    "sourceDimensions": {
+      "width": 36088,
+      "height": 1966
+    },
+    "sourceSha256": "988e4e96fdf3f122cbc021797df766b76e3531b219aee17601a44698ebf02ef0",
+    "crop": {
+      "x": 24100,
+      "y": 0,
+      "width": 5900,
+      "height": 1966
+    },
+    "outputDimensions": {
+      "width": 5900,
+      "height": 1966
+    },
+    "cropSha256": "930c11e7d432cbe89d821dde09e2b3e8af8812d3a0c96bfb3dc689f1808ccc5e",
+    "imageSource": "https://shuge.7rs.net/%E5%8F%A4%E5%9B%BE/%E5%8D%B7%E8%BD%B4%E7%94%BB/%E6%98%8E%E5%AE%A3%E5%AE%97%E8%A1%8C%E4%B9%90%E5%9B%BE%E5%8D%B7.36088X1966%E5%83%8F%E7%B4%A0.%E6%95%85%E5%AE%AB%E5%8D%9A%E7%89%A9%E9%99%A2%E8%97%8F.%E7%BB%A2%E6%9C%AC%E8%AE%BE%E8%89%B2.jpg",
+    "sourceDescription": "书格公开镜像保存的完整长卷；文件名、尺寸与书格原发布说明一致。",
+    "sourcePage": "https://old.shuge.org/ebook/ming-xuan-zong-xing-le-tu-juan/",
+    "contentSource": "https://minghuaji.dpm.org.cn/paint/detail?id=9hv8wtoav5a5hyr0l7pmjc765dwesqti",
+    "retrievedDate": "2026-11-16",
+    "processing": "全高矩形像素裁切，PNG 无损保存；无缩放、补绘、插值、颜色修改或 AOI 叠加。",
+    "sharedBoundary": "两裁图在全卷 x=29200..30000 的墙体/树木分隔区域有重叠；没有把它当成独立作品或互斥全卷分割。",
+    "approvalStatus": "researcher-review-pending"
+  }
+]

@@ -1,0 +1,11 @@
+{
+  "package": "webgazer",
+  "version": "3.5.3",
+  "registry": "https://registry.npmjs.org/webgazer/3.5.3",
+  "repository": "https://github.com/brownhci/WebGazer/tree/3.5.3",
+  "source": "node_modules/webgazer (package-lock.json pins integrity)",
+  "modified": false,
+  "bundleSha256": "e276d085eb490b5ba65481c368371be03b1a358d12d95336af0a8239f643f8e0",
+  "modelPath": "/vendor/webgazer-3.5.3/mediapipe/face_mesh",
+  "note": "Local assets copied; real-camera and offline acceptance must still be performed on target laptop."
+}

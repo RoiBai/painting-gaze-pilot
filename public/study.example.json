@@ -1,0 +1,320 @@
+{
+  "version": "pilot-1.2",
+  "mode": "preview",
+  "durationSeconds": 60,
+  "order": "alternate",
+  "regression": "ridge",
+  "kalman": true,
+  "displayMode": "window",
+  "validation": {
+    "maxMedianErrorPx": 150,
+    "maxErrorDiagonalRatio": 0.1,
+    "minSamplesPerTarget": 10,
+    "targetDurationMs": 2500,
+    "settleMs": 700,
+    "maxTargetMedianErrorPx": 200
+  },
+  "nullPauseMs": 3000,
+  "calibrationClicks": 5,
+  "paintings": [
+    {
+      "paintingId": "ming-xingle-archery",
+      "crop": {
+        "sourceImage": "/materials/ming-xingle-full.jpg",
+        "sourceWidth": 36088,
+        "sourceHeight": 1966,
+        "rect": [
+          29200,
+          0,
+          6888,
+          1966
+        ],
+        "sourceSha256": "988e4e96fdf3f122cbc021797df766b76e3531b219aee17601a44698ebf02ef0"
+      },
+      "image": "/materials/ming-xingle-archery-v2.png",
+      "width": 6888,
+      "height": 1966,
+      "title": "《明宣宗行乐图》局部 · 射箭",
+      "materialVersion": "ming-scenes-test-2.0",
+      "source": "故宫博物院《明人画明宣宗行乐图卷》：https://minghuaji.dpm.org.cn/paint/detail?id=9hv8wtoav5a5hyr0l7pmjc765dwesqti；图片：书格完整长卷的公开镜像，原图 36088×1966；射箭裁切 x=29200,y=0,w=6888,h=1966；来源与哈希见 /materials/provenance.json 。沿用馆藏传统题名；画中皇帝身份存在学术争议，本试用不要求判断具体帝号。",
+      "verified": false,
+      "placeholder": false,
+      "aois": [
+        {
+          "id": "spectator-pavilion",
+          "label": "亭中坐观者与近旁人物",
+          "rect": [
+            0.69,
+            0.24,
+            0.19,
+            0.39
+          ]
+        },
+        {
+          "id": "archery-activity",
+          "label": "前方射箭与持弓人物",
+          "rect": [
+            0.59,
+            0.5,
+            0.18,
+            0.37
+          ]
+        },
+        {
+          "id": "target-area",
+          "label": "箭靶、旗杆与靶旁人物区域",
+          "rect": [
+            0.1,
+            0.08,
+            0.2,
+            0.76
+          ]
+        },
+        {
+          "id": "attendant-groups",
+          "label": "右侧站立人物群",
+          "rect": [
+            0.8,
+            0.48,
+            0.17,
+            0.47
+          ]
+        },
+        {
+          "id": "garden-setting",
+          "label": "开阔射箭场地与园墙",
+          "rect": [
+            0.3,
+            0.1,
+            0.29,
+            0.82
+          ]
+        }
+      ],
+      "relations": [
+        {
+          "id": "watching-archery",
+          "text": "这一段描绘皇帝坐观侍臣射箭：亭中坐观者与前方持弓、张弓人物形成观看与活动的关系。",
+          "aoiIds": [
+            "spectator-pavilion",
+            "archery-activity"
+          ],
+          "source": "故宫博物院《明人画明宣宗行乐图卷》：https://minghuaji.dpm.org.cn/paint/detail?id=9hv8wtoav5a5hyr0l7pmjc765dwesqti"
+        },
+        {
+          "id": "bow-target",
+          "text": "右侧射箭人物面向左侧箭靶及旗杆所在区域，中间的开阔场地把动作与目标联系起来。",
+          "aoiIds": [
+            "archery-activity",
+            "target-area",
+            "garden-setting"
+          ],
+          "source": "故宫博物院《明人画明宣宗行乐图卷》：https://minghuaji.dpm.org.cn/paint/detail?id=9hv8wtoav5a5hyr0l7pmjc765dwesqti；馆方确认活动为射箭，动作朝向、箭靶和空间联系为对完整场景的直接视觉描述，不追加人物官职或仪式规则。"
+        }
+      ],
+      "pre": [
+        {
+          "id": "archery-pre-relation",
+          "prompt": "画面中的人物分别在做什么？他们之间有什么关系？",
+          "scoring": "试用评分参考，尚待研究者核查冻结：0=未给出关系/不知道；1=给出活动或人物角色但无视觉依据；2=解释参与者与观看者的关系并指出相符区域。身份具体帝号不计分，不以服装颜色单独推断官职。"
+        },
+        {
+          "id": "archery-pre-evidence",
+          "prompt": "哪些人物动作、器物或空间位置支持你的判断？请描述一至两处。",
+          "scoring": "试用评分参考，尚待研究者核查冻结：0=未给出关系/不知道；1=给出活动或人物角色但无视觉依据；2=解释参与者与观看者的关系并指出相符区域。身份具体帝号不计分，不以服装颜色单独推断官职。 可记录是否提到弓/张弓姿态、左侧箭靶及旗杆区域、亭中坐观者、活动空地；不要求分辨细小器物。"
+        }
+      ],
+      "post": [
+        {
+          "id": "archery-post-explain",
+          "prompt": "如果向另一位观众介绍这段画面，你会怎样说明前方活动人物与亭中人物的联系？",
+          "scoring": "试用评分参考，尚待研究者核查冻结：0=未给出关系/不知道；1=给出活动或人物角色但无视觉依据；2=解释参与者与观看者的关系并指出相符区域。身份具体帝号不计分，不以服装颜色单独推断官职。"
+        },
+        {
+          "id": "archery-post-locate",
+          "prompt": "请用位置描述一处能支持这种联系的画面证据，并说明理由。",
+          "scoring": "试用评分参考，尚待研究者核查冻结：0=未给出关系/不知道；1=给出活动或人物角色但无视觉依据；2=解释参与者与观看者的关系并指出相符区域。身份具体帝号不计分，不以服装颜色单独推断官职。 位置描述可为“亭中”“右下持弓人物”等粗区域，不强求精细坐标。"
+        }
+      ],
+      "cards": [
+        {
+          "id": "archery-card-location",
+          "title": "先看活动者与观看者",
+          "location": "前方持弓人物，以及亭中的坐观者",
+          "text": "将视线从前方张弓或持弓的人物移到亭中。故宫的作品说明将这一段识别为皇帝观看侍臣射箭。动作与器物帮助辨认活动，坐观与站立的位置帮助区分画面中的角色。",
+          "source": "故宫博物院《明人画明宣宗行乐图卷》：https://minghuaji.dpm.org.cn/paint/detail?id=9hv8wtoav5a5hyr0l7pmjc765dwesqti",
+          "aoiIds": [
+            "archery-activity",
+            "spectator-pavilion"
+          ]
+        },
+        {
+          "id": "archery-card-relation",
+          "title": "把射箭动作与目标联系起来",
+          "location": "右侧射箭人物、左侧箭靶及旗杆区域、中间开阔场地",
+          "text": "沿着射箭人物的朝向看向左侧，可以找到箭靶及旗杆所在区域。中间的空地连接了动作与目标；再联系亭中的坐观者，可理解活动、目标与观看者的关系。这是画面可见的空间联系，不据此推断比赛胜负或礼仪规则。沿用馆藏传统题名；画中皇帝身份存在学术争议，本试用不要求判断具体帝号。",
+          "source": "故宫博物院《明人画明宣宗行乐图卷》：https://minghuaji.dpm.org.cn/paint/detail?id=9hv8wtoav5a5hyr0l7pmjc765dwesqti；箭靶、动作朝向与空间联系为本段可见构图描述。",
+          "aoiIds": [
+            "archery-activity",
+            "target-area",
+            "garden-setting",
+            "spectator-pavilion"
+          ]
+        }
+      ],
+      "interview": [
+        "你最先用什么线索判断人物关系？",
+        "哪张解释卡帮助最大，哪处仍不清楚？",
+        "画面清晰度和观看时长是否合适？"
+      ]
+    },
+    {
+      "paintingId": "ming-xingle-cuju",
+      "crop": {
+        "sourceImage": "/materials/ming-xingle-full.jpg",
+        "sourceWidth": 36088,
+        "sourceHeight": 1966,
+        "rect": [
+          24100,
+          0,
+          5900,
+          1966
+        ],
+        "sourceSha256": "988e4e96fdf3f122cbc021797df766b76e3531b219aee17601a44698ebf02ef0"
+      },
+      "image": "/materials/ming-xingle-cuju-v2.png",
+      "width": 5900,
+      "height": 1966,
+      "title": "《明宣宗行乐图》局部 · 蹴鞠",
+      "materialVersion": "ming-scenes-test-2.0",
+      "source": "故宫博物院《明人画明宣宗行乐图卷》：https://minghuaji.dpm.org.cn/paint/detail?id=9hv8wtoav5a5hyr0l7pmjc765dwesqti；图片：书格完整长卷的公开镜像，原图 36088×1966；蹴鞠裁切 x=24100,y=0,w=5900,h=1966；来源与哈希见 /materials/provenance.json 。沿用馆藏传统题名；画中皇帝身份存在学术争议，本试用不要求判断具体帝号。",
+      "verified": false,
+      "placeholder": false,
+      "aois": [
+        {
+          "id": "seated-observer",
+          "label": "台上坐观者与近旁人物",
+          "rect": [
+            0.52,
+            0.24,
+            0.27,
+            0.36
+          ]
+        },
+        {
+          "id": "cuju-activity",
+          "label": "台下蹴鞠活动人物群",
+          "rect": [
+            0.43,
+            0.59,
+            0.31,
+            0.34
+          ]
+        },
+        {
+          "id": "side-group",
+          "label": "左侧站立人物群",
+          "rect": [
+            0.42,
+            0.28,
+            0.09,
+            0.29
+          ]
+        },
+        {
+          "id": "garden-platform",
+          "label": "左侧分隔松树、山石与园林环境",
+          "rect": [
+            0.02,
+            0.02,
+            0.39,
+            0.96
+          ]
+        }
+      ],
+      "relations": [
+        {
+          "id": "watching-cuju",
+          "text": "这一段为皇帝坐观侍臣蹴鞠：台上坐观者与台下参与活动的人物形成观看与表演活动的关系。",
+          "aoiIds": [
+            "seated-observer",
+            "cuju-activity"
+          ],
+          "source": "故宫博物院《明人画明宣宗行乐图卷》：https://minghuaji.dpm.org.cn/paint/detail?id=9hv8wtoav5a5hyr0l7pmjc765dwesqti"
+        },
+        {
+          "id": "movement-space",
+          "text": "台下的人物姿态与球的可见位置支持蹴鞠活动的辨认；台上、台下和周围站立人物的位置呈现活动与观看的空间安排。",
+          "aoiIds": [
+            "cuju-activity",
+            "seated-observer",
+            "side-group",
+            "garden-platform"
+          ],
+          "source": "故宫博物院《明人画明宣宗行乐图卷》：https://minghuaji.dpm.org.cn/paint/detail?id=9hv8wtoav5a5hyr0l7pmjc765dwesqti；具体姿态与空间位置为对该段画面的视觉观察，不据此推断比赛规则、队伍或胜负。"
+        }
+      ],
+      "pre": [
+        {
+          "id": "cuju-pre-relation",
+          "prompt": "台上人物与台下人物可能分别扮演什么角色？他们之间有什么联系？",
+          "scoring": "试用评分参考，尚待研究者核查冻结：0=未给出关系/不知道；1=给出活动或人物角色但无视觉依据；2=解释参与者与观看者的关系并指出相符区域。身份具体帝号不计分，不以服装颜色单独推断官职。"
+        },
+        {
+          "id": "cuju-pre-evidence",
+          "prompt": "你依据哪些动作、器物或位置线索判断正在发生的事情？",
+          "scoring": "试用评分参考，尚待研究者核查冻结：0=未给出关系/不知道；1=给出活动或人物角色但无视觉依据；2=解释参与者与观看者的关系并指出相符区域。身份具体帝号不计分，不以服装颜色单独推断官职。 接受人物动作、球所在的大致区域、台上台下位置等证据；不把未认出小球直接判为不理解。"
+        }
+      ],
+      "post": [
+        {
+          "id": "cuju-post-explain",
+          "prompt": "请向未看过此图的人说明，这里的活动者和观看者是怎样组织在一起的。",
+          "scoring": "试用评分参考，尚待研究者核查冻结：0=未给出关系/不知道；1=给出活动或人物角色但无视觉依据；2=解释参与者与观看者的关系并指出相符区域。身份具体帝号不计分，不以服装颜色单独推断官职。"
+        },
+        {
+          "id": "cuju-post-locate",
+          "prompt": "选择一处能说明“谁在参与、谁在观看”的画面区域，用位置和视觉线索解释你的选择。",
+          "scoring": "试用评分参考，尚待研究者核查冻结：0=未给出关系/不知道；1=给出活动或人物角色但无视觉依据；2=解释参与者与观看者的关系并指出相符区域。身份具体帝号不计分，不以服装颜色单独推断官职。 证据定位采用粗区域文字描述；具体皇帝身份、运动规则不纳入评分。"
+        }
+      ],
+      "cards": [
+        {
+          "id": "cuju-card-location",
+          "title": "先找到台上与台下",
+          "location": "台上坐观者，以及台下围绕球活动的人物群",
+          "text": "台下人物的姿态与球所在区域提供了辨认活动的线索。故宫的作品说明将这一段识别为皇帝观看侍臣蹴鞠。请把活动人物群和台上坐观者一起看。",
+          "source": "故宫博物院《明人画明宣宗行乐图卷》：https://minghuaji.dpm.org.cn/paint/detail?id=9hv8wtoav5a5hyr0l7pmjc765dwesqti",
+          "aoiIds": [
+            "cuju-activity",
+            "seated-observer"
+          ]
+        },
+        {
+          "id": "cuju-card-relation",
+          "title": "从位置理解观看关系",
+          "location": "亭台、台下空地与周围站立人物",
+          "text": "画面把坐观者安排在台上，把活动者安排在台下空地。人物的动作和空间位置共同支持“参与活动—观看活动”的关系理解；不需要由此推断比赛胜负或细致规则。沿用馆藏传统题名；画中皇帝身份存在学术争议，本试用不要求判断具体帝号。",
+          "source": "故宫博物院《明人画明宣宗行乐图卷》：https://minghuaji.dpm.org.cn/paint/detail?id=9hv8wtoav5a5hyr0l7pmjc765dwesqti；空间安排为本段可见构图描述。",
+          "aoiIds": [
+            "garden-platform",
+            "seated-observer",
+            "cuju-activity",
+            "side-group"
+          ]
+        }
+      ],
+      "interview": [
+        "问题是否让你区分人物关系与具体活动名称？",
+        "解释卡是否改变了你选择的画面证据？",
+        "是否有区域太小或不清晰，影响理解？"
+      ]
+    }
+  ],
+  "copy": {
+    "intro": "本研究关注观看绘画与理解画面关系的过程。你将观看同一长卷的两个场景、回答问题，并在每个场景阅读两张解释卡。摄像头仅在本机估计视线，不保存或上传视频。回答与视线样本只保存在当前浏览器，结束后可一键导出 ZIP 自行发送给研究者。可以随时退出。",
+    "consent": "我已了解流程，自愿参加，并同意在本机保存匿名回答与摄像头视线估计样本。",
+    "freeView": "请自然观看画面。保持坐姿与屏幕距离，观看结束后页面会自动继续。",
+    "interview": "请简短描述观看、答题和解释卡的使用体验；也可以跳过。"
+  }
+}
