@@ -1,6 +1,6 @@
 import {describe,it,expect} from 'vitest';
 import {strFromU8} from 'fflate';
-import {csvCell,toCSV,buildTextExportFiles} from '../src/export';
+import {csvCell,toCSV,buildTextExportFiles,buildCorrectionExportFiles} from '../src/export';
 import {actualSampleRate,buildDensity,eligibleSamples,heatmapSize} from '../src/heatmap';
 import {paintingFixture,sampleFixture,sessionFixture} from './dataFixtures';
 
@@ -20,6 +20,11 @@ function parseCSV(text:string):string[][]{
 }
 
 describe('research CSV',()=>{
+  it('rejects derived coordinates as raw data and refuses to correct them twice',async()=>{
+    const derived={...sessionFixture(),coordinateSource:'reference-corrected' as const};
+    expect(()=>buildTextExportFiles(derived)).toThrow('参考校正坐标不能作为原始数据导出');
+    await expect(buildCorrectionExportFiles(derived)).rejects.toThrow('不能重复校正派生坐标');
+  });
   it('round-trips Chinese, commas, quotes, actual line breaks, literal slashes, zero, false and missing values',()=>{
     const answer='“器物”，他说 "不知道"\n第二行\r\n第三行\\n';
     const csv=toCSV([{answer,confidence:null,count:0,paused:false}],['answer','confidence','count','paused']);

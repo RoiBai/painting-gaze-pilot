@@ -1,8 +1,10 @@
 import {validationExplanation,legacyUnassessed,validationRuleText} from './quality';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Session } from './types';
 import {defaultScanpath,scanpathExtent,renderScanpath} from './scanpath';
 import { actualSampleRate, eligibleSamples, qualityText, renderHeatmap } from './heatmap';
+import {buildCorrectionPlan,applyCorrection} from './correction';
+import {renderCorrectedHeatmap,renderCorrectedScanpath} from './correctionRender';
 import { buildTextExportFiles, canvasPNG, downloadFile, exportPrefix, exportZip } from './export';
 
 interface Props {session:Session;onChange:(session:Session)=>void;onBack:()=>void}
@@ -10,6 +12,7 @@ export function Results({session,onChange,onBack}:Props){
   const [paintingId,setPaintingId]=useState(session.order[0]);
   const [showAOI,setShowAOI]=useState(false);
   const [view,setView]=useState<'heatmap'|'scanpath'>('heatmap');
+  const [coordinateMode,setCoordinateMode]=useState<'raw'|'corrected'>('raw');
   const [cursorMs,setCursorMs]=useState<number|null>(null);
   const [playing,setPlaying]=useState(false);
   const [speed,setSpeed]=useState(1);
@@ -22,11 +25,19 @@ export function Results({session,onChange,onBack}:Props){
   const [rendering,setRendering]=useState(false);
   const holder=useRef<HTMLDivElement>(null);
   const selected=session.config.paintings.find(p=>p.paintingId===paintingId)??session.config.paintings[0];
+  const correctionPlan=useMemo(()=>buildCorrectionPlan(session),[session]);
+  const correctionModels=correctionPlan.models.filter(model=>model.paintingId===selected.paintingId);
+  const availableModels=correctionModels.filter(model=>model.status==='available');
+  const unavailableModels=correctionModels.filter(model=>model.status==='unavailable');
+  const corrected=coordinateMode==='corrected'&&availableModels.length>0;
+  const correctedSession=useMemo(()=>correctionPlan.available?applyCorrection(session,correctionPlan).session:null,[session,correctionPlan]);
+  const displayedSession=corrected?correctedSession!:session;
   const pathParams=session.scanpath??defaultScanpath;
   const extent=scanpathExtent(session,selected.paintingId);
   const endMs=cursorMs??extent.durationMs;
   const fromMs=trail?Math.max(0,endMs-5000):0;
   useEffect(()=>{setPlaying(false);setCursorMs(null)},[selected.paintingId,session.sessionId]);
+  useEffect(()=>{setCoordinateMode('raw')},[session.sessionId]);
   useEffect(()=>{
     if(!playing||view!=='scanpath')return;
     let position=cursorMs??0;let last=performance.now();
@@ -39,19 +50,21 @@ export function Results({session,onChange,onBack}:Props){
   useEffect(()=>{
     if(session.status==='active')return;
     let cancelled=false;
-    setRendering(true);setError('');
+    setRendering(true);setError('');holder.current?.replaceChildren();
     const timer=window.setTimeout(()=>{
-      const drawing=view==='heatmap'?renderHeatmap(session,selected,session.heatmap,showAOI):renderScanpath(session,selected,pathParams,{showAOI,fromMs,toMs:endMs});
+      const drawing=view==='heatmap'
+        ?corrected?renderCorrectedHeatmap(session,selected,session.heatmap,showAOI,correctionPlan):renderHeatmap(session,selected,session.heatmap,showAOI)
+        :corrected?renderCorrectedScanpath(session,selected,pathParams,{showAOI,fromMs,toMs:endMs},correctionPlan):renderScanpath(session,selected,pathParams,{showAOI,fromMs,toMs:endMs});
       drawing.then(canvas=>{
         if(cancelled)return;
-        canvas.style.width='100%';canvas.style.height='auto';canvas.setAttribute('aria-label',`${selected.title} ${view==='heatmap'?'摄像头视线估计密度图':'摄像头视线估计轨迹'}`);
+        canvas.style.width='100%';canvas.style.height='auto';canvas.setAttribute('aria-label',`${selected.title} ${corrected?'参考校正':'原始记录'} ${view==='heatmap'?'摄像头视线估计密度图':'摄像头视线估计轨迹'}`);
         holder.current?.replaceChildren(canvas);
       }).catch(err=>{if(!cancelled)setError(String(err));}).finally(()=>{if(!cancelled)setRendering(false);});
     },view==='scanpath'?0:150);
     return()=>{cancelled=true;clearTimeout(timer);};
-  },[session,selected,showAOI,view,endMs,fromMs,pathParams]);
+  },[session,selected,showAOI,view,endMs,fromMs,pathParams,corrected,correctionPlan]);
   if(session.status==='active')return <section className="panel"><h2>回看暂不可用</h2><p>完成两幅画与访谈后才能查看结果，避免改变后续观看策略。</p></section>;
-  const samples=eligibleSamples(session,selected.paintingId);
+  const samples=eligibleSamples(displayedSession,selected.paintingId);
   const timings=session.timings.filter(t=>t.paintingId===selected.paintingId);
   const active=timings.reduce((n,t)=>n+t.activeMs,0),wall=timings.reduce((n,t)=>n+t.wallMs,0);
   const allSamples=session.samples.filter(s=>s.phase==='free_view'&&s.paintingId===selected.paintingId&&!s.paused);
@@ -64,12 +77,12 @@ export function Results({session,onChange,onBack}:Props){
     finally{exportLock.current=false;setBusy(false);}
   };
   return <section className="results" aria-label="研究者结果页">
-    <header className="results-header"><div><p className="eyebrow">研究者工作区 · 本机记录</p><h1>{view==='heatmap'?'摄像头视线估计密度图':'摄像头视线估计轨迹（Scan path）'}</h1><p>{session.participantId} · {session.mode==='preview'?'预览模式':'正式研究'} · {session.status==='interrupted'?'中断记录':'已完成'} · {new Date(session.startedUtc).toLocaleString('zh-CN')}</p></div><button onClick={onBack}>返回会话列表</button></header>
+    <header className="results-header"><div><p className="eyebrow">研究者工作区 · 本机记录</p><h1>{corrected?'参考校正 · ':''}{view==='heatmap'?'摄像头视线估计密度图':'摄像头视线估计轨迹（Scan path）'}</h1><p>{session.participantId} · {session.mode==='preview'?'预览模式':'正式研究'} · {session.status==='interrupted'?'中断记录':'已完成'} · {new Date(session.startedUtc).toLocaleString('zh-CN')}</p></div><button onClick={onBack}>返回会话列表</button></header>
     <section className="completion-export" aria-label="导出并发送研究数据" aria-busy={busy}>
       <h2>{session.status==='interrupted'?'本次测试已中断，可导出已保存记录':'测试已完成，谢谢参与'}</h2>
       <p>数据保存在你当前使用的浏览器里，不会自动上传。请下载下面的 ZIP 文件，再通过你与研究者约定的方式发送给对方。</p>
       <button className="primary" disabled={busy} onClick={()=>void execute(()=>exportZip(session),`已请求浏览器下载 ${exportPrefix(session)}.zip。请在下载文件夹确认文件已保存，再将整个 ZIP 发给研究者。`)}>{busy?'正在生成导出，请稍候…':'一键下载 ZIP（含密度图、轨迹图与所有记录）'}</button>
-      <p className="muted">一个 ZIP 包含两幅画的采样记录、回答、验证与流程记录、密度图和轨迹图。无须逐个下载，也无须解压。发送前请保留本机记录，勿清除浏览器网站数据。</p>
+      <p className="muted">一个 ZIP 保留原始采样、回答、验证与流程记录、密度图和轨迹图；有足够参考点时，另含参考校正图、派生坐标和所用参数。无须逐个下载，也无须解压。发送前请保留本机记录，勿清除浏览器网站数据。</p>
       {exportNotice&&<p role="status" className="notice">{exportNotice}</p>}
       {exportError&&<p role="alert" className="error">{exportError}</p>}
     </section>
@@ -78,8 +91,21 @@ export function Results({session,onChange,onBack}:Props){
       <button aria-pressed={view==='heatmap'} onClick={()=>{setView('heatmap');setPlaying(false)}}>密度图</button>
       <button aria-pressed={view==='scanpath'} onClick={()=>setView('scanpath')}>Scan path · 估计轨迹</button>
     </div>
+    <section className="correction-panel" aria-label="坐标校正说明">
+      <div className="view-switch" role="group" aria-label="坐标显示方式">
+        <button aria-pressed={!corrected} onClick={()=>{setCoordinateMode('raw');setPlaying(false)}}>原始记录</button>
+        <button aria-pressed={corrected} disabled={!availableModels.length} onClick={()=>{setCoordinateMode('corrected');setPlaying(false)}}>参考校正</button>
+      </div>
+      <p>{corrected?'当前显示：事后参考校正。':'当前显示：原始记录。'}参考校正按每段观看前、同一校准版本的最近三点检查估算整体平移，保留轨迹的形状与尺度；不会改写原始采样或质量判定。</p>
+      {availableModels.length>0?<>
+        <p className="muted">这是对保存记录的偏移估计，不是新的独立准确度验证；同一画面的个别位置仍可能偏离，部分点也可能变差。</p>
+        {availableModels.map(model=><p key={model.trialId} className="correction-source">{model.trialId}：x {model.offsetX!>=0?'+':''}{model.offsetX!.toFixed(1)} px，y {model.offsetY!>=0?'+':''}{model.offsetY!.toFixed(1)} px；参考检查 {model.runId}。</p>)}
+        {unavailableModels.length>0&&<p className="notice">本画只有部分试次可参考校正。校正图仅显示有依据的试次；其余记录仍保留在原始视图和原始 CSV 中。</p>}
+      </>:<p className="notice">本画暂无可用的参考校正，继续显示原始记录。需要同一校准版本、观看前的三点检查和对应画面几何记录。</p>}
+      {unavailableModels.map(model=><p key={model.trialId} className="muted">{model.trialId}：{model.reason}</p>)}
+    </section>
     <div className="results-controls">
-      <label>画作<select value={selected.paintingId} onChange={e=>setPaintingId(e.target.value)}>{session.config.paintings.map(p=><option key={p.paintingId} value={p.paintingId}>{p.title}</option>)}</select></label>
+      <label>画作<select aria-label="画作" value={selected.paintingId} onChange={e=>{setPaintingId(e.target.value);setCoordinateMode('raw')}}>{session.config.paintings.map(p=><option key={p.paintingId} value={p.paintingId}>{p.title}</option>)}</select></label>
       {view==='heatmap'?<>
       <label>叠加透明度 {Math.round(session.heatmap.opacity*100)}%<input aria-label="叠加透明度" type="range" min="0" max="1" step="0.05" value={session.heatmap.opacity} onChange={e=>onChange({...session,heatmap:{...session.heatmap,opacity:Number(e.target.value)}})}/></label>
       <label>核宽 σ {session.heatmap.kernelPx} px<input aria-label="核宽" type="range" min="6" max="80" step="2" value={session.heatmap.kernelPx} onChange={e=>onChange({...session,heatmap:{...session.heatmap,kernelPx:Number(e.target.value)}})}/></label>
@@ -100,13 +126,13 @@ export function Results({session,onChange,onBack}:Props){
       <label>时间 {(endMs/1000).toFixed(1)} / {(extent.durationMs/1000).toFixed(1)} 秒<input aria-label="轨迹时间" type="range" min="0" max={Math.max(1,extent.durationMs)} step="1" value={endMs} disabled={extent.durationMs<=0} onChange={e=>{setPlaying(false);setCursorMs(Number(e.target.value))}}/></label>
       <p className="muted">时间从本画首次展示开始，包含暂停与重复展示的间隔。null、画外、暂停、长缺口或校准/显示几何改变时断线，不补点。完整轨迹 PNG 导出包含全时段；当前回放窗口仅用于回看。</p>
     </div>}
-    <div className="metrics"><div><strong>{samples.length}</strong><span>画内有效样本</span></div><div><strong>{allSamples.length}</strong><span>全部非暂停回调（含 null）</span></div><div><strong>{(active/1000).toFixed(2)} s</strong><span>有效展示 / 墙钟 {(wall/1000).toFixed(2)} s</span></div><div><strong>{rate===null?'—':rate.toFixed(2)} Hz</strong><span>按实际展示时长统计回调率</span></div></div>
+    <div className="metrics"><div><strong>{samples.length}</strong><span>{corrected?'参考校正后画内样本':'画内有效样本'}</span></div><div><strong>{allSamples.length}</strong><span>全部非暂停回调（含 null）</span></div><div><strong>{(active/1000).toFixed(2)} s</strong><span>有效展示 / 墙钟 {(wall/1000).toFixed(2)} s</span></div><div><strong>{rate===null?'—':rate.toFixed(2)} Hz</strong><span>按实际展示时长统计回调率</span></div></div>
     {error&&<p role="alert" className="error">{error}</p>}
     {rendering&&<p role="status">正在从保存的样本重绘…</p>}
     <div ref={holder} className="heatmap-canvas"/>
-    {!samples.length&&<p className="notice">无可用数据。保留原画和质量说明，不生成占位热点。</p>}
-    <div className="export-actions"><button disabled={busy} onClick={()=>void execute(async()=>{const canvas=await renderHeatmap(session,selected,session.heatmap,false);downloadFile(`${exportPrefix(session)}_heatmap_${selected.paintingId}.png`,await canvasPNG(canvas));})}>下载本画密度图 PNG</button><button disabled={busy} onClick={()=>void execute(async()=>{const canvas=await renderScanpath(session,selected,pathParams);downloadFile(`${exportPrefix(session)}_scanpath_${selected.paintingId}.png`,await canvasPNG(canvas));})}>下载本画完整轨迹 PNG</button></div>
-    <p className="muted">导出图默认不含 AOI 框：密度图使用当前核宽与透明度，轨迹图使用当前显示间隔和编号密度并包含完整时段。参数、分辨率及筛选规则写入 session.json；旧会话也能从已保存的采样生成轨迹。</p>
+    {!samples.length&&<p className="notice">{corrected?'当前参考校正范围没有画内样本。':'无可用数据。'}保留原画和质量说明，不生成占位热点。</p>}
+    <div className="export-actions"><button disabled={busy} onClick={()=>void execute(async()=>{const canvas=corrected?await renderCorrectedHeatmap(session,selected,session.heatmap,false,correctionPlan):await renderHeatmap(session,selected,session.heatmap,false);downloadFile(`${exportPrefix(session)}_${corrected?'corrected_':''}heatmap_${selected.paintingId}.png`,await canvasPNG(canvas));})}>{corrected?'下载本画参考校正密度图 PNG':'下载本画密度图 PNG'}</button><button disabled={busy} onClick={()=>void execute(async()=>{const canvas=corrected?await renderCorrectedScanpath(session,selected,pathParams,{},correctionPlan):await renderScanpath(session,selected,pathParams);downloadFile(`${exportPrefix(session)}_${corrected?'corrected_':''}scanpath_${selected.paintingId}.png`,await canvasPNG(canvas));})}>{corrected?'下载本画参考校正完整轨迹 PNG':'下载本画完整轨迹 PNG'}</button></div>
+    <p className="muted">单图 PNG 跟随当前原始／参考校正选择；ZIP 同时保留原始数据和可用的参考校正结果。导出图默认不含 AOI 框：密度图使用当前核宽与透明度，轨迹图使用当前显示间隔和编号密度并包含完整时段。参数、分辨率及筛选规则写入 session.json；旧会话也能从已保存的采样生成轨迹。</p>
     <div className="export-actions">{['gaze_samples.csv','phase_events.csv','responses.csv','validation.csv','session.json'].map(name=><button className="secondary" key={name} disabled={busy} onClick={()=>void execute(()=>downloadFile(`${exportPrefix(session)}_${name}`,buildTextExportFiles(session)[name]))}>{name}</button>)}</div>
     <details><summary>独立验证与漂移检查</summary><p>该会话冻结的合格线：{validationRuleText(session.config.validation)}</p><p>误差为预测点到目标的欧氏距离（CSS px）的中位数；相对误差以视口对角线归一化。预热期样本不进入判断。</p><div className="table-scroll"><table><thead><tr><th>运行 / 类型</th><th>校准版本</th><th>整体中位误差</th><th>对角线比例</th><th>状态</th><th>各目标有效样本 / 中位误差</th></tr></thead><tbody>{session.validationSummaries.map(v=><tr key={v.runId}><td>{v.runId}<br/>{v.kind}</td><td>{v.calibrationVersion}</td><td>{v.medianErrorPx?.toFixed(1)??'—'} px</td><td>{v.errorDiagonalRatio===null?'—':(v.errorDiagonalRatio*100).toFixed(1)+'%'}</td><td>{{pass:'符合冻结阈值',fail:'未通过',judgment:'质量未判定'}[v.status]}{validationExplanation(v,session.config.validation).map((reason,i)=><p key={i}>{reason}</p>)}</td><td>{v.targets.map(t=><div key={t.targetId}>{t.targetId}: {t.n} / {t.medianErrorPx?.toFixed(1)??'—'} px</div>)}</td></tr>)}</tbody></table></div></details>
     <details><summary>研究者评分参考与回答</summary><p>评分仅供研究者离线判断；系统不推断参与者哪里没有理解。</p>{session.config.paintings.map(p=><section key={p.paintingId}><h3>{p.title}</h3>{[...p.pre,...p.post].map(q=><p key={q.id}><strong>{q.prompt}</strong><br/>{q.scoring}</p>)}<h4>访谈参考</h4>{p.interview.map(q=><p key={q}>{q}</p>)}</section>)}<div className="table-scroll"><table><thead><tr><th>画作 / 阶段</th><th>题号</th><th>原话</th><th>信心</th><th>跳过 / 不知道</th></tr></thead><tbody>{session.responses.map((r,i)=><tr key={i}><td>{r.paintingId??'—'} / {r.phase}</td><td>{r.questionId}</td><td style={{whiteSpace:'pre-wrap'}}>{r.answer}</td><td>{r.confidence??'—'}</td><td>{r.skipped?'跳过':r.unknown?'不知道':'—'}</td></tr>)}</tbody></table></div></details>

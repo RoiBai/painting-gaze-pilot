@@ -154,7 +154,7 @@ export async function renderScanpath(session:Session,painting:Painting,params:Sc
   const lines=[
     `${session.participantId} · ${painting.title} · free_view · ${qualityText(session)}`,
     `时间窗 ${(model.fromMs/1000).toFixed(2)}–${(model.toMs/1000).toFixed(2)} 秒 · 时间轴含暂停和重复试次间隔`,
-    `画内原样本 ${model.sourceCount} · 显示 ${model.displayedCount} 点 / ${model.segmentCount} 段 · 有效展示 ${(active/1000).toFixed(2)} 秒 / 试次墙钟 ${(wall/1000).toFixed(2)} 秒`,
+    `${session.coordinateSource==='reference-corrected'?'校正后画内样本':'画内原样本'} ${model.sourceCount} · 显示 ${model.displayedCount} 点 / ${model.segmentCount} 段 · 有效展示 ${(active/1000).toFixed(2)} 秒 / 试次墙钟 ${(wall/1000).toFixed(2)} 秒`,
     `${params.displayIntervalMs===0?'显示全部真实样本':`每 ${params.displayIntervalMs} ms 选一个真实样本（另保留分段首尾）`}；仅显示抽稀，不改采样数据`,
     `编号按显示样本顺序；蓝→橙表示时间先后；等大点不表示注视时长；缺口处断线`,
   ];
