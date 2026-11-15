@@ -13,7 +13,7 @@ test('existing-session results can switch to scan path, scrub, play, adjust thin
 });
 test('new default pass line is visible and configurable',async({page})=>{
  await page.goto('/');await page.getByRole('button',{name:'研究者设置',exact:true}).click();
- await expect(page.getByLabel('验证中位误差上限（CSS px；空值为未设置）')).toHaveValue('150');
+ await expect(page.getByLabel('验证中位误差上限（CSS px；空值为未设置）')).toHaveValue('250');
  await expect(page.getByLabel('误差 / 视口对角线上限（0–1）')).toHaveValue('0.1');
  await expect(page.getByLabel('单目标中位误差上限（CSS px）')).toHaveValue('200');
  await expect(page.getByLabel('每个目标最少有效样本')).toHaveValue('10');

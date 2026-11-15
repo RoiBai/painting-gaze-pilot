@@ -1,5 +1,5 @@
 {
-  "version": "pilot-1.2",
+  "version": "pilot-1.2.2",
   "mode": "preview",
   "durationSeconds": 60,
   "order": "alternate",
@@ -7,7 +7,7 @@
   "kalman": true,
   "displayMode": "window",
   "validation": {
-    "maxMedianErrorPx": 150,
+    "maxMedianErrorPx": 250,
     "maxErrorDiagonalRatio": 0.1,
     "minSamplesPerTarget": 10,
     "targetDurationMs": 2500,

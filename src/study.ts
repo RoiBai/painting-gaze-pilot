@@ -45,9 +45,9 @@ function previewPainting(id: 'A' | 'B'): Painting {
 export const geometricPreviewMaterials: Painting[] = [previewPainting('A'), previewPainting('B')];
 
 export const defaultConfig: StudyConfig = {
-  version: 'pilot-1.2', mode: 'preview', durationSeconds: 60, order: 'alternate',
+  version: 'pilot-1.2.2', mode: 'preview', durationSeconds: 60, order: 'alternate',
   regression: 'ridge', kalman: true, displayMode: 'window',
-  validation: { maxMedianErrorPx: 150, maxErrorDiagonalRatio: 0.10, maxTargetMedianErrorPx: 200, minSamplesPerTarget: 10, targetDurationMs: 2500, settleMs: 700 },
+  validation: { maxMedianErrorPx: 250, maxErrorDiagonalRatio: 0.10, maxTargetMedianErrorPx: 200, minSamplesPerTarget: 10, targetDurationMs: 2500, settleMs: 700 },
   nullPauseMs: 3000, calibrationClicks: 5,
   paintings: sceneMaterials,
   copy: {

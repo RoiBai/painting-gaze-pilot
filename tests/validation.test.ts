@@ -30,7 +30,7 @@ describe('independent validation', () => {
 });
 
 describe('pilot screening policy',()=>{
- const pilot={...threshold,maxMedianErrorPx:150,maxErrorDiagonalRatio:.10,maxTargetMedianErrorPx:200,minSamplesPerTarget:10};
+ const pilot={...threshold,maxMedianErrorPx:250,maxErrorDiagonalRatio:.10,maxTargetMedianErrorPx:200,minSamplesPerTarget:10};
  const repeated=(left:number,right:number,n=10)=>[...Array.from({length:n},()=>row('left',left)),...Array.from({length:n},()=>row('right',right))];
  it('accepts only when counts, pooled error and target error all meet the frozen rule',()=>{
   expect(summary(repeated(90,100),pilot).status).toBe('pass');
