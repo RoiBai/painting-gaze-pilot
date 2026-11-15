@@ -1,5 +1,7 @@
 # GitHub Pages 部署
 
+网站：<https://roibai.github.io/painting-gaze-pilot/>。源码仓库：<https://github.com/RoiBai/painting-gaze-pilot>。
+
 本项目是静态网站。GitHub Pages 提供 HTTPS，摄像头计算、IndexedDB 保存和 ZIP 打包均在访问者的浏览器内执行。应用没有提交研究数据的接口。网页和模型的正常下载请求由 GitHub 处理，不代表研究数据上传。
 
 ## 构建与发布

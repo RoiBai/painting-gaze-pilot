@@ -1,5 +1,7 @@
 # 观画 · 摄像头视线估计先导研究
 
+[在线测试网站](https://roibai.github.io/painting-gaze-pilot/) · [GitHub 仓库](https://github.com/RoiBai/painting-gaze-pilot)
+
 本地 React + TypeScript + Vite 网站。默认每个场景观看 **60 秒**（两景共 2 分钟，不含校准与问答）。真实采集只调用官方 **WebGazer 3.5.3**；没有自写视线模型、鼠标替代样本或生产模拟数据。默认试用《明宣宗行乐图》同一长卷的射箭和蹴鞠两个场景，不是两幅独立作品。材料默认待研究者核查，正式模式会拦截未准备好的材料。
 
 ## 启动
