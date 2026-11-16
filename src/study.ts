@@ -1,5 +1,6 @@
 import type { Painting, StudyConfig } from './types';
 import { sceneMaterials } from './sceneMaterials';
+import {commonQuestions,COMMON_QUESTIONNAIRE_VERSION} from './commonQuestionnaire';
 
 function previewPainting(id: 'A' | 'B'): Painting {
   const horizontal = id === 'A';
@@ -45,11 +46,11 @@ function previewPainting(id: 'A' | 'B'): Painting {
 export const geometricPreviewMaterials: Painting[] = [previewPainting('A'), previewPainting('B')];
 
 export const defaultConfig: StudyConfig = {
-  version: 'pilot-1.4.0', mode: 'preview', durationSeconds: 60, order: 'alternate', participantPlan: 'crossed-four-v1',
+  version: 'pilot-1.5.0', mode: 'preview', durationSeconds: 60, order: 'alternate', participantPlan: 'common-four-v2', questionnaireVersion:COMMON_QUESTIONNAIRE_VERSION,
   regression: 'ridge', kalman: true, displayMode: 'window',
   validation: { maxMedianErrorPx: 250, maxErrorDiagonalRatio: 0.10, maxTargetMedianErrorPx: 200, minSamplesPerTarget: 10, targetDurationMs: 2500, settleMs: 700 },
   nullPauseMs: 3000, calibrationClicks: 5,
-  paintings: sceneMaterials,
+  paintings: sceneMaterials.map(p=>({...structuredClone(p),...structuredClone(commonQuestions[p.paintingId])})),
   copy: {
     intro: '本研究关注观看绘画与理解画面关系的过程。你将观看同一长卷的两个场景、回答问题，并在每个场景阅读两张解释卡。摄像头仅在本机估计视线，不保存或上传视频。回答与视线样本只保存在当前浏览器，结束后可一键导出 ZIP 自行发送给研究者。可以随时退出。',
     consent: '我已了解流程，自愿参加，并同意在本机保存匿名回答与摄像头视线估计样本。',
@@ -73,7 +74,8 @@ export function validateConfig(input: unknown): string[] {
   if (!['preview', 'research'].includes(c.mode as string)) errors.push('模式须为 preview 或 research');
   if (!numeric(c.durationSeconds, 1, 3600)) errors.push('观看时长须为 1–3600 秒');
   if (!['alternate', 'AB', 'BA'].includes(c.order as string)) errors.push('顺序须为 alternate、AB 或 BA');
-  if (c.participantPlan !== undefined && c.participantPlan !== 'crossed-four-v1') errors.push('参与者安排须为 crossed-four-v1 或省略（旧流程）');
+  if (c.participantPlan !== undefined && !['crossed-four-v1','common-four-v2'].includes(c.participantPlan as string)) errors.push('参与者安排须为 common-four-v2、历史 crossed-four-v1 或省略（自定顺序）');
+  if(c.questionnaireVersion!==undefined&&c.questionnaireVersion!==COMMON_QUESTIONNAIRE_VERSION)errors.push('未知的共同问卷版本');
   if (!['ridge', 'weightedRidge'].includes(c.regression as string)) errors.push('回归设置须为 ridge 或 weightedRidge');
   if (typeof c.kalman !== 'boolean') errors.push('kalman 须为布尔值');
   if (!['window', 'fullscreen'].includes(c.displayMode as string)) errors.push('显示模式须为 window 或 fullscreen');
@@ -137,10 +139,27 @@ export function validateConfig(input: unknown): string[] {
     const prePrompts: unknown[] = [];
     for (const section of ['pre', 'post']) {
       const qs = p[section];
-      if (!Array.isArray(qs) || qs.length < 2 || qs.length > 3) errors.push(`${label} ${section} 须有 2–3 道问题`);
+      if (!Array.isArray(qs) || qs.length < 2 || qs.length > (section==='pre'?5:3)) errors.push(`${label} ${section} 须有 ${section==='pre'?'2–5':'2–3'} 道问题`);
       if (Array.isArray(qs)) for (const q of qs) {
         if (!object(q)) { errors.push(`${label}问题须为对象`); continue; }
         for (const key of ['id', 'prompt', 'scoring']) requireText(q[key], `${label} ${section} ${key}`);
+        if(q.type!==undefined&&!['text','multi-select'].includes(q.type as string))errors.push(`${label}问题 type 无效`);
+        if(q.description!==undefined&&typeof q.description!=='string')errors.push(`${label}问题 description 须为文字`);
+        for(const flag of ['optional','confidence','allowUnknown'])if(q[flag]!==undefined&&typeof q[flag]!=='boolean')errors.push(`${label}问题 ${flag} 须为布尔值`);
+        if(q.analysisRole!==undefined&&!['spontaneous','prompted','classification','card-feedback'].includes(q.analysisRole as string))errors.push(`${label}问题 analysisRole 无效`);
+        if(q.type==='multi-select'){
+          if(!Array.isArray(q.options)||q.options.length<2)errors.push(`${label}多选题至少须有两项 options`);
+          else{
+            const optionIds:unknown[]=[];
+            for(const option of q.options){
+              if(!object(option)){errors.push(`${label}多选选项须为对象`);continue;}
+              requireText(option.id,`${label}选项 id`);requireText(option.label,`${label}选项 label`);optionIds.push(option.id);
+              if(option.exclusive!==undefined&&typeof option.exclusive!=='boolean')errors.push(`${label}选项 exclusive 须为布尔值`);
+            }
+            if(!unique(optionIds))errors.push(`${label}多选选项 id 重复`);
+            if(q.otherOptionId!==undefined&&(!text(q.otherOptionId)||!optionIds.includes(q.otherOptionId)||q.options.some(o=>object(o)&&o.id===q.otherOptionId&&o.exclusive===true)))errors.push(`${label}otherOptionId 须引用非互斥选项`);
+          }
+        }else if(q.options!==undefined||q.otherOptionId!==undefined)errors.push(`${label}文字题不能配置多选 options`);
         questionIds.push(q.id);
         if (section === 'pre') prePrompts.push(q.prompt);
         else if (prePrompts.includes(q.prompt)) errors.push(`${label}解释后问题不能照抄解释前问题`);
@@ -160,6 +179,6 @@ export function validateConfig(input: unknown): string[] {
     if (!Array.isArray(p.interview) || !p.interview.length || !p.interview.every(text)) errors.push(`${label}须提供访谈问题`);
   }
   if (!unique(paintingIds)) errors.push('两幅画的 paintingId 必须不同');
-  if (c.participantPlan === 'crossed-four-v1' && (paintingIds.length !== 2 || !['ming-xingle-archery', 'ming-xingle-cuju'].every(id => paintingIds.includes(id)))) errors.push('四人交叉方案仅适用于射箭与蹴鞠两幅指定场景；其他材料请关闭四人方案');
+  if (['crossed-four-v1','common-four-v2'].includes(c.participantPlan as string) && (paintingIds.length !== 2 || !['ming-xingle-archery', 'ming-xingle-cuju'].every(id => paintingIds.includes(id)))) errors.push('四人顺序方案仅适用于射箭与蹴鞠两幅指定场景；其他材料请关闭四人方案');
   return errors;
 }

@@ -59,4 +59,22 @@ describe('material and schema gates', () => {
     const c = structuredClone(defaultConfig); c.paintings[0].image = 'https://example.test/image.jpg'; c.durationSeconds = NaN; c.validation.settleMs = c.validation.targetDurationMs;
     expect(validateConfig(c).length).toBeGreaterThanOrEqual(3);
   });
+  it('supports common five-before/two-after questions and historical two-question forms',()=>{
+    expect(defaultConfig.questionnaireVersion).toBe('common-viewing-v1');
+    for(const painting of defaultConfig.paintings){expect(painting.pre).toHaveLength(5);expect(painting.post).toHaveLength(2)}
+    const old=structuredClone(defaultConfig);delete old.questionnaireVersion;old.participantPlan='crossed-four-v1';
+    old.paintings.forEach(p=>{p.pre=p.pre.slice(0,2)});
+    expect(validateConfig(old)).toEqual([]);
+  });
+  it('rejects malformed multiple-choice definitions without throwing',()=>{
+    const badOptions=[undefined,[],[null,{}],[{id:'same',label:'一'},{id:'same',label:'二'}],[{id:'a',label:'一',exclusive:'yes'},{id:'other',label:'其他'}]];
+    for(const options of badOptions){
+      const c=structuredClone(defaultConfig);(c.paintings[0].pre[4] as unknown as {options:unknown}).options=options;
+      expect(()=>validateConfig(c)).not.toThrow();expect(validateConfig(c).length).toBeGreaterThan(0);
+    }
+    const c=structuredClone(defaultConfig);c.paintings[0].pre[4].otherOptionId='none';
+    expect(validateConfig(c).some(e=>e.includes('otherOptionId'))).toBe(true);
+    c.paintings[0].pre[4].otherOptionId='missing';
+    expect(validateConfig(c).some(e=>e.includes('otherOptionId'))).toBe(true);
+  });
 });

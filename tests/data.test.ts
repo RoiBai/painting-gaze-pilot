@@ -3,6 +3,8 @@ import {strFromU8} from 'fflate';
 import {csvCell,toCSV,buildTextExportFiles,buildCorrectionExportFiles} from '../src/export';
 import {actualSampleRate,buildDensity,eligibleSamples,heatmapSize} from '../src/heatmap';
 import {paintingFixture,sampleFixture,sessionFixture} from './dataFixtures';
+import {freezeBackground} from '../src/background';
+import {commonQuestions,COMMON_QUESTIONNAIRE_VERSION} from '../src/commonQuestionnaire';
 
 // Independent RFC-4180 reader to verify raw Chinese multiline responses survive export.
 function parseCSV(text:string):string[][]{
@@ -54,8 +56,8 @@ describe('research CSV',()=>{
     const before=structuredClone(s),files=buildTextExportFiles(s);
     const rows=parseCSV(strFromU8(files['responses.csv']).replace(/^\ufeff/,'')),header=rows[0];
     expect(header.slice(0,11)).toEqual(['sessionId','participantId','paintingId','phase','questionId','answer','confidence','unknown','skipped','durationMs','timeMs']);
-    expect(header.slice(11)).toEqual(['planVersion','questionVariant','questionVersion','sceneOrder','paintingOrder','questionPrompt']);
-    expect(rows[1].slice(11)).toEqual(['crossed-four-v1','beta','frozen-question-version','BA','["B","A"]',prompt]);
+    expect(header.slice(11,17)).toEqual(['planVersion','questionVariant','questionVersion','sceneOrder','paintingOrder','questionPrompt']);
+    expect(rows[1].slice(11,17)).toEqual(['crossed-four-v1','beta','frozen-question-version','BA','["B","A"]',prompt]);
     expect(rows[2][header.indexOf('questionPrompt')]).toBe(s.config.paintings[1].post[0].prompt);
     expect(rows[1][5]).toBe(before.responses[0].answer);expect(rows[1][6]).toBe('2');
     const snapshot=JSON.parse(strFromU8(files['session.json']));
@@ -71,6 +73,35 @@ describe('research CSV',()=>{
     for(const row of rows.slice(1))expect(row.slice(11,16)).toEqual(['','','','','']);
     expect(rows.slice(1).map(row=>row[16])).toEqual(['旧会话实际使用的题目','','旧会话总访谈','旧会话画作访谈']);
     expect(JSON.parse(strFromU8(files['session.json']))).not.toHaveProperty('assignment');
+    for(const row of rows.slice(1))expect(row[rows[0].indexOf('analysisRole')]).toBe('');
+  });
+  it('exports common questionnaire roles, frozen multi-select wording and background separately without rewriting the session',()=>{
+    const s=sessionFixture();s.config.questionnaireVersion=COMMON_QUESTIONNAIRE_VERSION;
+    const questions=structuredClone(commonQuestions['ming-xingle-archery']);
+    s.config.paintings[0]={...s.config.paintings[0],...questions};
+    s.background=freezeBackground({studyField:'材料, "工程"\n跨领域',artEducation:'short',paintingInterest:4});
+    s.background.questions[1].options![1].label='这次实际展示的学习经历文字';
+    s.config.paintings[0].pre[4].options!.find(option=>option.id==='other')!.label='这次实际展示的其他文字';
+    s.responses=([...questions.pre,...questions.post]).map((q,i)=>({sessionId:s.sessionId,participantId:s.participantId,paintingId:'A',phase:i<5?'pre':'post',questionId:q.id,answer:i===4?'其他：原始补充，含引号 "例"':'原话',confidence:null,unknown:false,skipped:false,durationMs:100,timeMs:i*100,...(i===4?{selectedOptions:['context','other'],otherText:'原始补充，含引号 "例"'}:{})}));
+    const before=structuredClone(s),files=buildTextExportFiles(s);
+    expect(Object.keys(files)).toEqual(['gaze_samples.csv','phase_events.csv','responses.csv','validation.csv','session.json','background.csv']);
+    const rows=parseCSV(strFromU8(files['responses.csv']).replace(/^\ufeff/,'')),header=rows[0];
+    expect(header.slice(17)).toEqual(['questionIndex','analysisRole','selectedOptionIds','selectedOptionLabels','otherText']);
+    expect(rows.slice(1).map(row=>row[header.indexOf('analysisRole')])).toEqual(['spontaneous','spontaneous','spontaneous','prompted','classification','card-feedback','card-feedback']);
+    expect(rows.slice(1).map(row=>row[header.indexOf('questionIndex')])).toEqual(['1','2','3','4','5','1','2']);
+    expect(rows[1][header.indexOf('questionVersion')]).toBe(COMMON_QUESTIONNAIRE_VERSION);
+    expect(rows[1][header.indexOf('questionVariant')]).toBe('common');
+    expect(rows[5][header.indexOf('selectedOptionIds')]).toBe('["context","other"]');
+    expect(JSON.parse(rows[5][header.indexOf('selectedOptionLabels')])).toEqual(['缺少相关背景知识','这次实际展示的其他文字']);
+    expect(rows[5][header.indexOf('otherText')]).toBe(s.responses[4].otherText);
+    const background=parseCSV(strFromU8(files['background.csv']).replace(/^\ufeff/,''));
+    expect(background[0]).toEqual(['sessionId','participantId','backgroundVersion','questionId','questionPrompt','answer','answerCode']);
+    expect(background[1].slice(3)).toEqual(['studyField','你的主要学习或工作领域是什么？',s.background.answers.studyField,s.background.answers.studyField]);
+    expect(background[2].slice(5)).toEqual(['这次实际展示的学习经历文字','short']);
+    expect(background[3].slice(5)).toEqual(['4','4']);
+    const snapshot=JSON.parse(strFromU8(files['session.json']));
+    expect(snapshot.background).toEqual(before.background);expect(snapshot.responses).toEqual(before.responses);expect(s).toEqual(before);
+    expect(snapshot.exportMetadata.questionnaireAnalysis.interpretation).toContain('不能计为自发发现');
   });
 });
 

@@ -1,15 +1,15 @@
 import { test, expect } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import { unzipSync, strFromU8 } from 'fflate';
-import { questionVariants, QUESTION_VARIANT_VERSION } from '../../src/questionVariants';
+import { commonQuestions, COMMON_QUESTIONNAIRE_VERSION } from '../../src/commonQuestionnaire';
+import {consentAndStart,backgroundAnswers,csvRecords} from '../e2e/helpers';
 
 test('published researcher preview and all four participant links preserve the Pages subpath', async ({page}) => {
   const site = new URL(String(test.info().project.use.baseURL));
   await page.goto('./?preview=design');
-  const table = page.getByRole('table', {name:'四人交叉分配'});
+  const table = page.getByRole('table', {name:'观看顺序安排'});
   await expect(table).toBeVisible();
-  await expect(page.getByText(questionVariants.alpha['ming-xingle-archery'].pre[0].prompt, {exact:true})).toBeVisible();
-  await expect(page.getByText(questionVariants.beta['ming-xingle-archery'].pre[0].prompt, {exact:true})).toBeVisible();
+  for(const q of [...commonQuestions['ming-xingle-archery'].pre,...commonQuestions['ming-xingle-archery'].post])await expect(page.getByText(q.prompt, {exact:true})).toBeVisible();
   await page.locator('.assignment-preview').screenshot({path:'docs/qa-assignment.png'});
   for(const id of ['N03','N04','N05','N06']) {
     await expect(table.getByRole('link', {name:`${id} ↗`})).toHaveAttribute('href', `${site.pathname}?participant=${id}`);
@@ -17,7 +17,10 @@ test('published researcher preview and all four participant links preserve the P
   for(const id of ['N03','N04','N05','N06']) {
     await page.goto(`./?participant=${id}`);
     await expect(page.getByLabel('匿名参与者编号')).toHaveValue(id);
-    await expect(page.getByRole('table', {name:'四人交叉分配'})).toHaveCount(0);
+    await expect(page.getByRole('table', {name:'观看顺序安排'})).toHaveCount(0);
+    await expect(page.getByRole('textbox',{name:'你的主要学习或工作领域是什么？',exact:true})).toHaveValue('');
+    await expect(page.getByLabel('你是否学习过美术、设计或艺术史？',{exact:true})).toHaveValue('');
+    await expect(page.getByLabel('你对欣赏绘画有多大兴趣？',{exact:true})).toHaveValue('');
   }
 });
 
@@ -36,8 +39,7 @@ test('Pages subpath loads pinned local resources and exports a local session ZIP
   const paths = await page.locator('img.material-preview').evaluateAll(images => images.map(image => new URL((image as HTMLImageElement).src).pathname));
   expect(paths.every(path => path.startsWith(`${site.pathname}materials/`))).toBe(true);
   await page.getByRole('button', { name: '返回开始页', exact: true }).click();
-  await page.getByRole('checkbox').check();
-  await page.getByRole('button', { name: /同意并进入摄像头准备/ }).click();
+  await consentAndStart(page);
   await page.getByRole('button', { name: '启用 / 重试摄像头', exact: true }).click();
   await expect(page.locator('.status')).toContainText('未获得有效预测', { timeout: 60_000 });
   expect(requests.some(request => request.url.endsWith('.wasm'))).toBe(true);
@@ -48,7 +50,7 @@ test('Pages subpath loads pinned local resources and exports a local session ZIP
 
   await page.getByRole('button', { name: '退出并保留记录', exact: true }).click();
   await expect(page.locator('iframe[data-webgazer-runtime]')).toHaveCount(0);
-  await expect(page.getByLabel('本次分组', { exact: true })).toContainText(/蹴鞠.*射箭.*甲（alpha）/);
+  await expect(page.getByLabel('本次分组', { exact: true })).toContainText(/蹴鞠.*射箭.*共同问卷/);
   const downloadPromise = page.waitForEvent('download');
   await page.getByRole('button', { name: /一键.*ZIP/ }).click();
   const download = await downloadPromise;
@@ -59,14 +61,17 @@ test('Pages subpath loads pinned local resources and exports a local session ZIP
   const snapshot = JSON.parse(strFromU8(archive[snapshotPath]));
   expect(snapshot.participantId).toBe('N04');
   expect(snapshot.status).toBe('interrupted');
-  expect(snapshot.assignment).toEqual({planVersion:'crossed-four-v1',participantId:'N04',order:'BA',questionVariant:'alpha',questionVersion:QUESTION_VARIANT_VERSION,paintingOrder:['ming-xingle-cuju','ming-xingle-archery']});
+  expect(snapshot.assignment).toEqual({planVersion:'common-four-v2',participantId:'N04',order:'BA',questionVariant:'common',questionVersion:COMMON_QUESTIONNAIRE_VERSION,paintingOrder:['ming-xingle-cuju','ming-xingle-archery']});
   expect(snapshot.order).toEqual(['ming-xingle-cuju','ming-xingle-archery']);
   for (const painting of snapshot.config.paintings) {
-    expect(painting.pre).toEqual(questionVariants.alpha[painting.paintingId].pre);
-    expect(painting.post).toEqual(questionVariants.alpha[painting.paintingId].post);
+    expect(painting.pre).toEqual(commonQuestions[painting.paintingId].pre);
+    expect(painting.post).toEqual(commonQuestions[painting.paintingId].post);
   }
   expect(snapshot.config.paintings[0].image).toBe('/materials/ming-xingle-archery-v2.png');
-  expect(names.filter(name => name.endsWith('.csv'))).toHaveLength(4);
+  expect(names.filter(name => name.endsWith('.csv'))).toHaveLength(5);
+  expect(snapshot.background.answers).toEqual(backgroundAnswers);
+  const backgroundPath=names.find(name=>name.endsWith('/background.csv'))!;
+  expect(csvRecords(strFromU8(archive[backgroundPath]))).toHaveLength(3);
   expect(names.filter(name => name.endsWith('.png'))).toHaveLength(4);
   // Raw null callbacks from preparation are retained, never substituted with gaze.
   expect(snapshot.samples.length).toBeGreaterThan(0);

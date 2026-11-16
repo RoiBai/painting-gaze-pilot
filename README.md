@@ -27,26 +27,26 @@ npm run test:e2e      # 本机已安装 Google Chrome；Playwright 自动启停�
 
 ## 最短人工验收（真实摄像头验证待在本机完成）
 
-1. 研究者设置保持「预览」，时长改为 **5 秒**，选 N03；同意后启用真实摄像头。检查模型加载、人脸反馈、系统相机灯。
+1. 研究者设置保持「预览」，时长改为 **5 秒**，选 N03，填写三道背景题；同意后启用真实摄像头。检查模型加载、人脸反馈、系统相机灯。
 2. 注视每个圆点并点击 5 次，完成九点校准。独立验证只看圆点，不移动鼠标去追点；检查各目标样本数和误差，不把“有预测”当成准确。
 3. 验证结果展开「研究者：真实预测接通检查」。保持鼠标不动，依次看左 / 中 / 右大目标，观察实际库回调 x/y 是否随注视变化。**这是接通检查，不是科学精度证明。** 未设误差标准但样本足够时显示「质量未判定」，可保留此状态继续；实际样本不足或误差超标时会明确提示原因，继续须保留低质量标记。
-4. 完成每景前漂移检查、两景短观看、熟悉度、前题、两张固定卡、后题和访谈。观看时应只有原图；按 Esc 暂停会遮住画面。切换标签和调整窗口应触发暂停/重新校准。
-5. 结果页下载 ZIP；核对原始两幅密度图和两幅轨迹图 PNG、四个 CSV、session.json；具备校正参考时另含校正图、派生坐标 CSV 和 correction.json。gaze_samples 应有真实变化的回调；null 留空，画外不夹边。退出后相机灯应熄灭。新选 N04，须重新校准，顺序 BA。
+4. 完成每景前漂移检查、两景短观看、五道共同看后题、两张固定卡和两道反馈题。观看时应只有原图；按 Esc 暂停会遮住画面。切换标签和调整窗口应触发暂停/重新校准。
+5. 结果页下载 ZIP；核对原始两幅密度图和两幅轨迹图 PNG、五个 CSV（含背景）、session.json；具备校正参考时另含校正图、派生坐标 CSV 和 correction.json。gaze_samples 应有真实变化的回调；null 留空，画外不夹边。退出后相机灯应熄灭。新选 N04，须重新校准，顺序 BA。
 
 若失败，请保留错误界面、控制台错误、Chrome 版本与网络失败资源。不要改用鼠标或随机样本继续冒充摄像头记录。没有相机也可明确选择「仅试用流程」，会显示无数据，保存 flow_only 标记。
 
 ## 材料与设置
 
-- `src/study.ts`：默认 study 配置及完整校验。`src/sceneMaterials.ts`：实际两个场景的图源、关系、AOI、问题、固定卡、评分和访谈。`public/study.example.json` 为可导入示例。
+- `src/study.ts`：默认 study 配置及完整校验。`src/sceneMaterials.ts`：两个场景的图源、关系、AOI、固定卡及历史题目。`src/commonQuestionnaire.ts`：当前共同问卷及分析角色；`src/background.ts`：三道背景题。`public/study.example.json` 为可导入示例。
 - `public/materials/provenance.json`：图源及裁切记录；[材料说明](docs/MATERIALS.md) 列出待冻结内容。保留来源图，不以旧热图作为刺激，不根据热图编历史解释。
-- 开始页「研究者设置」可改时长、模式、回归、库内 Kalman、显示模式和验证阈值，或载入完整 JSON。四人交叉方案按编号固定顺序和题本；关闭该方案后才可自定 AB/BA。开始后配置克隆冻结，逐会话导出。
+- 开始页「研究者设置」可改时长、模式、回归、库内 Kalman、显示模式和验证阈值，或载入完整 JSON。四人方案按编号固定观看顺序，所有人使用共同问卷；选择自定顺序后可设置 AB/BA。开始后配置克隆冻结，逐会话导出。
 - 正式模式要求两份材料 `verified:true`、`placeholder:false` 且结构完整。**这个标志是研究者完成核查后的声明，不是机器保证历史正确。** 请先核查完整场景、分辨率、来源、题目与评分并冻结材料版本。当前仍设为 false。
-- 当前默认只招募 N03–N06：N03 射箭→蹴鞠／甲题，N04 蹴鞠→射箭／甲题，N05 射箭→蹴鞠／乙题，N06 蹴鞠→射箭／乙题。每人看相同固定解释卡；[完整题目和对照方法](docs/QUESTION_VARIANTS.md)。旧流程可在设置中重新选择，旧会话不会被分组方案改写。旧 R01–R09 资料只列在完成后的独立研究者参考区。
+- 当前默认 N03/N05 射箭→蹴鞠，N04/N06 蹴鞠→射箭。所有人回答同一套问题，阅读相同固定讲解卡；[完整共同问卷和分析说明](docs/COMMON_QUESTIONNAIRE.md)。自定顺序模式也可使用 N01、N02 及共同问卷。旧会话保留其已冻结题目。旧 R01–R09 资料只列在完成后的独立研究者参考区。
 - 全屏必须在校准前选择。正式观看 contain 完整显示；坐标用实际图像内容矩形计算，CSS px 不乘 DPR。
 
 ## 流程、质量与计时规则
 
-同意 → 摄像头 → 九点校准 → 独立验证 → 研究者判定 → 三点漂移检查 → 第一景自由观看 → 熟悉度 → 前题 → 固定两卡 → 后题 → 第二景同流程 → 访谈 → 结果。
+填写三道背景题并同意 → 摄像头 → 九点校准 → 独立验证 → 研究者判定 → 三点漂移检查 → 第一景观看 60 秒 → 五道共同看后题 → 固定两张讲解卡 → 两道共同反馈题 → 第二景同流程 → 结果。每题提交即保存；新版不再穿插旧熟悉度题或末尾访谈。
 
 验证默认每目标 2500ms，前 700ms 为稳定期。暂定合格线为：每目标至少 10 个有效样本；整体中位误差不超过 250 CSS px 且不超过视口对角线的 10%；每个目标的中位误差均不超过 200 CSS px。四项同时满足才通过。此为粗区域先导采集的项目筛选线，不是公认精度标准；详见 [合格线说明](docs/QUALITY_POLICY.md)。误差为预测至目标的欧氏距离（CSS px）；整体是全部有效验证样本误差的中位数，相对误差为每样本误差/视口对角线的中位数。任一目标不足即失败；所有误差阈值均未设置时为待判断；有标准时所有已设置标准都需符合。目标和阈值均可在 JSON 配置中调整，正式采集前冻结。独立验证不调用训练 API。
 
@@ -56,16 +56,16 @@ npm run test:e2e      # 本机已安装 Google Chrome；Playwright 自动启停�
 
 ## 分享给参与者（GitHub Pages）
 
-[研究者预览：分配表和完整题目](https://roibai.github.io/painting-gaze-pilot/?preview=design)。下面四个链接各对应一个固定组合，打开后自动选中编号。
+[研究者预览：分配表和完整题目](https://roibai.github.io/painting-gaze-pilot/?preview=design)。下面四个链接打开后自动选中编号；三道背景题每人填写一次。
 
-| 编号 / 链接 | 第一景 | 第二景 | 两景题本 |
+| 编号 / 链接 | 第一景 | 第二景 | 问卷 |
 | --- | --- | --- | --- |
-| [N03](https://roibai.github.io/painting-gaze-pilot/?participant=N03) | 射箭 | 蹴鞠 | 甲 |
-| [N04](https://roibai.github.io/painting-gaze-pilot/?participant=N04) | 蹴鞠 | 射箭 | 甲 |
-| [N05](https://roibai.github.io/painting-gaze-pilot/?participant=N05) | 射箭 | 蹴鞠 | 乙 |
-| [N06](https://roibai.github.io/painting-gaze-pilot/?participant=N06) | 蹴鞠 | 射箭 | 乙 |
+| [N03](https://roibai.github.io/painting-gaze-pilot/?participant=N03) | 射箭 | 蹴鞠 | 共同问卷 |
+| [N04](https://roibai.github.io/painting-gaze-pilot/?participant=N04) | 蹴鞠 | 射箭 | 共同问卷 |
+| [N05](https://roibai.github.io/painting-gaze-pilot/?participant=N05) | 射箭 | 蹴鞠 | 共同问卷 |
+| [N06](https://roibai.github.io/painting-gaze-pilot/?participant=N06) | 蹴鞠 | 射箭 | 共同问卷 |
 
-两套题都询问人物关系及其画面证据，每景解释卡前后各两题；未验证等难度。四人每个组合一位，适合检查试用中的差异。`session.json` 冻结 assignment、实际顺序、问题及评分参考；`responses.csv` 包含分组、题本版本和题目原文。网页上的临时设置不会写入分享链接，链接使用已部署的默认配置。
+看后题依次为整体理解、主动需求、具体疑问（选答）、关系与判断依据、困难分类（多选）；看完讲解卡后统一回答疑问是否被解答、解释是否变化。前 3 题的自主陈述与第 4 题的定向追问分别标记，第 5 题仅作分类补充。讲解前后是同一人的两个阶段，不能仅凭前后变化认定讲解有效。`session.json` 冻结背景、顺序与问题；`responses.csv` 包含题序、分析角色、原题和多选；`background.csv` 含三道背景回答。网页上的临时设置不会写入分享链接，链接使用已部署的默认配置。
 
 参与者用电脑 Chrome 普通窗口打开对应链接并允许摄像头。完成后点击「一键导出全部数据 ZIP」，在下载文件夹找到 ZIP 并通过约定的方式自行发回研究者。网页不会自动发送数据。
 
@@ -79,7 +79,7 @@ npm run test:e2e      # 本机已安装 Google Chrome；Playwright 自动启停�
 
 研究数据库 `painting-pilot-study-v1` 与 WebGazer 默认 localforage 分开。每秒及阶段切换写入 IndexedDB，128 行分块事务。浏览器崩溃可能损失最后一次成功批次后的记录，**最多约一个保存间隔并非保证**。刷新后读取已存数据、将 active 会话/试次标 interrupted，不把重启当成原连续采集；返回开始页新建并重新校准，原记录保留。不要使用无痕窗口或清除网站数据；每人结束后下载 ZIP。
 
-导出的原始部分含 `gaze_samples.csv`、`phase_events.csv`、`responses.csv`、`validation.csv`、`session.json`、两个热图 PNG 和两个 Scan path 估计轨迹 PNG。具备可用的观看前检查点时，ZIP 另附 `gaze_samples_corrected.csv`、`correction.json` 和对应画作的 `*_corrected.png`；两画均可校正时共十五个文件。校正图为事后参考，原始数据与质量判定保持不变。单文件名及 ZIP 根目录含模式、参与者和唯一会话 ID。CSV 为 UTF-8 BOM、RFC4180 引号/换行；null 为空。为保留原话不改写以 `=` 开始的文本；分析时请以文本导入 CSV。配置含图片相对路径，因此长期复现应一并保留本项目对应材料版本。
+导出的原始部分含 `gaze_samples.csv`、`phase_events.csv`、`responses.csv`、`validation.csv`、`session.json`、两个热图 PNG 和两个 Scan path 估计轨迹 PNG。新版有背景信息时另含 `background.csv`，原始 ZIP 共十个文件；旧无背景会话仍为九个。具备可用的观看前检查点时，ZIP 另附 `gaze_samples_corrected.csv`、`correction.json` 和对应画作的 `*_corrected.png`；两画均可校正时，新版含背景的会话共十六个文件，旧无背景会话十五个。校正图为事后参考，原始数据与质量判定保持不变。单文件名及 ZIP 根目录含模式、参与者和唯一会话 ID。CSV 为 UTF-8 BOM、RFC4180 引号/换行；null 为空。为保留原话不改写以 `=` 开始的文本；分析时请以文本导入 CSV。配置含图片相对路径，因此长期复现应一并保留本项目对应材料版本。
 
 密度图只用本会话 free_view、非暂停、有限且在画内的真实预测。每样本权重 1，不识别 fixations/saccades。高斯核参数、尺寸、逐图最大值归一化、颜色与筛选规则写入 JSON。零数据不生成热点。参数相同可从 JSON 重建相同 PNG；[导出与数据说明](docs/DATA_AND_EXPORT.md) 提供细节。
 

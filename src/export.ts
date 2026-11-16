@@ -7,8 +7,9 @@ import {renderCorrectedHeatmap,renderCorrectedScanpath} from './correctionRender
 
 export const GAZE_COLUMNS: (keyof GazeSample)[] = ['sessionId','participantId','paintingId','trialId','phase','sampleIndex','callbackTimeMs','libraryElapsedMs','viewportX','viewportY','imageX','imageY','imageNormX','imageNormY','predictionAvailable','insideImage','geometryVersion','calibrationVersion','paused','confidence'];
 export const EVENT_COLUMNS: (keyof PhaseEvent)[] = ['sessionId','participantId','timeMs','type','phase','paintingId','detail'];
-interface ExportResponseRow extends ResponseRow {planVersion:string;questionVariant:string;questionVersion:string;sceneOrder:string;paintingOrder:string;questionPrompt:string}
-export const RESPONSE_COLUMNS: (keyof ExportResponseRow)[] = ['sessionId','participantId','paintingId','phase','questionId','answer','confidence','unknown','skipped','durationMs','timeMs','planVersion','questionVariant','questionVersion','sceneOrder','paintingOrder','questionPrompt'];
+interface ExportResponseRow extends ResponseRow {planVersion:string;questionVariant:string;questionVersion:string;sceneOrder:string;paintingOrder:string;questionPrompt:string;questionIndex:number|null;analysisRole:string;selectedOptionIds:string;selectedOptionLabels:string;otherText:string}
+export const RESPONSE_COLUMNS: (keyof ExportResponseRow)[] = ['sessionId','participantId','paintingId','phase','questionId','answer','confidence','unknown','skipped','durationMs','timeMs','planVersion','questionVariant','questionVersion','sceneOrder','paintingOrder','questionPrompt','questionIndex','analysisRole','selectedOptionIds','selectedOptionLabels','otherText'];
+export const BACKGROUND_COLUMNS = ['sessionId','participantId','backgroundVersion','questionId','questionPrompt','answer','answerCode'] as const;
 export const VALIDATION_COLUMNS: (keyof ValidationRow)[] = ['sessionId','participantId','paintingId','kind','runId','calibrationVersion','targetId','targetX','targetY','viewportWidth','viewportHeight','timeMs','predictionX','predictionY','errorPx','settling','training'];
 export const CORRECTED_GAZE_COLUMNS: (keyof CorrectionRow)[] = ['sessionId','participantId','sampleIndex','paintingId','trialId','phase','callbackTimeMs','calibrationVersion','geometryVersion','correctionApplied','correctionRunId','correctionReason','offsetX','offsetY','rawViewportX','rawViewportY','correctedViewportX','correctedViewportY','correctedImageX','correctedImageY','correctedImageNormX','correctedImageNormY','correctedInsideImage'];
 export function csvCell(value:unknown):string {
@@ -38,10 +39,29 @@ function responseQuestionPrompt(session:Session,row:ResponseRow):string {
 }
 function exportResponses(session:Session):ExportResponseRow[] {
   const assignment=session.assignment;
-  return session.responses.map(row=>({...row,
-    planVersion:assignment?.planVersion??'',questionVariant:assignment?.questionVariant??'',questionVersion:assignment?.questionVersion??'',
-    sceneOrder:assignment?.order??'',paintingOrder:assignment?JSON.stringify(session.order):'',questionPrompt:responseQuestionPrompt(session,row),
-  }));
+  return session.responses.map(row=>{
+    const questions=row.phase==='pre'||row.phase==='post'?session.config.paintings.find(p=>p.paintingId===row.paintingId)?.[row.phase]:undefined;
+    const index=questions?.findIndex(q=>q.id===row.questionId)??-1;
+    const question=index<0?undefined:questions?.[index];
+    return {...row,
+      planVersion:assignment?.planVersion??'',questionVariant:assignment?.questionVariant??(session.config.questionnaireVersion?'common':''),questionVersion:assignment?.questionVersion??session.config.questionnaireVersion??'',
+      sceneOrder:assignment?.order??'',paintingOrder:assignment?JSON.stringify(session.order):'',questionPrompt:responseQuestionPrompt(session,row),
+      questionIndex:index<0?null:index+1,analysisRole:question?.analysisRole??'',
+      selectedOptionIds:row.selectedOptions===undefined?'':JSON.stringify(row.selectedOptions),
+      selectedOptionLabels:row.selectedOptions===undefined?'':JSON.stringify(row.selectedOptions.map(id=>question?.options?.find(option=>option.id===id)?.label??id)),
+      otherText:row.otherText??'',
+    };
+  });
+}
+function exportBackground(session:Session):Record<string,Uint8Array> {
+  const background=session.background;
+  if(!background)return {};
+  const rows=background.questions.map(question=>{
+    const value=background.answers[question.id];
+    return {sessionId:session.sessionId,participantId:session.participantId,backgroundVersion:background.version,
+      questionId:question.id,questionPrompt:question.prompt,answer:question.options?.find(option=>option.id===String(value))?.label??String(value),answerCode:String(value)};
+  });
+  return {'background.csv':strToU8('\ufeff'+toCSV(rows,[...BACKGROUND_COLUMNS]))};
 }
 export function buildTextExportFiles(session:Session):Record<string,Uint8Array> {
   if(session.dataSource!=='webgazer-camera')throw new Error('拒绝导出非摄像头研究样本。开发 fixture 只允许在测试目录使用。');
@@ -54,6 +74,7 @@ export function buildTextExportFiles(session:Session):Record<string,Uint8Array> 
     terminology:'库输出的视线估计样本；回调接收时间不是摄像头曝光时间；不包含视频、眼部像素或推断的注视事件。',
     timestampBasis:'performance.now() in original page; UTC = timeOrigin + callbackTimeMs. Interrupted recovery event retains last persisted original-page timestamp.',
     csvEncoding:'UTF-8 BOM; RFC 4180 quoting; null and nonfinite numbers are empty cells; strings preserved verbatim',
+    ...(session.config.questionnaireVersion?{questionnaireAnalysis:{version:session.config.questionnaireVersion,roles:{spontaneous:'讲解前第1–3题：参与者自主陈述的理解、需求与疑问',prompted:'讲解前第4题：定向追问活动、关系及判断依据',classification:'讲解前第5题：困难分类，用于补充开放回答','card-feedback':'讲解后两题：疑问回应与解释变化'},interpretation:'讲解前后是同一人的两个阶段，不是control group与experimental group。定向追问后出现的关系解释不能计为自发发现；仅凭前后变化不能认定讲解有效。'}}:{}),
     heatmapAlgorithm:HEATMAP_ALGORITHM,
     heatmapFilter:'sessionId and participantId match; free_view; paintingId matches; !paused; predictionAvailable; insideImage; finite viewport/image coordinates; normalized coordinates within [0,1]',
     heatmapRenders:session.config.paintings.map(p=>({paintingId:p.paintingId,...heatmapSize(p,session.heatmap),headerPx:166,footerPx:80,sampleCount:eligibleSamples(session,p.paintingId).length,showAOI:false,parameters:session.heatmap})),
@@ -68,6 +89,7 @@ export function buildTextExportFiles(session:Session):Record<string,Uint8Array> 
     'responses.csv':strToU8('\ufeff'+toCSV(exportResponses(session),RESPONSE_COLUMNS)),
     'validation.csv':strToU8('\ufeff'+toCSV(session.validation,VALIDATION_COLUMNS)),
     'session.json':strToU8(JSON.stringify(snapshot,null,2)),
+    ...exportBackground(session),
   };
 }
 export async function canvasPNG(canvas:HTMLCanvasElement):Promise<Uint8Array> {

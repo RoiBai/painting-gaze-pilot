@@ -7,7 +7,12 @@ describe('study phase guards', () => {
     const trial: Phase[] = ['drift', 'drift_result', 'loading_image', 'free_view', 'familiarity', 'pre', 'cards', 'post'];
     const path: Phase[] = ['consent', 'camera', 'calibration', 'validation', 'quality', ...trial, ...trial, 'interview', 'completed'];
     for (let i = 1; i < path.length; i++) expect(canTransition(path[i - 1], path[i]), `${path[i - 1]} to ${path[i]}`).toBe(true);
-    expect(canTransition('free_view', 'completed')).toBe(false); expect(canTransition('post', 'completed')).toBe(false);
+    expect(canTransition('free_view', 'completed')).toBe(false);
+  });
+  it('supports the common questionnaire path without extra familiarity or interview questions',()=>{
+    const trial:Phase[]=['drift','drift_result','loading_image','free_view','pre','cards','post'];
+    const path:Phase[]=['consent','camera','calibration','validation','quality',...trial,...trial,'completed'];
+    for(let i=1;i<path.length;i++)expect(canTransition(path[i-1],path[i])).toBe(true);
   });
   it('allows recalibration and makes interruption terminal', () => {
     expect(canTransition('loading_image', 'calibration')).toBe(true); expect(canTransition('post', 'calibration')).toBe(true);

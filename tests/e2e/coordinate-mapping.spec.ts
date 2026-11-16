@@ -1,4 +1,5 @@
 import {test,expect} from '@playwright/test';
+import {consentAndStart,skipQuestions} from './helpers';
 
 // Isolated Playwright context, no real camera or user records. Artificial screen
 // positions are used only in memory to check rendering, never persisted/exported.
@@ -28,8 +29,7 @@ test('both long scenes preserve DOM geometry and left/centre/right positions at 
   await page.getByRole('textbox',{name:'完整配置 JSON'}).fill(JSON.stringify(config));
   await page.getByRole('button',{name:'校验并载入配置'}).click();
   await page.getByRole('button',{name:'返回开始页'}).click();
-  await page.getByRole('checkbox').check();
-  await page.getByRole('button',{name:/同意并进入/}).click();
+  await consentAndStart(page);
   await page.getByText('摄像头无法工作？').click();
   await page.getByRole('button',{name:/仅试用流程/}).click();
   for(let index=0;index<9;index++)await page.getByRole('button',{name:'校准目标'}).click();
@@ -103,12 +103,9 @@ test('both long scenes preserve DOM geometry and left/centre/right positions at 
     }
     console.log(JSON.stringify({check:'synthetic coordinate audit; not gaze data',source:audit.source,dpr:audit.dpr,displayed:audit.displayed,output:audit.size,normalX:audit.rendered.map((point:{normX:number})=>point.normX),peakX:audit.rendered.map((point:{peakX:number})=>point.peakX)}));
 
-    await page.getByRole('button',{name:'没见过',exact:true}).click();
-    for(let index=0;index<2;index++)await page.getByRole('button',{name:'跳过此题',exact:true}).click();
+    await skipQuestions(page,5);
     for(let index=0;index<2;index++)await page.getByRole('button',{name:'读完了，继续 →',exact:true}).click();
-    for(let index=0;index<2;index++)await page.getByRole('button',{name:'跳过此题',exact:true}).click();
+    await skipQuestions(page,2);
   }
-  await expect(page.getByRole('heading',{name:'最后，聊聊这次体验'})).toBeVisible();
-  for(let index=0;index<1+config.paintings.flatMap((painting:any)=>painting.interview).length;index++)await page.getByRole('button',{name:'跳过此题',exact:true}).click();
   await expect(page.getByRole('heading',{name:'测试已完成，谢谢参与'})).toBeVisible();
 });

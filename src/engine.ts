@@ -1,4 +1,4 @@
-import type {Session,StudyConfig,Phase,Geometry,ResponseRow,ValidationRow} from './types';
+import type {Session,StudyConfig,Phase,Geometry,ResponseRow,ValidationRow,BackgroundAnswers} from './types';
 import {WebGazerAdapter} from './webgazerAdapter';
 import {saveSession} from './storage';
 import {mapPoint} from './geometry';
@@ -8,6 +8,8 @@ import {defaultScanpath} from './scanpath';
 import {validateConfig} from './study';
 import {validationExplanation} from './quality';
 import {resolveParticipantConfig} from './assignment';
+import {freezeBackground} from './background';
+import {COMMON_QUESTIONNAIRE_VERSION} from './commonQuestionnaire';
 export const CALIBRATION_TARGETS = [[.12,.15],[.5,.15],[.88,.15],[.12,.5],[.5,.5],[.88,.5],[.12,.85],[.5,.85],[.88,.85]];
 export const VALIDATION_TARGETS = [[.25,.28],[.75,.28],[.5,.5],[.25,.72],[.75,.72]];
 export const DRIFT_TARGETS = [[.2,.5],[.5,.5],[.8,.5]];
@@ -31,13 +33,14 @@ export class StudyEngine {
  get currentTiming(){return this.session?.timings.findLast(t=>t.paintingId===this.painting?.paintingId)}
  event(type:string,detail:unknown={}){if(!this.session)return;this.session.events.push({sessionId:this.session.sessionId,participantId:this.session.participantId,timeMs:this.clock(),type,phase:this.phase,paintingId:this.painting?.paintingId??null,detail:JSON.stringify(detail)})}
  async persist(){if(!this.session)return;try{await saveSession(this.session);if(this.storageError){this.storageError='';this.emit()}}catch(e){this.storageError=String(e);this.pause('storage_error',false);this.emit()}}
- begin(config:StudyConfig,id:string,background:string){
+ begin(config:StudyConfig,id:string,background:string|BackgroundAnswers){
   if(this.session?.status==='active')throw Error('已有进行中的会话');
   if(!/^N0[1-6]$/.test(id))throw Error('匿名编号须为 N01–N06');
   const {config:copy,assignment}=resolveParticipantConfig(config,id);
   const errors=validateConfig(copy);if(errors.length)throw Error(errors.join('\n'));
+  const backgroundSnapshot=typeof background==='string'?undefined:freezeBackground(background);
   const sessionId=`${id}-${new Date().toISOString().replace(/[:.]/g,'-')}-${crypto.randomUUID().slice(0,8)}`;
-  this.session={schemaVersion:1,sessionId,participantId:id,startedUtc:new Date().toISOString(),endedUtc:null,timeOrigin:performance.timeOrigin,status:'active',phase:'consent',mode:copy.mode,dataSource:'webgazer-camera',config:copy,order:orderForParticipant(id,copy),...(assignment?{assignment}:{}),artBackground:background,calibrationVersion:0,quality:'pending',qualityNotes:[],dependencies:{webgazer:'3.5.3',react:'18.3.1',app:'1.4.0',browser:navigator.userAgent},geometries:[],timings:[],validationSummaries:[],heatmap:{width:1000,kernelPx:30,opacity:.65,weight:'one-per-sample',normalization:'per-image-max',colorScale:'blue-cyan-yellow-red-v1'},scanpath:{...defaultScanpath},samples:[],events:[],responses:[],validation:[]};
+  this.session={schemaVersion:1,sessionId,participantId:id,startedUtc:new Date().toISOString(),endedUtc:null,timeOrigin:performance.timeOrigin,status:'active',phase:'consent',mode:copy.mode,dataSource:'webgazer-camera',config:copy,order:orderForParticipant(id,copy),...(assignment?{assignment}:{}),artBackground:typeof background==='string'?background:'',...(backgroundSnapshot?{background:backgroundSnapshot}:{}),calibrationVersion:0,quality:'pending',qualityNotes:[],dependencies:{webgazer:'3.5.3',react:'18.3.1',app:'1.5.0',browser:navigator.userAgent},geometries:[],timings:[],validationSummaries:[],heatmap:{width:1000,kernelPx:30,opacity:.65,weight:'one-per-sample',normalization:'per-image-max',colorScale:'blue-cyan-yellow-red-v1'},scanpath:{...defaultScanpath},samples:[],events:[],responses:[],validation:[]};
   this.phase='consent';this.trialIndex=0;this.geometry=null;this.paused=false;this.requireCalibration=false;this.cardIndex=0;
   if(assignment)this.event('participant_assignment_resolved',assignment);
   this.event('consent_confirmed');this.move('camera');this.lastTick=this.clock();this.lastPredictionAt=this.clock();
@@ -62,7 +65,7 @@ export class StudyEngine {
  private validationRow(sample:InputSample|null,kind:ValidationRow['kind'],training=false){if(!this.session)return;const target=this.target;const valid=sample&&Number.isFinite(sample.x)&&Number.isFinite(sample.y);this.session.validation.push({sessionId:this.session.sessionId,participantId:this.session.participantId,paintingId:this.painting?.paintingId??null,kind,runId:this.runId,calibrationVersion:this.session.calibrationVersion,targetId:String(this.targetIndex),targetX:target.x,targetY:target.y,viewportWidth:window.innerWidth,viewportHeight:window.innerHeight,timeMs:sample?.callbackTimeMs??this.clock(),predictionX:sample?.x??null,predictionY:sample?.y??null,errorPx:valid?Math.hypot(sample!.x!-target.x,sample!.y!-target.y):null,settling:this.clock()-this.targetStarted<this.session.config.validation.settleMs,training:training&&this.session.quality!=='flow_only'})}
  tick(){if(!this.session||this.session.status!=='active')return;const now=this.clock();const dt=now-this.lastTick;this.lastTick=now;
   if(this.phase==='free_view'&&!this.paused&&this.session.quality!=='flow_only'&&now-this.lastPredictionAt>this.session.config.nullPauseMs){this.event('prediction_gap',{gapMs:now-this.lastPredictionAt});this.pause('sustained_no_prediction',false)}
-  if(this.phase==='free_view'){const t=this.currentTiming;if(t){t.wallMs=now-t.startedMs;if(!this.paused)t.activeMs+=dt;if(t.activeMs>=this.session.config.durationSeconds*1000){t.endedMs=now;t.status='completed';this.geometry=null;this.move('familiarity')}}}
+  if(this.phase==='free_view'){const t=this.currentTiming;if(t){t.wallMs=now-t.startedMs;if(!this.paused)t.activeMs+=dt;if(t.activeMs>=this.session.config.durationSeconds*1000){t.endedMs=now;t.status='completed';this.geometry=null;this.move(this.session.config.questionnaireVersion===COMMON_QUESTIONNAIRE_VERSION?'pre':'familiarity')}}}
   if((this.phase==='validation'||this.phase==='drift')&&!this.paused&&now-this.targetStarted>=this.session.config.validation.targetDurationMs){
    // Record empty targets explicitly; these rows are never gaze samples.
    this.validationRow(null,this.phase);this.targetIndex++;
@@ -108,8 +111,8 @@ export class StudyEngine {
    this.event('validation_run_abandoned',{runId:this.runId,reason:this.pauseReason});const kind=this.phase;this.paused=false;this.targetIndex=0;this.runId=crypto.randomUUID();this.targetStarted=this.clock();this.event('validation_run_restart',{kind,runId:this.runId});
   }else this.paused=false;this.lastTick=this.clock();this.event('resume',{reason:this.pauseReason});this.pauseReason='';this.emit()
  }
- response(row:Pick<ResponseRow,'questionId'|'answer'|'confidence'|'unknown'|'skipped'>,durationMs:number){if(!this.session)return;this.session.responses.push({...row,sessionId:this.session.sessionId,participantId:this.session.participantId,paintingId:this.phase==='interview'?null:this.painting?.paintingId??null,phase:this.phase,durationMs,timeMs:this.clock()});void this.persist()}
- next(){switch(this.phase){case'familiarity':this.move('pre');break;case'pre':this.cardIndex=0;this.move('cards');break;case'cards':this.cardIndex++;if(this.cardIndex>=2)this.move('post');else{this.phaseStarted=this.clock();this.emit()}break;case'post':if(this.trialIndex===0){this.trialIndex++;this.geometry=null;this.startTargets('drift')}else{this.adapter.stop();this.move('interview')}break;case'interview':this.complete();break}}
+ response(row:Pick<ResponseRow,'questionId'|'answer'|'confidence'|'unknown'|'skipped'|'selectedOptions'|'otherText'>,durationMs:number){if(!this.session)return;this.session.responses.push({...structuredClone(row),sessionId:this.session.sessionId,participantId:this.session.participantId,paintingId:this.phase==='interview'?null:this.painting?.paintingId??null,phase:this.phase,durationMs,timeMs:this.clock()});void this.persist()}
+ next(){switch(this.phase){case'familiarity':this.move('pre');break;case'pre':this.cardIndex=0;this.move('cards');break;case'cards':this.cardIndex++;if(this.cardIndex>=2)this.move('post');else{this.phaseStarted=this.clock();this.emit()}break;case'post':if(this.trialIndex===0){this.trialIndex++;this.geometry=null;this.startTargets('drift')}else if(this.session?.config.questionnaireVersion===COMMON_QUESTIONNAIRE_VERSION)this.complete();else{this.adapter.stop();this.move('interview')}break;case'interview':this.complete();break}}
  complete(){if(!this.session)return;this.move('completed');this.session.status='completed';this.session.endedUtc=new Date().toISOString();this.adapter.stop();this.clearTimers();void this.persist();this.emit()}
  interrupt(reason='researcher_exit'){if(!this.session||this.session.status!=='active')return;this.event('interrupted',{reason});const t=this.currentTiming;if(t?.status==='active'){if(!this.paused){t.activeMs+=Math.max(0,this.clock()-this.lastTick);this.lastTick=this.clock();}t.status='interrupted';t.endedMs=this.clock();t.wallMs=t.endedMs-t.startedMs}this.session.status='interrupted';this.session.phase='interrupted';this.phase='interrupted';this.session.endedUtc=new Date().toISOString();this.adapter.stop();this.clearTimers();void this.persist();this.emit()}
  private clearTimers(){if(this.interval)clearInterval(this.interval);if(this.persistTimer)clearInterval(this.persistTimer);this.interval=null;this.persistTimer=null}

@@ -1,18 +1,20 @@
 {
-  "version": "pilot-1.4.0",
+  "version": "pilot-1.5.0",
   "mode": "preview",
   "durationSeconds": 60,
   "order": "alternate",
+  "participantPlan": "common-four-v2",
+  "questionnaireVersion": "common-viewing-v1",
   "regression": "ridge",
   "kalman": true,
   "displayMode": "window",
   "validation": {
     "maxMedianErrorPx": 250,
     "maxErrorDiagonalRatio": 0.1,
+    "maxTargetMedianErrorPx": 200,
     "minSamplesPerTarget": 10,
     "targetDurationMs": 2500,
-    "settleMs": 700,
-    "maxTargetMedianErrorPx": 200
+    "settleMs": 700
   },
   "nullPauseMs": 3000,
   "calibrationClicks": 5,
@@ -114,26 +116,106 @@
       ],
       "pre": [
         {
-          "id": "archery-pre-relation",
-          "prompt": "画面中的人物分别在做什么？他们之间有什么关系？",
-          "scoring": "试用评分参考，尚待研究者核查冻结：0=未给出关系/不知道；1=给出活动或人物角色但无视觉依据；2=解释参与者与观看者的关系并指出相符区域。身份具体帝号不计分，不以服装颜色单独推断官职。"
+          "id": "common-archery-pre-overview",
+          "prompt": "你觉得刚才的场景主要展示了什么？",
+          "scoring": "质性分析：保留参与者原话并按同一参与者、同一场景对应解释、疑问和卡片反馈。讲解前后为同一人的两个阶段，不作为对照组与实验组；不能仅凭前后变化认定讲解有效。 此题记录参与者在定向追问前自主表达的内容。",
+          "type": "text",
+          "analysisRole": "spontaneous",
+          "confidence": false,
+          "allowUnknown": false,
+          "description": "1–3 句话，可以回答“不确定”。"
         },
         {
-          "id": "archery-pre-evidence",
-          "prompt": "哪些人物动作、器物或空间位置支持你的判断？请描述一至两处。",
-          "scoring": "试用评分参考，尚待研究者核查冻结：0=未给出关系/不知道；1=给出活动或人物角色但无视觉依据；2=解释参与者与观看者的关系并指出相符区域。身份具体帝号不计分，不以服装颜色单独推断官职。 可记录是否提到弓/张弓姿态、左侧箭靶及旗杆区域、亭中坐观者、活动空地；不要求分辨细小器物。"
+          "id": "common-archery-pre-interest",
+          "prompt": "如果继续了解这个场景，你最想知道什么？",
+          "scoring": "质性分析：保留参与者原话并按同一参与者、同一场景对应解释、疑问和卡片反馈。讲解前后为同一人的两个阶段，不作为对照组与实验组；不能仅凭前后变化认定讲解有效。 此题记录参与者在定向追问前自主表达的内容。",
+          "type": "text",
+          "analysisRole": "spontaneous",
+          "confidence": false,
+          "allowUnknown": false,
+          "description": "可以回答“暂时没有”。"
+        },
+        {
+          "id": "common-archery-pre-uncertainty",
+          "prompt": "有没有让你不确定或难以理解的地方？请描述大致位置，以及你不确定什么。",
+          "scoring": "质性分析：保留参与者原话并按同一参与者、同一场景对应解释、疑问和卡片反馈。讲解前后为同一人的两个阶段，不作为对照组与实验组；不能仅凭前后变化认定讲解有效。 此题记录参与者在定向追问前自主表达的内容。",
+          "type": "text",
+          "analysisRole": "spontaneous",
+          "confidence": false,
+          "allowUnknown": false,
+          "description": "选答，允许“没有”或“记不清”。",
+          "optional": true
+        },
+        {
+          "id": "common-archery-pre-activity-evidence",
+          "prompt": "请选一处你注意到的活动，说说这些人在做什么。哪些画面细节让你这样判断？",
+          "scoring": "质性分析：保留参与者原话并按同一参与者、同一场景对应解释、疑问和卡片反馈。讲解前后为同一人的两个阶段，不作为对照组与实验组；不能仅凭前后变化认定讲解有效。 此题为定向追问，回答中出现的关系解释不得编码为自发发现。",
+          "type": "text",
+          "analysisRole": "prompted",
+          "confidence": false,
+          "allowUnknown": false
+        },
+        {
+          "id": "common-archery-pre-difficulties",
+          "prompt": "你在理解这个场景时遇到了哪些困难？",
+          "scoring": "质性分析：保留参与者原话并按同一参与者、同一场景对应解释、疑问和卡片反馈。讲解前后为同一人的两个阶段，不作为对照组与实验组；不能仅凭前后变化认定讲解有效。 此题为开放回答后的困难归类，勿将给定选项视为参与者自发表达。",
+          "type": "multi-select",
+          "analysisRole": "classification",
+          "confidence": false,
+          "allowUnknown": false,
+          "description": "可以多选。“没有明显困难”与其他选项不能同时选择。",
+          "options": [
+            {
+              "id": "activity",
+              "label": "看不懂人物在做什么"
+            },
+            {
+              "id": "relationships",
+              "label": "不清楚人物之间的关系"
+            },
+            {
+              "id": "objects",
+              "label": "不认识画中的器物或物件"
+            },
+            {
+              "id": "context",
+              "label": "缺少相关背景知识"
+            },
+            {
+              "id": "details",
+              "label": "画面细节看不清"
+            },
+            {
+              "id": "other",
+              "label": "其他"
+            },
+            {
+              "id": "none",
+              "label": "没有明显困难",
+              "exclusive": true
+            }
+          ],
+          "otherOptionId": "other"
         }
       ],
       "post": [
         {
-          "id": "archery-post-explain",
-          "prompt": "如果向另一位观众介绍这段画面，你会怎样说明前方活动人物与亭中人物的联系？",
-          "scoring": "试用评分参考，尚待研究者核查冻结：0=未给出关系/不知道；1=给出活动或人物角色但无视觉依据；2=解释参与者与观看者的关系并指出相符区域。身份具体帝号不计分，不以服装颜色单独推断官职。"
+          "id": "common-archery-post-questions-addressed",
+          "prompt": "这些讲解回答了你刚才的哪些疑问？还有什么没有回答？",
+          "scoring": "质性分析：保留参与者原话并按同一参与者、同一场景对应解释、疑问和卡片反馈。讲解前后为同一人的两个阶段，不作为对照组与实验组；不能仅凭前后变化认定讲解有效。 此题记录对固定讲解卡的反馈，并核对实际阅读和跳过记录。",
+          "type": "text",
+          "analysisRole": "card-feedback",
+          "confidence": false,
+          "allowUnknown": false
         },
         {
-          "id": "archery-post-locate",
-          "prompt": "请用位置描述一处能支持这种联系的画面证据，并说明理由。",
-          "scoring": "试用评分参考，尚待研究者核查冻结：0=未给出关系/不知道；1=给出活动或人物角色但无视觉依据；2=解释参与者与观看者的关系并指出相符区域。身份具体帝号不计分，不以服装颜色单独推断官职。 位置描述可为“亭中”“右下持弓人物”等粗区域，不强求精细坐标。"
+          "id": "common-archery-post-interpretation-change",
+          "prompt": "看完讲解后，你对场景的解释有没有变化？请具体说明；没有变化也可以。",
+          "scoring": "质性分析：保留参与者原话并按同一参与者、同一场景对应解释、疑问和卡片反馈。讲解前后为同一人的两个阶段，不作为对照组与实验组；不能仅凭前后变化认定讲解有效。 此题记录对固定讲解卡的反馈，并核对实际阅读和跳过记录。",
+          "type": "text",
+          "analysisRole": "card-feedback",
+          "confidence": false,
+          "allowUnknown": false
         }
       ],
       "cards": [
@@ -256,26 +338,106 @@
       ],
       "pre": [
         {
-          "id": "cuju-pre-relation",
-          "prompt": "台上人物与台下人物可能分别扮演什么角色？他们之间有什么联系？",
-          "scoring": "试用评分参考，尚待研究者核查冻结：0=未给出关系/不知道；1=给出活动或人物角色但无视觉依据；2=解释参与者与观看者的关系并指出相符区域。身份具体帝号不计分，不以服装颜色单独推断官职。"
+          "id": "common-cuju-pre-overview",
+          "prompt": "你觉得刚才的场景主要展示了什么？",
+          "scoring": "质性分析：保留参与者原话并按同一参与者、同一场景对应解释、疑问和卡片反馈。讲解前后为同一人的两个阶段，不作为对照组与实验组；不能仅凭前后变化认定讲解有效。 此题记录参与者在定向追问前自主表达的内容。",
+          "type": "text",
+          "analysisRole": "spontaneous",
+          "confidence": false,
+          "allowUnknown": false,
+          "description": "1–3 句话，可以回答“不确定”。"
         },
         {
-          "id": "cuju-pre-evidence",
-          "prompt": "你依据哪些动作、器物或位置线索判断正在发生的事情？",
-          "scoring": "试用评分参考，尚待研究者核查冻结：0=未给出关系/不知道；1=给出活动或人物角色但无视觉依据；2=解释参与者与观看者的关系并指出相符区域。身份具体帝号不计分，不以服装颜色单独推断官职。 接受人物动作、球所在的大致区域、台上台下位置等证据；不把未认出小球直接判为不理解。"
+          "id": "common-cuju-pre-interest",
+          "prompt": "如果继续了解这个场景，你最想知道什么？",
+          "scoring": "质性分析：保留参与者原话并按同一参与者、同一场景对应解释、疑问和卡片反馈。讲解前后为同一人的两个阶段，不作为对照组与实验组；不能仅凭前后变化认定讲解有效。 此题记录参与者在定向追问前自主表达的内容。",
+          "type": "text",
+          "analysisRole": "spontaneous",
+          "confidence": false,
+          "allowUnknown": false,
+          "description": "可以回答“暂时没有”。"
+        },
+        {
+          "id": "common-cuju-pre-uncertainty",
+          "prompt": "有没有让你不确定或难以理解的地方？请描述大致位置，以及你不确定什么。",
+          "scoring": "质性分析：保留参与者原话并按同一参与者、同一场景对应解释、疑问和卡片反馈。讲解前后为同一人的两个阶段，不作为对照组与实验组；不能仅凭前后变化认定讲解有效。 此题记录参与者在定向追问前自主表达的内容。",
+          "type": "text",
+          "analysisRole": "spontaneous",
+          "confidence": false,
+          "allowUnknown": false,
+          "description": "选答，允许“没有”或“记不清”。",
+          "optional": true
+        },
+        {
+          "id": "common-cuju-pre-activity-evidence",
+          "prompt": "请选一处你注意到的活动，说说这些人在做什么。哪些画面细节让你这样判断？",
+          "scoring": "质性分析：保留参与者原话并按同一参与者、同一场景对应解释、疑问和卡片反馈。讲解前后为同一人的两个阶段，不作为对照组与实验组；不能仅凭前后变化认定讲解有效。 此题为定向追问，回答中出现的关系解释不得编码为自发发现。",
+          "type": "text",
+          "analysisRole": "prompted",
+          "confidence": false,
+          "allowUnknown": false
+        },
+        {
+          "id": "common-cuju-pre-difficulties",
+          "prompt": "你在理解这个场景时遇到了哪些困难？",
+          "scoring": "质性分析：保留参与者原话并按同一参与者、同一场景对应解释、疑问和卡片反馈。讲解前后为同一人的两个阶段，不作为对照组与实验组；不能仅凭前后变化认定讲解有效。 此题为开放回答后的困难归类，勿将给定选项视为参与者自发表达。",
+          "type": "multi-select",
+          "analysisRole": "classification",
+          "confidence": false,
+          "allowUnknown": false,
+          "description": "可以多选。“没有明显困难”与其他选项不能同时选择。",
+          "options": [
+            {
+              "id": "activity",
+              "label": "看不懂人物在做什么"
+            },
+            {
+              "id": "relationships",
+              "label": "不清楚人物之间的关系"
+            },
+            {
+              "id": "objects",
+              "label": "不认识画中的器物或物件"
+            },
+            {
+              "id": "context",
+              "label": "缺少相关背景知识"
+            },
+            {
+              "id": "details",
+              "label": "画面细节看不清"
+            },
+            {
+              "id": "other",
+              "label": "其他"
+            },
+            {
+              "id": "none",
+              "label": "没有明显困难",
+              "exclusive": true
+            }
+          ],
+          "otherOptionId": "other"
         }
       ],
       "post": [
         {
-          "id": "cuju-post-explain",
-          "prompt": "请向未看过此图的人说明，这里的活动者和观看者是怎样组织在一起的。",
-          "scoring": "试用评分参考，尚待研究者核查冻结：0=未给出关系/不知道；1=给出活动或人物角色但无视觉依据；2=解释参与者与观看者的关系并指出相符区域。身份具体帝号不计分，不以服装颜色单独推断官职。"
+          "id": "common-cuju-post-questions-addressed",
+          "prompt": "这些讲解回答了你刚才的哪些疑问？还有什么没有回答？",
+          "scoring": "质性分析：保留参与者原话并按同一参与者、同一场景对应解释、疑问和卡片反馈。讲解前后为同一人的两个阶段，不作为对照组与实验组；不能仅凭前后变化认定讲解有效。 此题记录对固定讲解卡的反馈，并核对实际阅读和跳过记录。",
+          "type": "text",
+          "analysisRole": "card-feedback",
+          "confidence": false,
+          "allowUnknown": false
         },
         {
-          "id": "cuju-post-locate",
-          "prompt": "选择一处能说明“谁在参与、谁在观看”的画面区域，用位置和视觉线索解释你的选择。",
-          "scoring": "试用评分参考，尚待研究者核查冻结：0=未给出关系/不知道；1=给出活动或人物角色但无视觉依据；2=解释参与者与观看者的关系并指出相符区域。身份具体帝号不计分，不以服装颜色单独推断官职。 证据定位采用粗区域文字描述；具体皇帝身份、运动规则不纳入评分。"
+          "id": "common-cuju-post-interpretation-change",
+          "prompt": "看完讲解后，你对场景的解释有没有变化？请具体说明；没有变化也可以。",
+          "scoring": "质性分析：保留参与者原话并按同一参与者、同一场景对应解释、疑问和卡片反馈。讲解前后为同一人的两个阶段，不作为对照组与实验组；不能仅凭前后变化认定讲解有效。 此题记录对固定讲解卡的反馈，并核对实际阅读和跳过记录。",
+          "type": "text",
+          "analysisRole": "card-feedback",
+          "confidence": false,
+          "allowUnknown": false
         }
       ],
       "cards": [
@@ -316,6 +478,5 @@
     "consent": "我已了解流程，自愿参加，并同意在本机保存匿名回答与摄像头视线估计样本。",
     "freeView": "请自然观看画面。保持坐姿与屏幕距离，观看结束后页面会自动继续。",
     "interview": "请简短描述观看、答题和解释卡的使用体验；也可以跳过。"
-  },
-  "participantPlan": "crossed-four-v1"
+  }
 }

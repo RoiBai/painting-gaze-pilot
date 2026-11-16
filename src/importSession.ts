@@ -2,6 +2,30 @@ import {unzipSync,strFromU8} from 'fflate';
 import type {Session} from './types';
 import {validateConfig} from './study';
 
+const object=(value:unknown):value is Record<string,unknown>=>!!value&&typeof value==='object'&&!Array.isArray(value);
+const nonempty=(value:unknown):value is string=>typeof value==='string'&&value.trim().length>0;
+function validBackground(value:unknown):boolean {
+  if(!object(value)||value.version!=='background-v1'||!object(value.answers)||!Array.isArray(value.questions)||value.questions.length!==3)return false;
+  const answers=value.answers;
+  if(!nonempty(answers.studyField)||!['none','short','long'].includes(answers.artEducation as string)||!Number.isInteger(answers.paintingInterest)||Number(answers.paintingInterest)<1||Number(answers.paintingInterest)>5)return false;
+  const ids=value.questions.map(q=>object(q)?q.id:null);
+  if(new Set(ids).size!==3||!['studyField','artEducation','paintingInterest'].every(id=>ids.includes(id)))return false;
+  for(const question of value.questions){
+    if(!object(question)||!nonempty(question.prompt))return false;
+    if(question.options!==undefined&&(!Array.isArray(question.options)||question.options.some(option=>!object(option)||!nonempty(option.id)||!nonempty(option.label))))return false;
+    if(question.id==='artEducation'){
+      if(!Array.isArray(question.options)||question.options.length!==3)return false;
+      const codes=question.options.map(option=>object(option)?option.id:null);
+      if(!['none','short','long'].every(id=>codes.includes(id)))return false;
+    }
+    if(question.id==='paintingInterest'){
+      const scale=question.scale;
+      if(!object(scale)||scale.min!==1||scale.max!==5||!nonempty(scale.minLabel)||!nonempty(scale.maxLabel))return false;
+    }
+  }
+  return true;
+}
+
 /** Parse only in the browser. Never extracts files, fetches URLs, or writes research storage. */
 export function readSessionArchive(bytes:Uint8Array,name:string):Session {
   const limit=50*1024*1024;
@@ -33,6 +57,21 @@ export function readSessionArchive(bytes:Uint8Array,name:string):Session {
   if(s.qualityNotes.some(v=>typeof v!=='string')||s.order.some(id=>!s.config.paintings.some(p=>p.paintingId===id)))throw new Error('会话顺序或质量说明格式无效。');
   if(s.validationSummaries.some(v=>!v||typeof v.runId!=='string'||!Array.isArray(v.targets)||v.targets.some(t=>!t||typeof t.targetId!=='string'||!Number.isFinite(t.n))))throw new Error('验证摘要格式无效。');
   if(s.responses.some(r=>!r||typeof r.answer!=='string'||typeof r.questionId!=='string'))throw new Error('回答记录格式无效。');
+  if(s.background!==undefined&&!validBackground(s.background))throw new Error('背景问卷的题目、选项或回答格式无效。');
+  if(s.assignment!==undefined){
+    const a=s.assignment;
+    if(!a||!['crossed-four-v1','common-four-v2'].includes(a.planVersion)||a.participantId!==s.participantId||!['AB','BA'].includes(a.order)||!['alpha','beta','common'].includes(a.questionVariant)||!nonempty(a.questionVersion)||!Array.isArray(a.paintingOrder)||a.paintingOrder.length!==s.order.length||a.paintingOrder.some((id,i)=>id!==s.order[i]))throw new Error('会话分配记录格式无效。');
+    if((a.planVersion==='common-four-v2')!==(a.questionVariant==='common'))throw new Error('会话分配方案与题本不一致。');
+  }
+  for(const row of s.responses){
+    if(row.otherText!==undefined&&typeof row.otherText!=='string')throw new Error('困难分类补充说明须为文本。');
+    if(row.selectedOptions!==undefined){
+      const question=row.phase==='pre'||row.phase==='post'?s.config.paintings.find(p=>p.paintingId===row.paintingId)?.[row.phase].find(q=>q.id===row.questionId):undefined;
+      if(!question||question.type!=='multi-select'||!Array.isArray(row.selectedOptions)||row.selectedOptions.some(id=>typeof id!=='string'||!question.options?.some(option=>option.id===id))||new Set(row.selectedOptions).size!==row.selectedOptions.length)throw new Error('困难分类须引用本次保存题目中的有效选项。');
+      if(row.selectedOptions.length>1&&question.options?.some(option=>option.exclusive&&row.selectedOptions!.includes(option.id)))throw new Error('没有明显困难须与其他困难选项互斥。');
+      if(row.otherText?.trim()&&(!question.otherOptionId||!row.selectedOptions.includes(question.otherOptionId)))throw new Error('补充说明须对应已选择的其他选项。');
+    }else if(row.otherText?.trim())throw new Error('补充说明缺少对应的困难分类选项。');
+  }
   if(s.validation.some(r=>!r||r.sessionId!==s.sessionId||r.participantId!==s.participantId||typeof r.runId!=='string'||!Number.isFinite(r.timeMs)))throw new Error('验证记录格式无效。');
   if(s.events.some(r=>!r||typeof r.detail!=='string'||!Number.isFinite(r.timeMs)))throw new Error('流程记录格式无效。');
   if(s.geometries.some(g=>!g||![g.width,g.height,g.viewportWidth,g.viewportHeight,g.naturalWidth,g.naturalHeight].every(n=>Number.isFinite(n)&&n>0)||!Number.isFinite(g.left)||!Number.isFinite(g.top)))throw new Error('显示几何格式无效。');
