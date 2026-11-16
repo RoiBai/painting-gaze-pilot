@@ -8,11 +8,30 @@
 
 - `gaze_samples.csv` 保留真实回调，包括 null 回调、画外预测、暂停期间回调。没有回调的时间段由事件与时间间隔反映，不生成补点。坐标单位是 CSS px；图像归一化坐标使用实际显示内容矩形。
 - `phase_events.csv` 记录流程、故障、暂停/恢复和几何变化，`detail` 是 JSON 字符串。
-- `responses.csv` 保存原话、信心、不知道/跳过、作答耗时和阶段。
+- `responses.csv` 保存原话、信心、不知道/跳过、作答耗时和阶段；末尾追加本次分组与会话内冻结的题目文本，便于合并四人的回答。
 - `validation.csv` 保存训练目标与独立验证/漂移目标的观察。`training` 区分明确训练，`settling` 区分目标出现后的等待期；未收到有效预测时误差为空。
 - `session.json` 包含完整会话快照（含配置、素材版本、全部记录、实际依赖版本、几何、计时、质量和热图设置）及导出计算说明。
 - 每幅画的 `heatmap_<paintingId>.png` 在图内标注参与者、材料、有效样本数、有效展示/墙钟时长、验证状态和可视化参数。无数据时保留原图并注明“无可用数据”。素材文件不再可用或尺寸不符时，PNG 导出明确失败；CSV/JSON 单文件仍可下载。
 - 每幅画的 `scanpath_<paintingId>.png` 按时间顺序绘制摄像头视线估计轨迹。导出总是覆盖完整时段，不跟随页面回放窗口；显示抽稀、编号、断线和颜色参数，以及绘制范围、样本数和分段数写入 `session.json.exportMetadata.scanpathRenders`。旧会话没有轨迹参数时使用默认值并写入导出快照，原始采样记录保持不变。两景原始导出共包含四个 CSV、一个 JSON 和四幅 PNG。
+
+## 四人交叉分组与回答比较
+
+新计划为 `crossed-four-v1`：N03 为射箭→蹴鞠、甲题；N04 为蹴鞠→射箭、甲题；N05 为射箭→蹴鞠、乙题；N06 为蹴鞠→射箭、乙题。每种观看顺序各有一人做甲题、一人做乙题。结果页显示本次实际观看顺序与题本。
+
+开始会话时，`session.json.assignment` 保存 `planVersion`、`participantId`、`order`（AB/BA）、`questionVariant`（alpha/beta）、`questionVersion` 和 `paintingOrder`；`session.json.order` 保存实际顺序，`session.json.config.paintings[].pre/post` 保存这一次真正使用的题目与评分参考。之后更改网页默认题目，不会重写已有会话的配置。
+
+`responses.csv` 的前十一列维持原顺序，回答原话不变。在末尾追加：
+
+| 列 | 含义 |
+| --- | --- |
+| `planVersion` | 本次冻结的分配方案版本 |
+| `questionVariant` | 甲题为 `alpha`，乙题为 `beta` |
+| `questionVersion` | 本次冻结的题目版本 |
+| `sceneOrder` | 本次分配的观看顺序代码，AB 为射箭→蹴鞠，BA 为蹴鞠→射箭 |
+| `paintingOrder` | 实际画作 ID 顺序的 JSON 数组，可据此与画作数据关联 |
+| `questionPrompt` | 从会话冻结配置读取的 pre/post 或 interview 题目原文；不匹配的题号、观看经验选项和解释卡阅读记录留空 |
+
+没有 `assignment` 的旧会话或自定义配置，前五个新增分组列留空，不根据参与者编号倒推或补写分组。`questionPrompt` 仍按该会话自己的题目查找。`session.json.responses` 保留原始回答行，新增列只在 CSV 导出时附加；没有增加 ZIP 文件数量。离线比较时，按 `questionVariant`、`sceneOrder`、`paintingId` 和 `phase` 分组，并用 `questionVersion` 与 `questionPrompt` 确认题目一致。
 
 ## 事后参考校正的附加文件
 

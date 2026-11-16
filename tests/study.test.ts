@@ -1,7 +1,38 @@
 import { describe, expect, it } from 'vitest';
-import { defaultConfig, validateConfig } from '../src/study';
+import { defaultConfig, geometricPreviewMaterials, validateConfig } from '../src/study';
+import {PARTICIPANT_PLAN_VERSION} from '../src/assignment';
 describe('material and schema gates', () => {
   it('allows fully specified preview config', () => { expect(validateConfig(defaultConfig)).toEqual([]); });
+  it('enables the four-person plan by default and accepts the designated scenes in either list order', () => {
+    expect(defaultConfig.participantPlan).toBe(PARTICIPANT_PLAN_VERSION);
+    const config = structuredClone(defaultConfig);
+    config.paintings.reverse();
+    expect(validateConfig(config)).toEqual([]);
+  });
+  it('rejects unknown participant plans instead of silently changing the study', () => {
+    for (const participantPlan of ['crossed-four-v2','',null,{},false]) {
+      expect(validateConfig({...defaultConfig,participantPlan}).length).toBeGreaterThan(0);
+    }
+  });
+  it('requires exactly the archery and cuju scenes when the four-person plan is enabled', () => {
+    const custom = structuredClone(defaultConfig);
+    custom.paintings[0].paintingId = 'custom-scene';
+    expect(validateConfig(custom).length).toBeGreaterThan(0);
+    expect(validateConfig({...defaultConfig,paintings:geometricPreviewMaterials}).length).toBeGreaterThan(0);
+    for (const paintings of [null,[],[null,null],defaultConfig.paintings.slice(0,1)]) {
+      expect(() => validateConfig({...defaultConfig,paintings})).not.toThrow();
+      expect(validateConfig({...defaultConfig,paintings}).length).toBeGreaterThan(0);
+    }
+  });
+  it('accepts legacy or custom materials when no participant plan is enabled', () => {
+    const legacy = structuredClone(defaultConfig);
+    delete legacy.participantPlan;
+    expect(validateConfig(legacy)).toEqual([]);
+    legacy.paintings[0].paintingId = 'custom-scene';
+    expect(validateConfig(legacy)).toEqual([]);
+    legacy.paintings = structuredClone(geometricPreviewMaterials);
+    expect(validateConfig(legacy)).toEqual([]);
+  });
   it('blocks unreviewed materials from research mode', () => {
     expect(validateConfig({ ...defaultConfig, mode: 'research' }).some(e => e.includes('未完成核查'))).toBe(true);
   });

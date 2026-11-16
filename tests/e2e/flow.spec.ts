@@ -26,11 +26,11 @@ test('two-scene UI flow stores only genuine callbacks, hides overlays and export
  const stored=await page.evaluate(async()=>{const path='/src/storage.ts';const {listSessions}=await import(/* @vite-ignore */path);return listSessions()});
  expect(stored).toHaveLength(1);expect(stored[0].status).toBe('completed');expect(stored[0].samples).toHaveLength(0);expect(stored[0].timings).toHaveLength(2);expect(stored[0].quality).toBe('flow_only');expect(stored[0].responses.filter((r:any)=>r.phase==='cards')).toHaveLength(4);
  await page.screenshot({path:'docs/qa-results.png',fullPage:true});
- await page.reload();await expect(page.getByRole('button',{name:/N01.*completed/})).toBeVisible();
+ await page.reload();await expect(page.getByRole('button',{name:/N03.*completed/})).toBeVisible();
 });
 test('formal mode blocks unverified scenes and reload preserves interrupted session',async({page})=>{
  await page.goto('/');await page.getByRole('button',{name:'研究者设置',exact:true}).click();
  await page.getByLabel('运行模式').selectOption('research');await page.getByRole('button',{name:'返回开始页'}).click();await page.getByRole('checkbox').check();await page.getByRole('button',{name:/同意并进入/}).click();await expect(page.getByRole('alert')).toContainText('核查');
  await page.getByRole('button',{name:'研究者设置',exact:true}).click();await page.getByLabel('运行模式').selectOption('preview');await page.getByRole('button',{name:'返回开始页'}).click();await page.getByRole('button',{name:/同意并进入/}).click();await expect(page.getByRole('heading',{name:'让摄像头看清你的脸'})).toBeVisible();
- await page.waitForTimeout(1200);await page.reload();await expect(page.getByRole('button',{name:/N01.*interrupted/})).toBeVisible();await page.screenshot({path:'docs/qa-start.png',fullPage:true});
+ await page.waitForTimeout(1200);await page.reload();await expect(page.getByRole('button',{name:/N03.*interrupted/})).toBeVisible();await page.screenshot({path:'docs/qa-start.png',fullPage:true});
 });

@@ -45,7 +45,7 @@ function previewPainting(id: 'A' | 'B'): Painting {
 export const geometricPreviewMaterials: Painting[] = [previewPainting('A'), previewPainting('B')];
 
 export const defaultConfig: StudyConfig = {
-  version: 'pilot-1.2.2', mode: 'preview', durationSeconds: 60, order: 'alternate',
+  version: 'pilot-1.4.0', mode: 'preview', durationSeconds: 60, order: 'alternate', participantPlan: 'crossed-four-v1',
   regression: 'ridge', kalman: true, displayMode: 'window',
   validation: { maxMedianErrorPx: 250, maxErrorDiagonalRatio: 0.10, maxTargetMedianErrorPx: 200, minSamplesPerTarget: 10, targetDurationMs: 2500, settleMs: 700 },
   nullPauseMs: 3000, calibrationClicks: 5,
@@ -73,6 +73,7 @@ export function validateConfig(input: unknown): string[] {
   if (!['preview', 'research'].includes(c.mode as string)) errors.push('模式须为 preview 或 research');
   if (!numeric(c.durationSeconds, 1, 3600)) errors.push('观看时长须为 1–3600 秒');
   if (!['alternate', 'AB', 'BA'].includes(c.order as string)) errors.push('顺序须为 alternate、AB 或 BA');
+  if (c.participantPlan !== undefined && c.participantPlan !== 'crossed-four-v1') errors.push('参与者安排须为 crossed-four-v1 或省略（旧流程）');
   if (!['ridge', 'weightedRidge'].includes(c.regression as string)) errors.push('回归设置须为 ridge 或 weightedRidge');
   if (typeof c.kalman !== 'boolean') errors.push('kalman 须为布尔值');
   if (!['window', 'fullscreen'].includes(c.displayMode as string)) errors.push('显示模式须为 window 或 fullscreen');
@@ -159,5 +160,6 @@ export function validateConfig(input: unknown): string[] {
     if (!Array.isArray(p.interview) || !p.interview.length || !p.interview.every(text)) errors.push(`${label}须提供访谈问题`);
   }
   if (!unique(paintingIds)) errors.push('两幅画的 paintingId 必须不同');
+  if (c.participantPlan === 'crossed-four-v1' && (paintingIds.length !== 2 || !['ming-xingle-archery', 'ming-xingle-cuju'].every(id => paintingIds.includes(id)))) errors.push('四人交叉方案仅适用于射箭与蹴鞠两幅指定场景；其他材料请关闭四人方案');
   return errors;
 }

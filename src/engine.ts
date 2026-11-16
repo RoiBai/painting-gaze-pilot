@@ -7,6 +7,7 @@ import {orderForParticipant,canTransition} from './machine';
 import {defaultScanpath} from './scanpath';
 import {validateConfig} from './study';
 import {validationExplanation} from './quality';
+import {resolveParticipantConfig} from './assignment';
 export const CALIBRATION_TARGETS = [[.12,.15],[.5,.15],[.88,.15],[.12,.5],[.5,.5],[.88,.5],[.12,.85],[.5,.85],[.88,.85]];
 export const VALIDATION_TARGETS = [[.25,.28],[.75,.28],[.5,.5],[.25,.72],[.75,.72]];
 export const DRIFT_TARGETS = [[.2,.5],[.5,.5],[.8,.5]];
@@ -33,10 +34,12 @@ export class StudyEngine {
  begin(config:StudyConfig,id:string,background:string){
   if(this.session?.status==='active')throw Error('已有进行中的会话');
   if(!/^N0[1-6]$/.test(id))throw Error('匿名编号须为 N01–N06');
-  const errors=validateConfig(config);if(errors.length)throw Error(errors.join('\n'));
-  const copy=structuredClone(config); const sessionId=`${id}-${new Date().toISOString().replace(/[:.]/g,'-')}-${crypto.randomUUID().slice(0,8)}`;
-  this.session={schemaVersion:1,sessionId,participantId:id,startedUtc:new Date().toISOString(),endedUtc:null,timeOrigin:performance.timeOrigin,status:'active',phase:'consent',mode:copy.mode,dataSource:'webgazer-camera',config:copy,order:orderForParticipant(id,copy),artBackground:background,calibrationVersion:0,quality:'pending',qualityNotes:[],dependencies:{webgazer:'3.5.3',react:'18.3.1',app:'1.3.0',browser:navigator.userAgent},geometries:[],timings:[],validationSummaries:[],heatmap:{width:1000,kernelPx:30,opacity:.65,weight:'one-per-sample',normalization:'per-image-max',colorScale:'blue-cyan-yellow-red-v1'},scanpath:{...defaultScanpath},samples:[],events:[],responses:[],validation:[]};
+  const {config:copy,assignment}=resolveParticipantConfig(config,id);
+  const errors=validateConfig(copy);if(errors.length)throw Error(errors.join('\n'));
+  const sessionId=`${id}-${new Date().toISOString().replace(/[:.]/g,'-')}-${crypto.randomUUID().slice(0,8)}`;
+  this.session={schemaVersion:1,sessionId,participantId:id,startedUtc:new Date().toISOString(),endedUtc:null,timeOrigin:performance.timeOrigin,status:'active',phase:'consent',mode:copy.mode,dataSource:'webgazer-camera',config:copy,order:orderForParticipant(id,copy),...(assignment?{assignment}:{}),artBackground:background,calibrationVersion:0,quality:'pending',qualityNotes:[],dependencies:{webgazer:'3.5.3',react:'18.3.1',app:'1.4.0',browser:navigator.userAgent},geometries:[],timings:[],validationSummaries:[],heatmap:{width:1000,kernelPx:30,opacity:.65,weight:'one-per-sample',normalization:'per-image-max',colorScale:'blue-cyan-yellow-red-v1'},scanpath:{...defaultScanpath},samples:[],events:[],responses:[],validation:[]};
   this.phase='consent';this.trialIndex=0;this.geometry=null;this.paused=false;this.requireCalibration=false;this.cardIndex=0;
+  if(assignment)this.event('participant_assignment_resolved',assignment);
   this.event('consent_confirmed');this.move('camera');this.lastTick=this.clock();this.lastPredictionAt=this.clock();
   this.interval=setInterval(()=>this.tick(),100); this.persistTimer=setInterval(()=>void this.persist(),1000);void this.persist();
  }

@@ -69,6 +69,7 @@ export function Results({session,onChange,onBack}:Props){
   const active=timings.reduce((n,t)=>n+t.activeMs,0),wall=timings.reduce((n,t)=>n+t.wallMs,0);
   const allSamples=session.samples.filter(s=>s.phase==='free_view'&&s.paintingId===selected.paintingId&&!s.paused);
   const rate=actualSampleRate(session,selected.paintingId);
+  const sceneOrder=session.order.map(id=>session.config.paintings.find(p=>p.paintingId===id)?.title??id).join(' → ');
   const execute=async(fn:()=>void|Promise<void>,notice='')=>{
     if(exportLock.current)return;
     exportLock.current=true;setBusy(true);setPlaying(false);setExportError('');setExportNotice('');
@@ -78,6 +79,7 @@ export function Results({session,onChange,onBack}:Props){
   };
   return <section className="results" aria-label="研究者结果页">
     <header className="results-header"><div><p className="eyebrow">研究者工作区 · 本机记录</p><h1>{corrected?'参考校正 · ':''}{view==='heatmap'?'摄像头视线估计密度图':'摄像头视线估计轨迹（Scan path）'}</h1><p>{session.participantId} · {session.mode==='preview'?'预览模式':'正式研究'} · {session.status==='interrupted'?'中断记录':'已完成'} · {new Date(session.startedUtc).toLocaleString('zh-CN')}</p></div><button onClick={onBack}>返回会话列表</button></header>
+    <p aria-label="本次分组">观看顺序：{sceneOrder} · 题本：{session.assignment?`${session.assignment.questionVariant==='alpha'?'甲':'乙'}（${session.assignment.questionVariant}）`:'未记录分组（旧会话或自定义配置）'}</p>
     <section className="completion-export" aria-label="导出并发送研究数据" aria-busy={busy}>
       <h2>{session.status==='interrupted'?'本次测试已中断，可导出已保存记录':'测试已完成，谢谢参与'}</h2>
       <p>数据保存在你当前使用的浏览器里，不会自动上传。请下载下面的 ZIP 文件，再通过你与研究者约定的方式发送给对方。</p>

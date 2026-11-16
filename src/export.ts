@@ -7,7 +7,8 @@ import {renderCorrectedHeatmap,renderCorrectedScanpath} from './correctionRender
 
 export const GAZE_COLUMNS: (keyof GazeSample)[] = ['sessionId','participantId','paintingId','trialId','phase','sampleIndex','callbackTimeMs','libraryElapsedMs','viewportX','viewportY','imageX','imageY','imageNormX','imageNormY','predictionAvailable','insideImage','geometryVersion','calibrationVersion','paused','confidence'];
 export const EVENT_COLUMNS: (keyof PhaseEvent)[] = ['sessionId','participantId','timeMs','type','phase','paintingId','detail'];
-export const RESPONSE_COLUMNS: (keyof ResponseRow)[] = ['sessionId','participantId','paintingId','phase','questionId','answer','confidence','unknown','skipped','durationMs','timeMs'];
+interface ExportResponseRow extends ResponseRow {planVersion:string;questionVariant:string;questionVersion:string;sceneOrder:string;paintingOrder:string;questionPrompt:string}
+export const RESPONSE_COLUMNS: (keyof ExportResponseRow)[] = ['sessionId','participantId','paintingId','phase','questionId','answer','confidence','unknown','skipped','durationMs','timeMs','planVersion','questionVariant','questionVersion','sceneOrder','paintingOrder','questionPrompt'];
 export const VALIDATION_COLUMNS: (keyof ValidationRow)[] = ['sessionId','participantId','paintingId','kind','runId','calibrationVersion','targetId','targetX','targetY','viewportWidth','viewportHeight','timeMs','predictionX','predictionY','errorPx','settling','training'];
 export const CORRECTED_GAZE_COLUMNS: (keyof CorrectionRow)[] = ['sessionId','participantId','sampleIndex','paintingId','trialId','phase','callbackTimeMs','calibrationVersion','geometryVersion','correctionApplied','correctionRunId','correctionReason','offsetX','offsetY','rawViewportX','rawViewportY','correctedViewportX','correctedViewportY','correctedImageX','correctedImageY','correctedImageNormX','correctedImageNormY','correctedInsideImage'];
 export function csvCell(value:unknown):string {
@@ -20,6 +21,27 @@ export function toCSV<T extends object>(rows:T[], columns:(keyof T)[]):string {
 }
 export function exportPrefix(session:Session):string {
   return `${session.mode}_${session.participantId}_${session.sessionId}`.replace(/[^a-zA-Z0-9_-]/g,'_');
+}
+/** Resolve question wording from the session snapshot, never from the current question bank. */
+function responseQuestionPrompt(session:Session,row:ResponseRow):string {
+  if(row.phase==='pre'||row.phase==='post'){
+    return session.config.paintings.find(p=>p.paintingId===row.paintingId)?.[row.phase].find(q=>q.id===row.questionId)?.prompt??'';
+  }
+  if(row.phase==='interview'){
+    if(row.questionId==='interview')return session.config.copy.interview;
+    for(const painting of session.config.paintings){
+      const index=painting.interview.findIndex((_,i)=>`${painting.paintingId}-interview-${i}`===row.questionId);
+      if(index>=0)return painting.interview[index];
+    }
+  }
+  return '';
+}
+function exportResponses(session:Session):ExportResponseRow[] {
+  const assignment=session.assignment;
+  return session.responses.map(row=>({...row,
+    planVersion:assignment?.planVersion??'',questionVariant:assignment?.questionVariant??'',questionVersion:assignment?.questionVersion??'',
+    sceneOrder:assignment?.order??'',paintingOrder:assignment?JSON.stringify(session.order):'',questionPrompt:responseQuestionPrompt(session,row),
+  }));
 }
 export function buildTextExportFiles(session:Session):Record<string,Uint8Array> {
   if(session.dataSource!=='webgazer-camera')throw new Error('拒绝导出非摄像头研究样本。开发 fixture 只允许在测试目录使用。');
@@ -43,7 +65,7 @@ export function buildTextExportFiles(session:Session):Record<string,Uint8Array> 
   return {
     'gaze_samples.csv':strToU8('\ufeff'+toCSV(session.samples,GAZE_COLUMNS)),
     'phase_events.csv':strToU8('\ufeff'+toCSV(session.events,EVENT_COLUMNS)),
-    'responses.csv':strToU8('\ufeff'+toCSV(session.responses,RESPONSE_COLUMNS)),
+    'responses.csv':strToU8('\ufeff'+toCSV(exportResponses(session),RESPONSE_COLUMNS)),
     'validation.csv':strToU8('\ufeff'+toCSV(session.validation,VALIDATION_COLUMNS)),
     'session.json':strToU8(JSON.stringify(snapshot,null,2)),
   };

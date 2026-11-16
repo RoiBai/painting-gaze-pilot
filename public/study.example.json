@@ -1,5 +1,5 @@
 {
-  "version": "pilot-1.2.2",
+  "version": "pilot-1.4.0",
   "mode": "preview",
   "durationSeconds": 60,
   "order": "alternate",
@@ -316,5 +316,6 @@
     "consent": "我已了解流程，自愿参加，并同意在本机保存匿名回答与摄像头视线估计样本。",
     "freeView": "请自然观看画面。保持坐姿与屏幕距离，观看结束后页面会自动继续。",
     "interview": "请简短描述观看、答题和解释卡的使用体验；也可以跳过。"
-  }
+  },
+  "participantPlan": "crossed-four-v1"
 }

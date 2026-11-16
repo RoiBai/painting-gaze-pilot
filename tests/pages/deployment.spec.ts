@@ -1,6 +1,25 @@
 import { test, expect } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import { unzipSync, strFromU8 } from 'fflate';
+import { questionVariants, QUESTION_VARIANT_VERSION } from '../../src/questionVariants';
+
+test('published researcher preview and all four participant links preserve the Pages subpath', async ({page}) => {
+  const site = new URL(String(test.info().project.use.baseURL));
+  await page.goto('./?preview=design');
+  const table = page.getByRole('table', {name:'四人交叉分配'});
+  await expect(table).toBeVisible();
+  await expect(page.getByText(questionVariants.alpha['ming-xingle-archery'].pre[0].prompt, {exact:true})).toBeVisible();
+  await expect(page.getByText(questionVariants.beta['ming-xingle-archery'].pre[0].prompt, {exact:true})).toBeVisible();
+  await page.locator('.assignment-preview').screenshot({path:'docs/qa-assignment.png'});
+  for(const id of ['N03','N04','N05','N06']) {
+    await expect(table.getByRole('link', {name:`${id} ↗`})).toHaveAttribute('href', `${site.pathname}?participant=${id}`);
+  }
+  for(const id of ['N03','N04','N05','N06']) {
+    await page.goto(`./?participant=${id}`);
+    await expect(page.getByLabel('匿名参与者编号')).toHaveValue(id);
+    await expect(page.getByRole('table', {name:'四人交叉分配'})).toHaveCount(0);
+  }
+});
 
 // Production build, isolated browser data, synthetic non-face camera; no user records.
 test('Pages subpath loads pinned local resources and exports a local session ZIP', async ({ page }) => {
@@ -9,8 +28,8 @@ test('Pages subpath loads pinned local resources and exports a local session ZIP
   const failures: string[] = [];
   page.on('request', request => requests.push({ url: request.url(), method: request.method() }));
   page.on('response', response => { if (response.status() >= 400) failures.push(`${response.status()} ${response.url()}`); });
-  await page.goto('./?participant=N02');
-  await expect(page.getByLabel('匿名参与者编号')).toHaveValue('N02');
+  await page.goto('./?participant=N04');
+  await expect(page.getByLabel('匿名参与者编号')).toHaveValue('N04');
   await expect(page.locator('a.brand')).toHaveAttribute('href', site.pathname);
   await page.getByRole('button', { name: '研究者设置', exact: true }).click();
   await expect.poll(() => page.locator('img.material-preview').evaluateAll(images => images.map(image => (image as HTMLImageElement).naturalWidth))).toEqual([6888, 5900]);
@@ -29,16 +48,23 @@ test('Pages subpath loads pinned local resources and exports a local session ZIP
 
   await page.getByRole('button', { name: '退出并保留记录', exact: true }).click();
   await expect(page.locator('iframe[data-webgazer-runtime]')).toHaveCount(0);
+  await expect(page.getByLabel('本次分组', { exact: true })).toContainText(/蹴鞠.*射箭.*甲（alpha）/);
   const downloadPromise = page.waitForEvent('download');
   await page.getByRole('button', { name: /一键.*ZIP/ }).click();
   const download = await downloadPromise;
-  expect(download.suggestedFilename()).toMatch(/^preview_N02_.*\.zip$/);
+  expect(download.suggestedFilename()).toMatch(/^preview_N04_.*\.zip$/);
   const archive = unzipSync(new Uint8Array(await readFile((await download.path())!)));
   const names = Object.keys(archive);
   const snapshotPath = names.find(name => name.endsWith('/session.json'))!;
   const snapshot = JSON.parse(strFromU8(archive[snapshotPath]));
-  expect(snapshot.participantId).toBe('N02');
+  expect(snapshot.participantId).toBe('N04');
   expect(snapshot.status).toBe('interrupted');
+  expect(snapshot.assignment).toEqual({planVersion:'crossed-four-v1',participantId:'N04',order:'BA',questionVariant:'alpha',questionVersion:QUESTION_VARIANT_VERSION,paintingOrder:['ming-xingle-cuju','ming-xingle-archery']});
+  expect(snapshot.order).toEqual(['ming-xingle-cuju','ming-xingle-archery']);
+  for (const painting of snapshot.config.paintings) {
+    expect(painting.pre).toEqual(questionVariants.alpha[painting.paintingId].pre);
+    expect(painting.post).toEqual(questionVariants.alpha[painting.paintingId].post);
+  }
   expect(snapshot.config.paintings[0].image).toBe('/materials/ming-xingle-archery-v2.png');
   expect(names.filter(name => name.endsWith('.csv'))).toHaveLength(4);
   expect(names.filter(name => name.endsWith('.png'))).toHaveLength(4);

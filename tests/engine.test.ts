@@ -3,6 +3,8 @@ vi.mock('../src/storage',()=>({saveSession:vi.fn().mockResolvedValue(undefined)}
 import {StudyEngine, type Adapter, type InputSample} from '../src/engine';
 import {defaultConfig} from '../src/study';
 import {containGeometry} from '../src/geometry';
+import {FOUR_PERSON_PLAN, PARTICIPANT_PLAN_VERSION} from '../src/assignment';
+import {questionVariants, QUESTION_VARIANT_VERSION} from '../src/questionVariants';
 let now=0;let engine:StudyEngine;let sample:(s:InputSample)=>void;let adapter:Adapter;
 beforeEach(()=>{now=0;vi.useFakeTimers();vi.spyOn(document,'hasFocus').mockReturnValue(true);adapter={start:vi.fn().mockResolvedValue(undefined),stop:vi.fn(),resetCalibration:vi.fn().mockResolvedValue(undefined),train:vi.fn(),setPhase:vi.fn(),showPreview:vi.fn()};engine=new StudyEngine((cb,status)=>{sample=cb;return adapter},()=>now)});
 afterEach(()=>{engine.dispose();vi.useRealTimers();vi.restoreAllMocks()});
@@ -22,6 +24,21 @@ function qualityRecord(status:'pass'|'fail'|'judgment'){
  engine.session!.validationSummaries.push({runId:'test-quality',kind:'validation',calibrationVersion:1,targets:[{targetId:'0',n:10,medianErrorPx:20}],medianErrorPx:20,errorDiagonalRatio:.02,status});
 }
 it('uses 60 seconds for new sessions and freezes the input configuration',()=>{const config=structuredClone(defaultConfig);engine.begin(config,'N01','偶尔欣赏');expect(engine.session!.config.durationSeconds).toBe(60);config.durationSeconds=120;expect(engine.session!.config.durationSeconds).toBe(60)});
+it.each(FOUR_PERSON_PLAN)('begins $participantId with its frozen crossed assignment and actual questions',row=>{
+ const config=structuredClone(defaultConfig);config.participantPlan=PARTICIPANT_PLAN_VERSION;
+ engine.begin(config,row.participantId,'偶尔欣赏');
+ const session=engine.session!;
+ expect(session.assignment).toMatchObject({...row,planVersion:PARTICIPANT_PLAN_VERSION,questionVersion:QUESTION_VARIANT_VERSION});
+ expect(session.assignment!.paintingOrder).toEqual(session.order);
+ expect(engine.painting!.paintingId).toBe(row.order==='AB'?'ming-xingle-archery':'ming-xingle-cuju');
+ for(const painting of session.config.paintings){expect(painting.pre).toEqual(questionVariants[row.questionVariant][painting.paintingId].pre);expect(painting.post).toEqual(questionVariants[row.questionVariant][painting.paintingId].post)}
+ const recorded=session.events.find(e=>e.type==='participant_assignment_resolved')!;
+ expect(JSON.parse(recorded.detail)).toEqual(session.assignment);
+ const frozenPrompt=session.config.paintings[0].pre[0].prompt;
+ config.paintings[0].pre[0].prompt='稍后更改';config.order='BA';
+ expect(session.config.paintings[0].pre[0].prompt).toBe(frozenPrompt);
+ expect(session.config.order).toBe(row.order);
+});
 it('continues adequate unassessed validation without making it low quality or passed',()=>{qualityRecord('judgment');engine.acceptQuality(false);expect(engine.session!.quality).toBe('pending');expect(engine.phase).toBe('drift');const decision=engine.session!.events.find(e=>e.type==='researcher_quality_decision')!;expect(JSON.parse(decision.detail).decision).toBe('unassessed');expect(engine.session!.qualityNotes.join()).toContain('未判定');});
 it('does not turn missing thresholds into low quality through the legacy boolean argument',()=>{qualityRecord('judgment');engine.acceptQuality(true);expect(engine.session!.quality).toBe('pending')});
 it('still requires an explicit low-quality choice after actual validation failure',()=>{qualityRecord('fail');engine.session!.validationSummaries[0].targets[0].n=0;expect(()=>engine.acceptQuality(false)).toThrow('验证未通过');expect(engine.phase).toBe('quality');engine.acceptQuality(true);expect(engine.session!.quality).toBe('low_quality');expect(engine.session!.qualityNotes.join()).toContain('只有 0 个')});

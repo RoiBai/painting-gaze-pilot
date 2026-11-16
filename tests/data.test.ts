@@ -43,6 +43,35 @@ describe('research CSV',()=>{
     expect(snapshot.config.version).toBe(s.config.version);expect(snapshot.samples.length).toBe(2);
     expect(parseCSV(strFromU8(files['responses.csv']).replace(/^\ufeff/,''))[1][5]).toBe(s.responses[0].answer);
   });
+  it('appends the frozen assignment and phase-specific prompts without changing raw responses or the file list',()=>{
+    const s=sessionFixture();s.participantId='N06';s.order=['B','A'];
+    s.assignment={planVersion:'crossed-four-v1',participantId:'N06',order:'BA',questionVariant:'beta',questionVersion:'frozen-question-version',paintingOrder:['B','A']};
+    const prompt='画面中的“关系”，你怎么理解？\n请说出一条线索。';
+    s.config.paintings[0].pre=[{id:'same-id',prompt:'另一幅画的问题',scoring:''}];
+    s.config.paintings[1].pre=[{id:'same-id',prompt,scoring:''}];
+    s.config.paintings[1].post=[{id:'same-id',prompt:'阅读之后，你的理解有哪些变化？',scoring:''}];
+    s.responses=(['pre','post'] as const).map(phase=>({sessionId:s.sessionId,participantId:s.participantId,paintingId:'B',phase,questionId:'same-id',answer:'原话，包含 "引号"\n第二行',confidence:2,unknown:false,skipped:false,durationMs:1234,timeMs:600}));
+    const before=structuredClone(s),files=buildTextExportFiles(s);
+    const rows=parseCSV(strFromU8(files['responses.csv']).replace(/^\ufeff/,'')),header=rows[0];
+    expect(header.slice(0,11)).toEqual(['sessionId','participantId','paintingId','phase','questionId','answer','confidence','unknown','skipped','durationMs','timeMs']);
+    expect(header.slice(11)).toEqual(['planVersion','questionVariant','questionVersion','sceneOrder','paintingOrder','questionPrompt']);
+    expect(rows[1].slice(11)).toEqual(['crossed-four-v1','beta','frozen-question-version','BA','["B","A"]',prompt]);
+    expect(rows[2][header.indexOf('questionPrompt')]).toBe(s.config.paintings[1].post[0].prompt);
+    expect(rows[1][5]).toBe(before.responses[0].answer);expect(rows[1][6]).toBe('2');
+    const snapshot=JSON.parse(strFromU8(files['session.json']));
+    expect(snapshot.assignment).toEqual(before.assignment);expect(snapshot.responses).toEqual(before.responses);expect(s).toEqual(before);
+    expect(Object.keys(files)).toEqual(['gaze_samples.csv','phase_events.csv','responses.csv','validation.csv','session.json']);
+  });
+  it('never infers a legacy assignment from the participant ID and only exports question text present in its snapshot',()=>{
+    const s=sessionFixture();s.participantId='N03';
+    s.config.paintings[0].pre=[{id:'old-p1',prompt:'旧会话实际使用的题目',scoring:''}];
+    s.config.copy.interview='旧会话总访谈';s.config.paintings[1].interview=['旧会话画作访谈'];
+    s.responses=[{paintingId:'A',phase:'pre' as const,questionId:'old-p1'},{paintingId:'A',phase:'pre' as const,questionId:'missing-id'},{paintingId:null,phase:'interview' as const,questionId:'interview'},{paintingId:null,phase:'interview' as const,questionId:'B-interview-0'}].map(row=>({...row,sessionId:s.sessionId,participantId:s.participantId,answer:'保留原文',confidence:null,unknown:false,skipped:false,durationMs:0,timeMs:0}));
+    const files=buildTextExportFiles(s),rows=parseCSV(strFromU8(files['responses.csv']).replace(/^\ufeff/,''));
+    for(const row of rows.slice(1))expect(row.slice(11,16)).toEqual(['','','','','']);
+    expect(rows.slice(1).map(row=>row[16])).toEqual(['旧会话实际使用的题目','','旧会话总访谈','旧会话画作访谈']);
+    expect(JSON.parse(strFromU8(files['session.json']))).not.toHaveProperty('assignment');
+  });
 });
 
 describe('measured sample density',()=>{
