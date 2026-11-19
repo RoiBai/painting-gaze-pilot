@@ -2,6 +2,8 @@ import {unzipSync,strFromU8} from 'fflate';
 import type {Session} from './types';
 import {buildPilotPlan,hitRect,PILOT_VERSION} from './pilotProtocol';
 import {validateConfig} from './study';
+import {recallComplete,workloadComplete,workloadIds} from './pilotSurvey';
+import {surveyContext} from './pilotSurveyRecords';
 
 const object=(value:unknown):value is Record<string,unknown>=>!!value&&typeof value==='object'&&!Array.isArray(value);
 const nonempty=(value:unknown):value is string=>typeof value==='string'&&value.trim().length>0;
@@ -25,6 +27,41 @@ function validBackground(value:unknown):boolean {
     }
   }
   return true;
+}
+
+function checkSurvey(session:Session):void {
+  const version=session.config.pilotSurveyVersion;
+  if(version===undefined){
+    if(session.pilotSurveys!==undefined)throw Error('问卷记录缺少对应的问卷版本。');
+    return;
+  }
+  if(version!=='pilot2-recall-v1'||!session.pilot)throw Error('Pilot 2 问卷与会话版本不一致。');
+  if(session.pilotSurveys!==undefined && (!object(session.pilotSurveys)||Object.keys(session.pilotSurveys).some(id=>!session.order.includes(id))))throw Error('问卷场景无效。');
+  for(const painting of session.config.paintings){
+    const questions=painting.recallQuestions;
+    if(!Array.isArray(questions)||questions.length!==3||questions.some(q=>!q||q.id!=='recall-'+q.cardId||!nonempty(q.prompt)||!painting.cards.some(c=>c.id===q.cardId))
+      ||new Set(questions.map(q=>q.id)).size!==3)throw Error('每景回忆题须逐题对应三张讲解卡。');
+    const survey=session.pilotSurveys?.[painting.paintingId];
+    if(survey===undefined)continue;
+    if(!survey||survey.version!==version||!object(survey.workload)||!object(survey.recall)||!object(survey.supplemental)||!Array.isArray(survey.submittedCardOrder))
+      throw Error('Pilot 2 问卷记录格式无效。');
+    if(survey.trialId!==null&&!session.timings.some(t=>t.trialId===survey.trialId&&t.paintingId===painting.paintingId&&t.status==='completed'))throw Error('问卷试次与本景不符。');
+    const actual=surveyContext(session,painting.paintingId).cards;
+    if(actual.length!==survey.submittedCardOrder.length||actual.some((id,i)=>id!==survey.submittedCardOrder[i]))throw Error('问卷所用卡序与实际显示记录不符。');
+    if(Object.keys(survey.workload).some(key=>!workloadIds.some(id=>id===key))||Object.values(survey.workload).some(v=>!Number.isInteger(v)||v<0||v>100||v%5!==0))
+      throw Error('负荷评分须在 0–100 范围内并以 5 分递增。');
+    for(const ms of [survey.workloadSubmittedMs,survey.recallSubmittedMs,survey.supplementalSubmittedMs]){
+      if(ms!==null&&(!Number.isFinite(ms)||ms<0||!Number.isFinite(new Date(session.timeOrigin+ms).valueOf())))throw Error('问卷提交时间无效。');
+    }
+    if(survey.workloadSubmittedMs!==null&&!workloadComplete(survey))throw Error('已提交的观看感受缺少评分。');
+    for(const [id,answer] of Object.entries(survey.recall)){
+      if(!questions.some(q=>q.id===id)||!answer||typeof answer.text!=='string'||typeof answer.unknown!=='boolean'||(answer.unknown&&answer.text!==''))throw Error('回忆回答的文字和记不清选项不一致。');
+    }
+    if(survey.recallSubmittedMs!==null&&(survey.workloadSubmittedMs===null||survey.recallSubmittedMs<survey.workloadSubmittedMs||!recallComplete(painting,survey)))throw Error('已提交的回忆页缺少有效回答或时序不符。');
+    if(survey.supplementalSubmittedMs!==null&&(survey.recallSubmittedMs===null||survey.supplementalSubmittedMs<survey.recallSubmittedMs))throw Error('补充问卷提交顺序无效。');
+    if(survey.manualScores!==undefined&&(!object(survey.manualScores)||Object.entries(survey.manualScores).some(([id,score])=>
+      survey.recallSubmittedMs===null||!questions.some(q=>q.id===id)||!survey.recall[id]||(score!==0&&score!==1)||(survey.recall[id].unknown&&score!==0))))throw Error('人工评分须对应已提交的回忆回答。');
+  }
 }
 
 /** Validate the P archive's schedule and observed card-to-callback links without modifying its data. */
@@ -137,5 +174,6 @@ export function readSessionArchive(bytes:Uint8Array,name:string):Session {
   if(s.timings.some(t=>!t||typeof t.trialId!=='string'||!Number.isFinite(t.startedMs)))throw new Error('展示计时格式无效。');
   if(pId) checkPilot(s);
   else if(s.pilot!==undefined||s.config.pilotProtocol!==undefined||s.cardExposures!==undefined) throw Error('会话编号和三种讲解方式的配置不一致。');
+  checkSurvey(s);
   return s;
 }

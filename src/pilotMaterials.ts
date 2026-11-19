@@ -1,6 +1,6 @@
 import type { AOI, Painting, StudyConfig } from './types';
 import { defaultConfig } from './study';
-import { pilotInterviewQuestions, pilotSceneQuestions } from './pilotQuestions';
+import { pilotInterviewQuestions, pilotSceneQuestions, PILOT_SURVEY_VERSION, recallQuestionsByScene } from './pilotQuestions';
 
 const catalogue = 'https://www.dpm.org.cn/collection/paint/228988.html';
 const poloSource = 'https://www.dpm.org.cn/court/culture/166797.html';
@@ -138,6 +138,7 @@ function makePainting(scene: Scene): Painting {
       aoiIds: regions,
     })),
     pre: structuredClone(pilotSceneQuestions),
+    recallQuestions: structuredClone(recallQuestionsByScene[id]),
     post: [],
     interview: pilotInterviewQuestions.map(question => question.prompt),
   };
@@ -145,7 +146,8 @@ function makePainting(scene: Scene): Painting {
 
 export const pilotConfig: StudyConfig = {
   ...defaultConfig,
-  version: 'pilot-three-1.0.0',
+  version: 'pilot-three-2.0.0',
+  pilotSurveyVersion: PILOT_SURVEY_VERSION,
   mode: 'preview',
   pilotProtocol: 'three-condition-v1',
   participantPlan: undefined,

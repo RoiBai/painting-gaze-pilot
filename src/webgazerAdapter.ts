@@ -10,7 +10,7 @@ export type CameraOptions = { regression: 'ridge' | 'weightedRidge'; kalman: boo
 type WG = {
   params: { faceMeshSolutionPath: string; showFaceOverlay: boolean; showFaceFeedbackBox: boolean; storingPoints: boolean };
   begin(onFail?: () => void): Promise<WG>;
-  end(): void; pause(): void;
+  end(): void; pause(): void; resume(): Promise<WG>;
   getRegression(): { init(): void }[];
   saveDataAcrossSessions(value: boolean): WG;
   setRegression(name: string): WG; applyKalmanFilter(value: boolean): WG;
@@ -152,7 +152,7 @@ export class WebGazerAdapter {
           return result;
         };
         wg.setGazeListener((data, elapsed) => {
-          if (!current()) return;
+          if (!current() || this.phase==='pilot_questionnaire') return;
           const at = performance.now();
           this.lastCallbackAt = at;
           const valid = data !== null && Number.isFinite(data.x) && Number.isFinite(data.y);
@@ -177,7 +177,7 @@ export class WebGazerAdapter {
         this.lastCallbackAt = performance.now();
         if (this.state.status === 'loading') this.publish({ status: 'ready', message: '模型已加载，请开始校准', faceDetected: false });
         this.watchdog = setInterval(() => {
-          if (!current()) return;
+          if (!current() || this.phase==='pilot_questionnaire') return;
           const now = performance.now();
           if (now - this.lastCallbackAt > 8000 && !document.hidden) this.fail('WebGazer 超过 8 秒没有回调；请检查设备或模型，重新启动并校准。');
           else if (now - this.lastGoodAt > 1500 && this.state.status === 'tracking') this.publish({ status: 'ready', message: '视线预测暂时中断', faceDetected: false });
@@ -197,7 +197,13 @@ export class WebGazerAdapter {
   }
 
   setPhase(phase: string) {
+    const previous=this.phase;
     this.phase = phase;
+    if(phase==='pilot_questionnaire')this.wg?.pause();
+    else if(previous==='pilot_questionnaire' && this.wg){
+      this.lastCallbackAt=performance.now();
+      void this.wg.resume().catch(error=>this.fail(String(error)));
+    }
     this.wg?.removeMouseEventListeners();
     if (phase === 'free_view') this.showPreview(false);
   }

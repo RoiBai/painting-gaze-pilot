@@ -1,9 +1,9 @@
-import {useEffect,useRef,useState,useSyncExternalStore} from 'react';
+import {useEffect,useRef,useState,useSyncExternalStore,lazy,Suspense} from 'react';
 import type {Session,StudyConfig,Painting} from './types';
 import {StudyEngine} from './engine';
 import {defaultConfig,validateConfig} from './study';
 import {containGeometry} from './geometry';
-import {listSessions,recoverInterruptedSessions,saveSession} from './storage';
+import {recoverInterruptedSessions,saveSession} from './storage';
 import Results from './Results';
 import Quality from './ValidationReview';
 import {validationRuleText} from './quality';
@@ -17,6 +17,11 @@ import PilotLanding,{pilotLabels} from './PilotLanding';
 import {PilotCard} from './PilotCard';
 import {pilotConfig} from './pilotMaterials';
 import {pilotInterviewQuestions} from './pilotQuestions';
+import PilotSurvey from './PilotSurveyPages';
+import PilotSegmentReview from './PilotSegmentReview';
+import ParticipantDownload from './ParticipantDownload';
+import {acquirePilotTab,clearCheckpoint,readCheckpoint} from './pilotResume';
+const PilotBlindReview=lazy(()=>import('./PilotBlindReview'));
 
 const params=new URLSearchParams(location.search);
 const requestedId=params.get('participant')??'';
@@ -25,10 +30,30 @@ const initialPilotId=/^P(?:0[0-9]|[12][0-9]|3[0-6])$/.test(requestedId)?requeste
 
 const phaseNames:Record<string,string>={camera:'摄像头准备',calibration:'屏幕校准',validation:'独立验证',quality:'验证结果',drift:'观看前检查',drift_result:'检查结果',loading_image:'准备画面',free_view:'自由观看',familiarity:'观看经验',pre:'观看后的想法',cards:'关系解释',post:'再次思考',interview:'最后的反馈',completed:'研究者回看',interrupted:'会话已中断'};
 function App(){
+ const lease=useRef<(()=>void)|null>(null);
+ const [practiceReview,setPracticeReview]=useState(false);
+ const [resumeCheck]=useState(()=>{const c=readCheckpoint();return c && !legacyRoute && (!requestedId||requestedId===c.participantId) && !params.has('preview')?c:null});
+ const [restoring,setRestoring]=useState(Boolean(resumeCheck));
  const [practiceEnded,setPracticeEnded]=useState(false);
  const [engine]=useState(()=>new StudyEngine());useSyncExternalStore(engine.subscribe,engine.snapshot);
  const [config,setConfig]=useState<StudyConfig>(()=>structuredClone(defaultConfig));const [settings,setSettings]=useState(()=>new URLSearchParams(window.location.search).get('preview')==='design');const [consent,setConsent]=useState(false);const [participant,setParticipant]=useState(()=>{const id=new URLSearchParams(window.location.search).get('participant');return id&&FOUR_PERSON_PLAN.some(row=>row.participantId===id)?id:'N03'});const [background,setBackground]=useState(emptyBackground);const [error,setError]=useState('');const [sessions,setSessions]=useState<Session[]>([]);const [review,setReview]=useState<Session|null>(null);const [importText,setImportText]=useState('');const [importedReview,setImportedReview]=useState(false);const [importBusy,setImportBusy]=useState(false);
- useEffect(()=>{if(requestedId!=='P00')void recoverInterruptedSessions().then(setSessions).catch(e=>setError(String(e)));const blur=()=>engine.environmentChange('blur');const visibility=()=>{if(document.hidden)engine.environmentChange('tab_hidden')};const resize=()=>engine.environmentChange('resize');const key=(e:KeyboardEvent)=>{if(e.key==='Escape')engine.pause('manual_pause',false)};const unload=()=>{if(engine.session?.pilot?.practice){setPracticeEnded(true);engine.discardPractice()}engine.dispose()};window.addEventListener('blur',blur);document.addEventListener('visibilitychange',visibility);window.addEventListener('resize',resize);window.addEventListener('keydown',key);window.addEventListener('pagehide',unload);return()=>{window.removeEventListener('blur',blur);document.removeEventListener('visibilitychange',visibility);window.removeEventListener('resize',resize);window.removeEventListener('keydown',key);window.removeEventListener('pagehide',unload);engine.dispose()}},[engine]);
+ useEffect(()=>{let live=true;
+   if(requestedId!=='P00')void recoverInterruptedSessions(resumeCheck?.sessionId).then(async records=>{
+     if(!live)return;
+     setSessions(records);
+     const record=resumeCheck && records.find(s=>s.sessionId===resumeCheck.sessionId);
+     if(resumeCheck && record && record.status==='active'){
+       const release=await acquirePilotTab(record.sessionId);
+       if(!release){
+         clearCheckpoint(record.sessionId);
+         setSessions(records.filter(r=>r.sessionId!==record.sessionId));
+         setError('这个会话仍在另一个标签页中进行，请回到原标签页继续。');return;
+       }
+       if(!live || !engine.restorePilot(record,resumeCheck)){release();return}
+       lease.current=release;
+     }
+   }).catch(e=>{if(live)setError(String(e))}).finally(()=>{if(live)setRestoring(false)});
+   const blur=()=>engine.environmentChange('blur');const visibility=()=>{if(document.hidden)engine.environmentChange('tab_hidden')};const resize=()=>engine.environmentChange('resize');const key=(e:KeyboardEvent)=>{if(e.key==='Escape')engine.pause('manual_pause',false)};const unload=()=>{if(engine.session?.pilot?.practice){setPracticeEnded(true);engine.discardPractice()}engine.suspendForReload();lease.current?.();lease.current=null};const show=(e:PageTransitionEvent)=>{if(e.persisted&&engine.session?.config.pilotSurveyVersion)location.reload()};window.addEventListener('pageshow',show);window.addEventListener('blur',blur);document.addEventListener('visibilitychange',visibility);window.addEventListener('resize',resize);window.addEventListener('keydown',key);window.addEventListener('pagehide',unload);return()=>{live=false;lease.current?.();lease.current=null;window.removeEventListener('pageshow',show);window.removeEventListener('blur',blur);document.removeEventListener('visibilitychange',visibility);window.removeEventListener('resize',resize);window.removeEventListener('keydown',key);window.removeEventListener('pagehide',unload);engine.dispose()}},[engine]);
  useEffect(()=>{if(config.participantPlan&&!FOUR_PERSON_PLAN.some(row=>row.participantId===participant)){setParticipant('N03');setBackground(emptyBackground());setConsent(false)}},[config.participantPlan,participant]);
  const participantIds=config.participantPlan?FOUR_PERSON_PLAN.map(row=>row.participantId):['N01','N02','N03','N04','N05','N06'];
  const active=engine.session;const painting=engine.painting;const phase=engine.phase;const free=phase==='free_view'&&!engine.paused;
@@ -39,16 +64,21 @@ function App(){
  async function start(){setError('');if(!consent||!backgroundComplete(background)){setError('请填写三道背景题并确认参与同意。');return}try{if(config.displayMode==='fullscreen')await document.documentElement.requestFullscreen();engine.begin(config,participant,background)}catch(e){setError(String(e))}}
  async function newParticipant(){await engine.persist();engine.dispose();window.location.reload()}
  async function importArchive(file:File){setImportBusy(true);setError('');try{const session=readSessionArchive(new Uint8Array(await file.arrayBuffer()),file.name);setImportedReview(true);setReview(session)}catch(e){setError(`导入失败：${e instanceof Error?e.message:String(e)}`)}finally{setImportBusy(false)}}
+ if(restoring)return <main className="shell stage" role="status">正在恢复本机进度…</main>;
+ if(practiceReview&&active?.pilot?.practice&&!terminalPractice)return <main className="shell wide"><h1>P00 临时回看</h1><p>你可以选择刚才的场景和卡片时段。结束试用后清除本页数据。</p><button onClick={()=>{setPracticeReview(false);engine.next()}}>结束并清除试用</button><PilotSegmentReview session={active}/></main>;
  if(practiceEnded||terminalPractice)return <main className="shell stage"><h1>本次 P00 试用已清除</h1><p>本次的背景、回答和视线数据未写入研究数据库。你和同伴可以重复使用 P00。</p><a href={publicAssetUrl('/')+'?participant=P00'}>重新开始 P00</a></main>;
  if(review)return <main className="shell wide"><Results session={review} onChange={s=>{setReview(s);if(!importedReview)void saveSession(s)}} onBack={()=>{setReview(null);setImportedReview(false)}}/></main>;
+ if(active?.config.pilotSurveyVersion&&(phase==='completed'||phase==='interrupted'))return <ParticipantDownload session={active}/>;
  if(active&&(phase==='completed'||phase==='interrupted'))return <main className="shell wide"><Results session={active} onChange={s=>{engine.session=s;engine.emit();void saveSession(s)}} onBack={()=>void newParticipant()}/></main>;
- const archive=!active&&(<section className="archive"><label>本地导入结果 ZIP / JSON<input aria-label="本地导入结果 ZIP / JSON" type="file" accept=".zip,.json" disabled={importBusy} onChange={e=>{const file=e.currentTarget.files?.[0];e.currentTarget.value='';if(file)void importArchive(file)}}/></label><p className="muted">在当前页面查看原始／参考校正并重新导出。文件只在本机读取，不上传、不覆盖已保存会话；关闭页面后请重新导入。</p>{importBusy&&<p role="status">正在本机读取会话…</p>}<h2>本机已保存的会话 <span>{sessions.length}</span></h2><p className="muted">刷新后的未完成会话标为 interrupted。重新参与须重新校准，原记录保留。</p>{sessions.length===0?<p className="muted">尚无已保存会话。</p>:sessions.map(s=><button className="session-row" key={s.sessionId} onClick={()=>{setImportedReview(false);setReview(s)}}><span><b>{s.participantId}</b> · {new Date(s.startedUtc).toLocaleString('zh-CN')}</span><span>{s.mode} / {s.status} →</span></button>)}<button className="quiet" onClick={()=>void listSessions().then(setSessions)}>刷新会话列表</button></section>);
+ const archive=!active&&(<section id="session-review" className="archive"><h2>导入会话回看</h2><label>本地导入结果 ZIP / JSON<input aria-label="本地导入结果 ZIP / JSON" type="file" accept=".zip,.json" disabled={importBusy} onChange={e=>{const file=e.currentTarget.files?.[0];e.currentTarget.value='';if(file)void importArchive(file)}}/></label><p className="muted">在当前页面查看原始／参考校正并重新导出。文件只在本机读取，不上传、不覆盖已保存会话；关闭页面后请重新导入。</p>{importBusy&&<p role="status">正在本机读取会话…</p>}<h2>本机已保存的会话 <span>{sessions.length}</span></h2><p className="muted">P 编号问卷可在原标签页刷新后继续。中断的记录也可导出。</p>{sessions.length===0?<p className="muted">尚无已保存会话。</p>:sessions.map(s=><button className="session-row" key={s.sessionId} onClick={()=>{setImportedReview(s.events.at(-1)?.type==='pilot_archived_snapshot');setReview(s)}}><span><b>{s.participantId}</b> · {new Date(s.startedUtc).toLocaleString('zh-CN')}</span><span>{s.mode} / {s.status} →</span></button>)}<button className="quiet" onClick={()=>void recoverInterruptedSessions().then(setSessions)}>刷新会话列表</button></section>);
  if(!active&&!legacyRoute)return <>
    <PilotLanding config={pilotConfig} initialId={initialPilotId} onStart={(id,answers)=>{
-     try{setError('');engine.begin(pilotConfig,id,answers)}catch(e){setError(String(e))}
+     try{setError('');engine.begin(pilotConfig,id,answers);
+       if(id!=='P00')void acquirePilotTab(engine.session!.sessionId).then(release=>{lease.current=release}).catch(e=>setError(String(e)))
+     }catch(e){setError(String(e))}
    }}/>
    {error&&<p className="shell notice error" role="alert">{error}</p>}
-   {requestedId!=='P00'&&<div className="shell archive-shell">{archive}</div>}
+   {(!requestedId||params.get('preview')==='design')&&<div className="shell archive-shell">{archive}</div>}
  </>;
  if(!active)return <div className="site"><header className="masthead"><a href={publicAssetUrl('/')} className="brand"><span className="brandmark">观</span><span>观画研究 <small>PAINTING & ATTENTION</small></span></a><button className="quiet" onClick={()=>setSettings(!settings)}>{settings?'返回开始页':'研究者设置'}</button></header><main className="shell">
   <div className="eyebrow">形成性先导研究 · 数据保存在本机</div><h1>从看见，<br/>到理解画中的关系。</h1><p className="lede">{config.copy.intro}</p><div className="overview"><span><b>02</b> 个观看场景</span><span><b>{config.durationSeconds}</b> 秒 / 场景</span><span><b>本地</b> 保存与导出</span></div>
@@ -63,11 +93,14 @@ function App(){
  {(phase==='quality'||phase==='drift_result')&&<main className="shell stage"><Quality engine={engine}/></main>}
  {(phase==='loading_image'||phase==='free_view')&&painting&&<Stimulus key={`${painting.paintingId}-${active.calibrationVersion}`} engine={engine} painting={painting}/>}
  {phase==='familiarity'&&<main className="shell stage"><div className="eyebrow">{engine.trialIndex+1} / 2 · 观看经验</div><h1>这幅画，你以前见过吗？</h1><p>现在再回想即可；没有正确或错误答案。</p><div className="choice-stack">{['没见过','见过，但不熟悉','见过，而且比较熟悉','不确定'].map(v=><button key={v} onClick={()=>{engine.response({questionId:'familiarity',answer:v,confidence:null,unknown:v==='不确定',skipped:false},performance.now()-active.timings.at(-1)!.endedMs!);engine.next()}}>{v}</button>)}</div></main>}
- {(phase==='pre'||phase==='post')&&painting&&<main className="shell stage"><Questionnaire key={`${painting.paintingId}-${phase}`} questions={phase==='pre'?painting.pre:painting.post} title={active.pilot?'刚才这一段的观看体验':phase==='pre'?'观看后的想法':'讲解后的反馈'} onAnswer={row=>engine.response(row,row.durationMs)} onComplete={()=>engine.next()}/></main>}
+ {(phase==='pre'||phase==='post')&&painting&&<main className="shell stage">{active.config.pilotSurveyVersion&&phase==='pre'?<PilotSurvey key={painting.paintingId} session={active} painting={painting} onSave={submitted=>engine.saveSurvey(submitted)} onComplete={()=>engine.next()}/>:<Questionnaire key={`${painting.paintingId}-${phase}`} questions={phase==='pre'?painting.pre:painting.post} title={active.pilot?'刚才这一段的观看体验':phase==='pre'?'观看后的想法':'讲解后的反馈'} onAnswer={row=>engine.response(row,row.durationMs)} onComplete={()=>engine.next()}/>}</main>}
  {phase==='cards'&&painting&&<main className="shell stage"><Explanation key={`${painting.paintingId}-${engine.cardIndex}`} painting={painting} index={engine.cardIndex} onNext={(skip,elapsed)=>{engine.response({questionId:painting.cards[engine.cardIndex].id,answer:skip?'':'已阅读',confidence:null,unknown:false,skipped:skip},elapsed);engine.next()}}/></main>}
- {phase==='interview'&&<main className="shell stage">{active.pilot&&<p className="pilot-interview-context">{active.pilot.plan.map((part,i)=>`第${i+1}段 · ${active.config.paintings.find(p=>p.paintingId===part.paintingId)?.title}（${pilotLabels[part.condition]}）`).join('　')}</p>}<Questionnaire questions={active.pilot?pilotInterviewQuestions.map((q,i)=>({...q,prompt:active.config.paintings[0].interview[i]})):[{id:'interview',prompt:active.config.copy.interview,scoring:''},...active.config.paintings.flatMap(p=>p.interview.map((q,i)=>({id:`${p.paintingId}-interview-${i}`,prompt:q,scoring:''})))]} title="最后，聊聊这次体验" confidence={false} onAnswer={row=>engine.response(row,row.durationMs)} onComplete={()=>engine.next()}/></main>}
+ {phase==='interview'&&<main className="shell stage">{active.pilot&&<p className="pilot-interview-context">{active.pilot.plan.map((part,i)=>`第${i+1}段 · ${active.config.paintings.find(p=>p.paintingId===part.paintingId)?.title}（${pilotLabels[part.condition]}）`).join('　')}</p>}<Questionnaire questions={active.pilot?pilotInterviewQuestions.map((q,i)=>({...q,prompt:active.config.paintings[0].interview[i]})):[{id:'interview',prompt:active.config.copy.interview,scoring:''},...active.config.paintings.flatMap(p=>p.interview.map((q,i)=>({id:`${p.paintingId}-interview-${i}`,prompt:q,scoring:''})))]} initialIndex={active.config.pilotSurveyVersion?Math.min(2,active.responses.filter(r=>r.phase==='interview').length):0} title="最后，聊聊这次体验" confidence={false} onAnswer={row=>engine.response(row,row.durationMs)} onComplete={()=>active.config.pilotSurveyVersion&&active.pilot?.practice?setPracticeReview(true):engine.next()}/></main>}
  </>}</div>
 }
 function Stimulus({engine,painting}:{engine:StudyEngine;painting:Painting}){const ref=useRef<HTMLImageElement>(null);const ready=useRef(false);const [error,setError]=useState('');useEffect(()=>{let canceled=false;const img=ref.current!;async function present(){try{await img.decode();if(canceled)return;if(img.naturalWidth!==painting.width||img.naturalHeight!==painting.height)throw Error(`素材尺寸与配置不一致：实际 ${img.naturalWidth}×${img.naturalHeight}，配置 ${painting.width}×${painting.height}`);requestAnimationFrame(()=>requestAnimationFrame(()=>{if(canceled||ready.current||engine.paused)return;ready.current=true;const box=img.getBoundingClientRect();engine.imageReady(containGeometry({version:engine.session!.geometries.length+1,paintingId:painting.paintingId,timeMs:performance.now(),viewportWidth:window.innerWidth,viewportHeight:window.innerHeight,dpr:window.devicePixelRatio,naturalWidth:img.naturalWidth,naturalHeight:img.naturalHeight,box:{left:box.left,top:box.top,width:box.width,height:box.height}}))}))}catch(e){setError(String(e));engine.event('image_load_error',{message:String(e)})}}void present();return()=>{canceled=true}},[engine,painting,engine.paused]);return <div className="stimulus">{error?<div className="image-error"><h2>画面加载失败，计时未开始</h2><p>{error}</p><button onClick={()=>engine.interrupt('image_load_failure')}>退出并保存错误记录</button></div>:<img ref={ref} src={publicAssetUrl(painting.image)} alt="自由观看画面" style={{visibility:engine.phase==='free_view'?'visible':'hidden'}}/>}{engine.activeCard&&engine.phase==='free_view'&&!engine.paused&&<PilotCard key={engine.activeCard.id} engine={engine} card={engine.activeCard} painting={painting}/>}</div>}
 function Explanation({painting,index,onNext}:{painting:Painting;index:number;onNext:(skip:boolean,elapsed:number)=>void}){const started=useRef(performance.now());const card=painting.cards[index];return <><div className="eyebrow">固定解释卡 {index+1} / 2</div><h1>{card.title}</h1><div className="card-image"><img src={publicAssetUrl(painting.image)} alt="讲解定位画面"/>{painting.aois.filter(a=>card.aoiIds.includes(a.id)).map(a=><div key={a.id} className="aoi" style={{left:`${a.rect[0]*100}%`,top:`${a.rect[1]*100}%`,width:`${a.rect[2]*100}%`,height:`${a.rect[3]*100}%`}}><span>{a.label}</span></div>)}</div><p className="location">定位：{card.location}</p><p className="explanation">{card.text}</p><p className="source">来源：{card.source}</p><div className="actions"><button className="primary" onClick={()=>onNext(false,performance.now()-started.current)}>读完了，继续 →</button><button className="quiet" onClick={()=>onNext(true,performance.now()-started.current)}>跳过此卡</button></div></>}
-export default App;
+export default function StudySite(){
+ if(params.get('review')==='blind')return <Suspense fallback={<main className="shell stage">正在打开盲评…</main>}><PilotBlindReview onBack={()=>location.assign(publicAssetUrl('/')+'?preview=design')}/></Suspense>;
+ return <App/>;
+}

@@ -71,6 +71,7 @@ export function validateConfig(input: unknown): string[] {
   const c = input;
   const threeConditions = c.pilotProtocol === 'three-condition-v1';
   if (c.pilotProtocol !== undefined && !threeConditions) errors.push('未知的三条件研究版本');
+  if (c.pilotSurveyVersion!==undefined && (!threeConditions || c.pilotSurveyVersion!=='pilot2-recall-v1')) errors.push('未知的三条件看后问卷版本');
   if (threeConditions && (c.participantPlan !== undefined || c.questionnaireVersion !== undefined)) {
     errors.push('三条件研究配置不能同时启用旧编号分组或旧问卷');
   }

@@ -2,10 +2,10 @@ import {useRef,useState} from 'react';
 import type {Question,ResponseRow} from './types';
 
 export type Answer=Pick<ResponseRow,'questionId'|'answer'|'confidence'|'unknown'|'skipped'|'selectedOptions'|'otherText'>&{durationMs:number};
-interface Props {questions:Question[];title:string;confidence?:boolean;onAnswer:(answer:Answer)=>void;onComplete:()=>void}
+interface Props {initialIndex?:number;questions:Question[];title:string;confidence?:boolean;onAnswer:(answer:Answer)=>void;onComplete:()=>void}
 
-export default function Questionnaire({questions,title,confidence=true,onAnswer,onComplete}:Props){
- const [index,setIndex]=useState(0);
+export default function Questionnaire({initialIndex=0,questions,title,confidence=true,onAnswer,onComplete}:Props){
+ const [index,setIndex]=useState(initialIndex);
  const [answer,setAnswer]=useState('');
  const [certainty,setCertainty]=useState<number|null>(null);
  const [unknown,setUnknown]=useState(false);

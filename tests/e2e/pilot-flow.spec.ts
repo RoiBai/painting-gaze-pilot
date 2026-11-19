@@ -1,6 +1,7 @@
 import {expect,test,type Page} from '@playwright/test';
 import {readFile} from 'node:fs/promises';
 import {strFromU8,unzipSync} from 'fflate';
+import {pilotConfig} from '../../src/pilotMaterials';
 import type {Session,StudyConfig} from '../../src/types';
 import {consentAndStart,csvRecords,storedSessions} from './helpers';
 
@@ -15,7 +16,7 @@ async function installCameraFixture(page:Page){
     };
     const {WebGazerAdapter}=await import(moduleUrl('webgazerAdapter'));
     const {pilotConfig}:{pilotConfig:StudyConfig}=await import(moduleUrl('pilotMaterials'));
-    Object.assign(pilotConfig,{durationSeconds:6,calibrationClicks:1});
+    Object.assign(pilotConfig,{durationSeconds:12,calibrationClicks:1});
     Object.assign(pilotConfig.validation,{targetDurationMs:300,settleMs:60,minSamplesPerTarget:3});
     const used=new Set<string>();
     let interval=0;
@@ -72,7 +73,7 @@ async function observeTrial(page:Page){
           title:element.querySelector('h2')?.textContent??'',body:element.querySelector('p')?.textContent??''});
       }
       previous=element;
-      if(document.querySelector('h1')?.textContent==='刚才这一段的观看体验'){
+      if(document.querySelector('h1')?.textContent==='观看感受'){
         observer.disconnect();done(seen);
       }
     }
@@ -89,20 +90,44 @@ async function observeTrial(page:Page){
   return cards;
 }
 
-async function answerTrial(page:Page,period:number){
-  await expect(page.getByRole('heading',{name:'刚才这一段的观看体验'})).toBeVisible();
-  const next=page.getByRole('button',{name:'继续 →',exact:true});
-  for(let i=0;i<7;i++){
-    await page.getByRole('combobox').selectOption(i<6?String(period*10):String(period+3));
-    await next.click();
-  }
-  for(let i=0;i<4;i++){
-    await page.getByRole('textbox',{name:'你的回答'}).fill('第'+period+'段，回答'+(i+1));
-    await next.click();
-  }
+async function readingAidsHidden(page:Page){
+  await expect(page.locator('.stimulus,.pilot-card,.card-image,.material-preview,canvas')).toHaveCount(0);
+  await expect(page.getByText(/接受答案|正确答案|查看回放/)).toHaveCount(0);
 }
 
-test('P01 completes all three conditions and downloads their linked predictions, cards and ratings',async({page})=>{
+async function answerTrial(page:Page,period:number){
+  await expect(page.getByRole('heading',{name:'观看感受',exact:true})).toBeVisible();
+  await readingAidsHidden(page);
+  const ratings=page.getByRole('combobox');
+  await expect(ratings).toHaveCount(6);
+  const submitLoad=page.getByRole('button',{name:'提交观看感受'});
+  await expect(submitLoad).toBeDisabled();
+  const score=period===1?'0':String(period*10);
+  for(let i=0;i<6;i++){
+    await expect(ratings.nth(i)).toHaveValue('');
+    await ratings.nth(i).selectOption(score);
+  }
+  await submitLoad.click();
+  await expect(page.getByRole('heading',{name:'画面回忆',exact:true})).toBeVisible();
+  await readingAidsHidden(page);
+  const questions=pilotConfig.paintings[period-1].recallQuestions!;
+  await expect(page.getByRole('textbox')).toHaveCount(3);
+  for(const [i,q] of questions.entries()){
+    const field=page.getByRole('textbox',{name:q.prompt,exact:true});
+    await expect(field).toHaveValue('');
+    await field.fill('第'+period+'段，回答'+(i+1));
+    if(i===2){
+      await page.getByRole('checkbox',{name:'第 3 题记不清'}).check();
+      await expect(field).toHaveValue('');
+      await expect(field).toBeDisabled();
+    }
+  }
+  await page.getByRole('button',{name:'提交画面回忆'}).click();
+  await page.getByRole('combobox').selectOption(String(period+3));
+  await page.getByRole('button',{name:'完成补充反馈'}).click();
+}
+
+async function startCalibrated(page:Page){
   await page.goto('/?participant=P01');
   await expect(page.getByLabel('匿名参与者编号')).toHaveValue('P01');
   await installCameraFixture(page);
@@ -110,8 +135,13 @@ test('P01 completes all three conditions and downloads their linked predictions,
   await page.getByRole('button',{name:'启用 / 重试摄像头'}).click();
   await page.getByRole('button',{name:'开始九点校准'}).click();
   for(let i=0;i<9;i++)await page.getByRole('button',{name:'校准目标'}).click();
+  await page.getByRole('button',{name:'继续',exact:true}).click();
+}
+
+test('P01 completes all three conditions and downloads their linked predictions, cards and ratings',async({page})=>{
+  test.setTimeout(150_000);
+  await startCalibrated(page);
   const accept=page.getByRole('button',{name:'继续',exact:true});
-  await accept.click();
   const seen=[];
   for(let period=1;period<=3;period++){
     await accept.click();
@@ -166,8 +196,26 @@ test('P01 completes all three conditions and downloads their linked predictions,
   }
   expect(exposures.filter(row=>row.condition==='gaze').map(row=>row.selectionSource)).toEqual(['gaze','gaze','remaining']);
   expect(csv('pilot_ratings.csv').map(row=>[row.condition,row.overall,row.rawTLX])).toEqual([
-    ['sequential','4','10'],['random','5','20'],['gaze','6','30'],
+    ['sequential','4','0'],['random','5','20'],['gaze','6','30'],
   ]);
+  expect(predictions.some(r=>r.phase==='pre')).toBe(false);
+  const recall=csv('pilot_recall.csv'),workload=csv('pilot_workload.csv');
+  expect(recall).toHaveLength(9);
+  expect(workload).toHaveLength(18);
+  expect(workload.slice(0,6).map(row=>row.answer)).toEqual(Array(6).fill('0'));
+  for(const [index,row] of recall.entries()){
+    const period=Math.floor(index/3)+1, item=index%3+1;
+    const {paintingId,condition}=plan[period-1];
+    const card=exposures.find(card=>card.paintingId===paintingId&&card.cardId===row.cardId)!;
+    expect(row.condition).toBe(condition);
+    expect(row.questionId).toBe('recall-'+card.cardId);
+    expect(row.cardPresentationOrder).toBe(card.slot);
+    expect(row.answer).toBe(item===3?'':'第'+period+'段，回答'+item);
+    expect(row.rememberUnknown).toBe(String(item===3));
+    expect(row.manualScore).toBe('');
+    expect(row.sceneRecallScore).toBe('');
+    expect(Number(row.submittedMs)).toBeGreaterThan(Number(card.hiddenMs));
+  }
   expect(csv('responses.csv').filter(row=>row.phase==='interview').map(row=>row.answer)).toEqual(['访谈回答1','访谈回答2','访谈回答3']);
   for(const {paintingId} of plan)for(const kind of ['heatmap','scanpath'])expect(files[kind+'_'+paintingId+'.png']?.length).toBeGreaterThan(100);
   const stored=await storedSessions(page);
@@ -187,4 +235,44 @@ test('P00 exits from camera setup, stays out of local sessions and can be repeat
   await expect(page.getByLabel('匿名参与者编号')).toHaveValue('P00');
   await expect(page.getByRole('textbox',{name:'你的主要学习或工作领域是什么？',exact:true})).toBeEmpty();
   expect(await storedSessions(page)).toEqual([]);
+});
+
+
+test('refresh preserves the current survey and a later exit exports submitted and missing values separately',async({page})=>{
+  test.setTimeout(100_000);
+  await startCalibrated(page);
+  await page.getByRole('button',{name:'继续',exact:true}).click();
+  await observeTrial(page);
+  await page.getByRole('combobox').first().selectOption('0');
+  const [{sessionId}]=await storedSessions(page);
+  await page.reload();
+  await expect(page.getByRole('heading',{name:'观看感受',exact:true})).toBeVisible();
+  const fields=page.getByRole('combobox');
+  await expect(fields.first()).toHaveValue('0');
+  await expect(fields.nth(1)).toHaveValue('');
+  for(let i=1;i<6;i++)await fields.nth(i).selectOption('10');
+  await page.getByRole('button',{name:'提交观看感受'}).click();
+  const first=page.getByRole('textbox').first();
+  await first.fill('答题中途刷新');
+  await page.reload();
+  await expect(page.getByRole('heading',{name:'画面回忆',exact:true})).toBeVisible();
+  await expect(first).toHaveValue('答题中途刷新');
+  await expect(page.getByRole('button',{name:'提交画面回忆'})).toBeDisabled();
+  await page.getByRole('button',{name:'退出并保留记录'}).click();
+  const [download]=await Promise.all([page.waitForEvent('download'),page.getByRole('button',{name:/一键下载 ZIP/}).click()]);
+  const archive=unzipSync(await readFile((await download.path())!));
+  const entry=(name:string)=>strFromU8(archive[Object.keys(archive).find(path=>path.endsWith('/'+name))!]);
+  const session:Session=JSON.parse(entry('session.json'));
+  const recall=csvRecords(entry('pilot_recall.csv')),ratings=csvRecords(entry('pilot_ratings.csv'));
+  expect(session.sessionId).toBe(sessionId);
+  expect(session.status).toBe('interrupted');
+  expect(recall[0].answer).toBe('答题中途刷新');
+  expect(recall[0].submittedMs).toBe('');
+  expect(recall.every(r=>r.sceneRecallScore===''&&r.manualScore==='')).toBe(true);
+  expect(ratings.map(r=>r.mental)).toEqual(['0','','']);
+  expect(ratings.slice(1).every(r=>r.rawTLX==='')).toBe(true);
+  expect(session.responses.filter(r=>r.phase==='pre')).toHaveLength(6);
+  expect(session.pilotSurveys![session.order[0]].workloadSubmittedMs!).toBeGreaterThan(session.timings[0].endedMs!);
+  expect(session.samples.some(row=>row.phase==='pre')).toBe(false);
+  expect((await storedSessions(page)).map(s=>s.sessionId)).toEqual([sessionId]);
 });

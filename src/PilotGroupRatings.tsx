@@ -5,10 +5,13 @@ import type {Condition} from './types';
 
 const conditions:Condition[] = ['sequential','random','gaze'];
 type Score = ReturnType<typeof pilotRatings>[number];
-type Entry = {id:string;sessionId:string;scores:Score[]};
+type Entry = {version:string;id:string;sessionId:string;scores:Score[]};
 
 export default function PilotGroupRatings(){
-  const [entries,setEntries]=useState<Entry[]>([]);
+  const [allEntries,setEntries]=useState<Entry[]>([]);
+  const [chosenVersion,chooseVersion]=useState('');
+  const versions=[...new Set(allEntries.map(e=>e.version))];
+  const entries=allEntries.filter(e=>e.version===chosenVersion);
   const [messages,setMessages]=useState<string[]>([]);
   const [busy,setBusy]=useState(false);
   async function compare(files:File[]){
@@ -25,18 +28,22 @@ export default function PilotGroupRatings(){
             continue;
           }
           const id=session.participantId;
-          if(conflicts.has(id))continue;
-          const previous=unique.get(id);
+          const version=session.config.pilotSurveyVersion??session.pilot.version;
+          const key=version+'/'+id;
+          if(conflicts.has(key))continue;
+          const previous=unique.get(key);
           if(previous && previous.sessionId!==session.sessionId){
-            unique.delete(id);
-            conflicts.add(id);
+            unique.delete(key);
+            conflicts.add(key);
             notices.push(id+' 有两次不同的会话，本次比较已略过该编号。请确认有效会话后重新选择文件。');
           }else if(!previous){
-            unique.set(id,{id,sessionId:session.sessionId,scores:pilotRatings(session)});
+            unique.set(key,{version,id,sessionId:session.sessionId,scores:pilotRatings(session)});
           }
         }catch(error){notices.push(file.name+'：'+(error instanceof Error?error.message:String(error)))}
       }
-      setEntries([...unique.values()].sort((a,b)=>a.id.localeCompare(b.id)));
+      const collected=[...unique.values()].sort((a,b)=>a.id.localeCompare(b.id));
+      setEntries(collected);
+      chooseVersion(collected.find(e=>e.version==='pilot2-recall-v1')?.version??collected[0]?.version??'');
       setMessages(notices);
     }finally{setBusy(false)}
   }
@@ -51,6 +58,7 @@ export default function PilotGroupRatings(){
     }}/></label>
     {busy&&<p role="status">正在读取本地评分…</p>}
     {messages.length>0&&<ul aria-label="未纳入的会话">{messages.map((m,i)=><li key={i}>{m}</li>)}</ul>}
+    {versions.length>1&&<label>比较的问卷版本<select value={chosenVersion} onChange={e=>chooseVersion(e.target.value)}>{versions.map(v=><option key={v}>{v}</option>)}</select></label>}
     {entries.length>0&&<>
       <div className="table-scroll"><table aria-label="每位参与者的三个条件评分">
         <thead><tr><th>参与者</th><th>指标</th>{conditions.map(c=><th key={c}>{CONDITION_LABELS[c]}</th>)}</tr></thead>

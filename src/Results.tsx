@@ -8,6 +8,7 @@ import {renderCorrectedHeatmap,renderCorrectedScanpath} from './correctionRender
 import { buildTextExportFiles, canvasPNG, downloadFile, exportPrefix, exportZip, isPracticeSession, PILOT_DATA_FILES } from './export';
 
 import PilotComparison from './PilotComparison';
+import PilotSegmentReview from './PilotSegmentReview';
 
 interface Props {session:Session;onChange:(session:Session)=>void;onBack:()=>void}
 export function Results(props:Props) {
@@ -96,7 +97,7 @@ function StudyResults({session,onChange,onBack}:Props){
       {exportNotice&&<p role="status" className="notice">{exportNotice}</p>}
       {exportError&&<p role="alert" className="error">{exportError}</p>}
     </section>
-    {session.pilot&&<PilotComparison session={session}/>}
+    {session.pilot&&<><PilotSegmentReview session={session}/><PilotComparison session={session}/></>}
     {(session.background||commonQuestionnaire)&&<details aria-label="研究者问卷记录"><summary>研究者：背景与问卷分析说明</summary>
       {session.background&&<dl>{session.background.questions.map(question=>{const value=session.background!.answers[question.id];return <div key={question.id}><dt>{question.prompt}</dt><dd>{question.options?.find(option=>option.id===String(value))?.label??String(value)}</dd></div>})}</dl>}
       {commonQuestionnaire&&<p>讲解前第 1–3 题记录参与者自主陈述的理解、需求与疑问；第 4 题是定向追问，第 5 题为困难分类。定向追问后出现的关系解释不能作为自发发现。讲解前后是同一人的两个阶段，不是对照组与实验组；仅凭前后变化不能认定讲解有效。请逐人、逐景对应原先的解释与疑问、卡片反馈，再提出内容修改建议。</p>}

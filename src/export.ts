@@ -5,7 +5,10 @@ import { eligibleSamples, HEATMAP_ALGORITHM, heatmapSize, renderHeatmap } from '
 import {applyCorrection,buildCorrectionPlan,type CorrectionPlan,type CorrectionRow} from './correction';
 import {renderCorrectedHeatmap,renderCorrectedScanpath} from './correctionRender';
 import {cardAttention, pilotRatings, ATTENTION_MAX_GAP_MS} from './cardMetrics';
+import {recallRows,surveyContext,workloadRows} from './pilotSurveyRecords';
 
+export const PILOT2_SURVEY_FILES = ['pilot_workload.csv','pilot_recall.csv'] as const;
+const CONTEXT_COLUMNS=['participantId','sessionId','paintingId','trialId','period','condition','questionVersion','actualCardOrder','page','questionIndex','questionId','questionPrompt'] as const;
 export const PILOT_DATA_FILES = ['card_exposures.csv','card_attention.csv','pilot_ratings.csv'] as const;
 const PILOT_GAZE_COLUMNS = ['condition','cardExposureId','cardId','onCard','imageAoiId','trialActiveMs'] as const;
 const ATTENTION_COLUMNS = ['sessionId','participantId','quality','exposureId','trialId','paintingId','condition','cardId','slot','shownMs','hiddenMs','visibleMs','callbacks','validSamples','onCardSamples','observedMs','onCardMs','offCardMs','onCardShare','observationCoverage'] as const;
@@ -32,17 +35,29 @@ function pilotFiles(session:Session):Record<string,Uint8Array> {
       viewportLeft:exposure.rect.left,viewportTop:exposure.rect.top,
       viewportWidth:exposure.rect.width,viewportHeight:exposure.rect.height};
   });
+  const ratingRows=pilotRatings(session);
+  const surveyFiles:Record<string,Uint8Array>={};
+  if(session.config.pilotSurveyVersion){
+    const recall=recallRows(session);
+    const workload=workloadRows(session);
+    surveyFiles['pilot_recall.csv']=strToU8('\ufeff'+toCSV(recall,[...CONTEXT_COLUMNS,'cardId','cardPresentationOrder','cardSlot','answer','rememberUnknown','submittedMs','submittedUtc','manualScore','sceneRecallScore']));
+    surveyFiles['pilot_workload.csv']=strToU8('\ufeff'+toCSV(workload,[...CONTEXT_COLUMNS,'answer','submittedMs','submittedUtc']));
+    const ratings=ratingRows.map(row=>({...row,sceneRecallScore:recall.find(r=>r.paintingId===row.paintingId)?.sceneRecallScore??null}));
+    surveyFiles['pilot_ratings.csv']=strToU8('\ufeff'+toCSV(ratings,[...RATING_COLUMNS,'sceneRecallScore']));
+  }else{
+    surveyFiles['pilot_ratings.csv']=strToU8('\ufeff'+toCSV(ratingRows,[...RATING_COLUMNS]));
+  }
   return {
     'card_exposures.csv':strToU8('\ufeff'+toCSV(rows,[...EXPOSURE_COLUMNS])),
     'card_attention.csv':strToU8('\ufeff'+toCSV(cardAttention(session),[...ATTENTION_COLUMNS])),
-    'pilot_ratings.csv':strToU8('\ufeff'+toCSV(pilotRatings(session),[...RATING_COLUMNS])),
+    ...surveyFiles,
   };
 }
 
 
 export const GAZE_COLUMNS: (keyof GazeSample)[] = ['sessionId','participantId','paintingId','trialId','phase','sampleIndex','callbackTimeMs','libraryElapsedMs','viewportX','viewportY','imageX','imageY','imageNormX','imageNormY','predictionAvailable','insideImage','geometryVersion','calibrationVersion','paused','confidence'];
 export const EVENT_COLUMNS: (keyof PhaseEvent)[] = ['sessionId','participantId','timeMs','type','phase','paintingId','detail'];
-interface ExportResponseRow extends ResponseRow {planVersion:string;questionVariant:string;questionVersion:string;sceneOrder:string;paintingOrder:string;questionPrompt:string;questionIndex:number|null;analysisRole:string;selectedOptionIds:string;selectedOptionLabels:string;otherText:string;condition:string;period:number|null}
+interface ExportResponseRow extends ResponseRow {actualCardOrder:string;trialId:string|null;planVersion:string;questionVariant:string;questionVersion:string;sceneOrder:string;paintingOrder:string;questionPrompt:string;questionIndex:number|null;analysisRole:string;selectedOptionIds:string;selectedOptionLabels:string;otherText:string;condition:string;period:number|null}
 export const RESPONSE_COLUMNS: (keyof ExportResponseRow)[] = ['sessionId','participantId','paintingId','phase','questionId','answer','confidence','unknown','skipped','durationMs','timeMs','planVersion','questionVariant','questionVersion','sceneOrder','paintingOrder','questionPrompt','questionIndex','analysisRole','selectedOptionIds','selectedOptionLabels','otherText'];
 export const BACKGROUND_COLUMNS = ['sessionId','participantId','backgroundVersion','questionId','questionPrompt','answer','answerCode'] as const;
 export const VALIDATION_COLUMNS: (keyof ValidationRow)[] = ['sessionId','participantId','paintingId','kind','runId','calibrationVersion','targetId','targetX','targetY','viewportWidth','viewportHeight','timeMs','predictionX','predictionY','errorPx','settling','training'];
@@ -82,14 +97,17 @@ function exportResponses(session:Session):ExportResponseRow[] {
     const questions=row.phase==='pre'||row.phase==='post'?session.config.paintings.find(p=>p.paintingId===row.paintingId)?.[row.phase]:undefined;
     const index=questions?.findIndex(q=>q.id===row.questionId)??-1;
     const question=index<0?undefined:questions?.[index];
+    const context=row.paintingId&&session.config.pilotSurveyVersion?surveyContext(session,row.paintingId).fields:null;
     return {...row,
-      planVersion:session.pilot?.version??assignment?.planVersion??'',questionVariant:assignment?.questionVariant??(session.config.questionnaireVersion?'common':''),questionVersion:session.pilot?.version??assignment?.questionVersion??session.config.questionnaireVersion??'',
+      planVersion:session.pilot?.version??assignment?.planVersion??'',questionVariant:assignment?.questionVariant??(session.config.questionnaireVersion?'common':''),questionVersion:session.config.pilotSurveyVersion??session.pilot?.version??assignment?.questionVersion??session.config.questionnaireVersion??'',
       sceneOrder:assignment?.order??'',paintingOrder:(assignment||session.pilot)?JSON.stringify(session.order):'',questionPrompt:responseQuestionPrompt(session,row),
       questionIndex:index<0?null:index+1,analysisRole:question?.analysisRole??'',
       selectedOptionIds:row.selectedOptions===undefined?'':JSON.stringify(row.selectedOptions),
       selectedOptionLabels:row.selectedOptions===undefined?'':JSON.stringify(row.selectedOptions.map(id=>question?.options?.find(option=>option.id===id)?.label??id)),
       otherText:row.otherText??'',
       condition:session.pilot?.plan.find(trial=>trial.paintingId===row.paintingId)?.condition??'',
+      actualCardOrder:context?.actualCardOrder??'',
+      trialId:context?.trialId??null,
       period:row.paintingId&&session.pilot?session.order.indexOf(row.paintingId)+1:null,
     };
   });
@@ -115,6 +133,10 @@ export function buildTextExportFiles(session:Session):Record<string,Uint8Array> 
     rendererVersion:'1.3.0',
     terminology:'库输出的视线估计样本；回调接收时间不是摄像头曝光时间；不包含视频、眼部像素或推断的注视事件。',
     timestampBasis:'performance.now() in original page; UTC = timeOrigin + callbackTimeMs. Interrupted recovery event retains last persisted original-page timestamp.',
+    ...(session.config.pilotSurveyVersion?{pilotSurvey:{version:session.config.pilotSurveyVersion,
+      timeBasis:'Milliseconds relative to the saved session.timeOrigin, including after a questionnaire reload.',
+      recall:'One row per planned recall question. submittedMs is blank for drafts. cardPresentationOrder counts the first actual display of each distinct card in the surveyed trial. cardSlot is its scheduled 1-based slot. Manual scores are blank until a researcher grades a submitted answer. sceneRecallScore is available after all three scores.',
+      workload:'One row per planned dimension, including any saved draft. Zero is valid. The six-item unweighted rawTLX is available in pilot_ratings.csv only when all six scores are present.'}}:{}),
     csvEncoding:'UTF-8 BOM; RFC 4180 quoting; null and nonfinite numbers are empty cells; strings preserved verbatim',
     ...(session.config.questionnaireVersion?{questionnaireAnalysis:{version:session.config.questionnaireVersion,roles:{spontaneous:'讲解前第1–3题：参与者自主陈述的理解、需求与疑问',prompted:'讲解前第4题：定向追问活动、关系及判断依据',classification:'讲解前第5题：困难分类，用于补充开放回答','card-feedback':'讲解后两题：疑问回应与解释变化'},interpretation:'讲解前后是同一人的两个阶段，不是control group与experimental group。定向追问后出现的关系解释不能计为自发发现；仅凭前后变化不能认定讲解有效。'}}:{}),
     ...(session.pilot ? {cardObservation:{
@@ -137,7 +159,7 @@ export function buildTextExportFiles(session:Session):Record<string,Uint8Array> 
   return {
     'gaze_samples.csv':strToU8('\ufeff'+toCSV(session.samples,session.pilot?[...GAZE_COLUMNS,...PILOT_GAZE_COLUMNS]:GAZE_COLUMNS)),
     'phase_events.csv':strToU8('\ufeff'+toCSV(session.events,EVENT_COLUMNS)),
-    'responses.csv':strToU8('\ufeff'+toCSV(exportResponses(session),session.pilot?[...RESPONSE_COLUMNS,'condition','period']:RESPONSE_COLUMNS)),
+    'responses.csv':strToU8('\ufeff'+toCSV(exportResponses(session),session.config.pilotSurveyVersion?[...RESPONSE_COLUMNS,'condition','period','trialId','actualCardOrder']:session.pilot?[...RESPONSE_COLUMNS,'condition','period']:RESPONSE_COLUMNS)),
     'validation.csv':strToU8('\ufeff'+toCSV(session.validation,VALIDATION_COLUMNS)),
     'session.json':strToU8(JSON.stringify(snapshot,null,2)),
     ...exportBackground(session),
@@ -204,8 +226,8 @@ export function downloadFile(name:string, bytes:Uint8Array):void {
   link.href=url;link.download=name;document.body.append(link);link.click();link.remove();
   window.setTimeout(()=>URL.revokeObjectURL(url),10000);
 }
-export async function exportZip(session:Session):Promise<void> {
+export async function exportZip(session:Session,suffix:''|'_scored'=''):Promise<void> {
   const prefix=exportPrefix(session),files=await buildExportFiles(session);
   const zipFiles=Object.fromEntries(Object.entries(files).map(([name,bytes])=>[`${prefix}/${name}`,bytes]));
-  downloadFile(`${prefix}.zip`,zipSync(zipFiles,{level:6}));
+  downloadFile(`${prefix}${suffix}.zip`,zipSync(zipFiles,{level:6}));
 }

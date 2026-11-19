@@ -1,6 +1,7 @@
 import type {Session,StudyConfig,Phase,Geometry,ResponseRow,ValidationRow,BackgroundAnswers, ParticipantAssignment, CardDecision, CardExposure, CardRect, PilotMetadata} from './types';
 import {WebGazerAdapter} from './webgazerAdapter';
 import {saveSession} from './storage';
+import {writeCheckpoint,type PilotCheckpoint} from './pilotResume';
 import {mapPoint} from './geometry';
 import {summarizeValidation} from './validation';
 import {orderForParticipant,canTransition} from './machine';
@@ -27,9 +28,9 @@ export class StudyEngine {
  private openExposure:CardExposure|null=null;
  private windowResetMs=0;
  private deck:string[]=[];
- private clock:()=>number; private runId=''; private targetStarted=0; private lastTick=0; private phaseStarted=0; private interval:ReturnType<typeof setInterval>|null=null; private persistTimer:ReturnType<typeof setInterval>|null=null; private disposed=false;
+ private clock:()=>number; private draftTimer:ReturnType<typeof setTimeout>|null=null; private pageTimeOffset=0; private reconnectAfterSurvey=false; private runId=''; private targetStarted=0; private lastTick=0; private phaseStarted=0; private interval:ReturnType<typeof setInterval>|null=null; private persistTimer:ReturnType<typeof setInterval>|null=null; private disposed=false;
  constructor(factory?:(sample:(s:InputSample)=>void,status:(s:CameraState)=>void)=>Adapter, clock=()=>performance.now()){
-  this.clock=clock; this.adapter=(factory??((s,c)=>new WebGazerAdapter(s,c)))(s=>this.sample(s),s=>{this.camera=s;this.event('camera_status',s);if(s.status==='error'){if(this.session?.calibrationVersion)this.requireCalibration=true;this.pause('camera_error',true);}this.emit()});
+  this.clock=()=>clock()+this.pageTimeOffset; this.adapter=(factory??((s,c)=>new WebGazerAdapter(s,c)))(s=>this.sample(s),s=>{this.camera=s;this.event('camera_status',s);if(s.status==='error'){if(this.session?.calibrationVersion)this.requireCalibration=true;this.pause('camera_error',true);}this.emit()});
  }
  subscribe=(fn:()=>void)=>{this.listeners.add(fn);return()=>{this.listeners.delete(fn)}};
  snapshot=()=>this.revision;
@@ -44,7 +45,15 @@ export class StudyEngine {
  get target(){const t=this.targets[this.targetIndex]??[.5,.5];return {x:t[0]*window.innerWidth,y:t[1]*window.innerHeight}}
  get currentTiming(){return this.session?.timings.findLast(t=>t.paintingId===this.painting?.paintingId)}
  event(type:string,detail:unknown={}){if(!this.session)return;this.session.events.push({sessionId:this.session.sessionId,participantId:this.session.participantId,timeMs:this.clock(),type,phase:this.phase,paintingId:this.painting?.paintingId??null,detail:JSON.stringify(detail)})}
- async persist(){if(!this.session||this.session.pilot?.practice)return;try{await saveSession(this.session);if(this.storageError){this.storageError='';this.emit()}}catch(e){this.storageError=String(e);this.pause('storage_error',false);this.emit()}}
+ saveSurvey(submitted=false){
+   if(!this.session || this.session.pilot?.practice)return;
+   if(submitted){void this.persist();return}
+   try{writeCheckpoint(this.session,this.trialIndex)}catch{/* Persist below even if sessionStorage is unavailable. */}
+   if(!this.draftTimer)this.draftTimer=setTimeout(()=>void this.persist(),300);
+ }
+ async persist(){if(this.draftTimer){clearTimeout(this.draftTimer);this.draftTimer=null}if(!this.session||this.session.pilot?.practice)return;try{
+   try{writeCheckpoint(this.session,this.trialIndex)}catch{/* IndexedDB remains the durable copy if per-tab storage is unavailable. */}
+   await saveSession(this.session);if(this.storageError){this.storageError='';this.emit()}}catch(e){this.storageError=String(e);this.pause('storage_error',false);this.emit()}}
  begin(config:StudyConfig,id:string,background:string|BackgroundAnswers){
   if(this.session?.status==='active')throw Error('已有进行中的会话');
   let copy:StudyConfig;
@@ -55,7 +64,7 @@ export class StudyEngine {
     copy=structuredClone(config);
     if(!plan.every(({paintingId})=>copy.paintings.some(p=>p.paintingId===paintingId)))throw Error('缺少本轮指定的蹴鞠、马球或射箭材料');
     const seed=crypto.getRandomValues(new Uint32Array(1))[0];
-    pilot={version:PILOT_VERSION,practice:id==='P00',seed,plan,selectionRules:{...SELECTION_RULES}};
+    pilot={version:PILOT_VERSION,practice:id==='P00',seed,plan,selectionRules:{...SELECTION_RULES,blankFraction:config.pilotSurveyVersion?0.15:SELECTION_RULES.blankFraction}};
   }else{
     if(!/^N0[1-6]$/.test(id))throw Error('匿名编号须为 N01–N06');
     ({config:copy,assignment}=resolveParticipantConfig(config,id));
@@ -63,15 +72,59 @@ export class StudyEngine {
   const errors=validateConfig(copy);if(errors.length)throw Error(errors.join('\n'));
   const backgroundSnapshot=typeof background==='string'?undefined:freezeBackground(background);
   const sessionId=`${id}-${new Date().toISOString().replace(/[:.]/g,'-')}-${crypto.randomUUID().slice(0,8)}`;
-  this.session={schemaVersion:1,sessionId,participantId:id,startedUtc:new Date().toISOString(),endedUtc:null,timeOrigin:performance.timeOrigin,status:'active',phase:'consent',mode:copy.mode,dataSource:'webgazer-camera',config:copy,order:pilot?pilot.plan.map(trial=>trial.paintingId):orderForParticipant(id,copy),...(pilot?{pilot,cardExposures:[]}:{}),...(assignment?{assignment}:{}),artBackground:typeof background==='string'?background:'',...(backgroundSnapshot?{background:backgroundSnapshot}:{}),calibrationVersion:0,quality:'pending',qualityNotes:[],dependencies:{webgazer:'3.5.3',react:'18.3.1',app:pilot?'2.0.0':'1.5.0',browser:navigator.userAgent},geometries:[],timings:[],validationSummaries:[],heatmap:{width:1000,kernelPx:30,opacity:.65,weight:'one-per-sample',normalization:'per-image-max',colorScale:'blue-cyan-yellow-red-v1'},scanpath:{...defaultScanpath},samples:[],events:[],responses:[],validation:[]};
+  this.session={schemaVersion:1,sessionId,participantId:id,startedUtc:new Date().toISOString(),endedUtc:null,timeOrigin:performance.timeOrigin,status:'active',phase:'consent',mode:copy.mode,dataSource:'webgazer-camera',config:copy,order:pilot?pilot.plan.map(trial=>trial.paintingId):orderForParticipant(id,copy),...(pilot?{pilot,cardExposures:[]}:{}),...(assignment?{assignment}:{}),artBackground:typeof background==='string'?background:'',...(backgroundSnapshot?{background:backgroundSnapshot}:{}),calibrationVersion:0,quality:'pending',qualityNotes:[],dependencies:{webgazer:'3.5.3',react:'18.3.1',app:copy.pilotSurveyVersion?'2.1.0':pilot?'2.0.0':'1.5.0',browser:navigator.userAgent},geometries:[],timings:[],validationSummaries:[],heatmap:{width:1000,kernelPx:30,opacity:.65,weight:'one-per-sample',normalization:'per-image-max',colorScale:'blue-cyan-yellow-red-v1'},scanpath:{...defaultScanpath},samples:[],events:[],responses:[],validation:[]};
   this.phase='consent';this.trialIndex=0;this.geometry=null;this.paused=false;this.requireCalibration=false;this.cardIndex=0;
   this.resetCardState();
   if(pilot)this.event('pilot_plan_assigned',{...pilot});
   if(assignment)this.event('participant_assignment_resolved',assignment);
   this.event('consent_confirmed');this.move('camera');this.lastTick=this.clock();this.lastPredictionAt=this.clock();
-  this.interval=setInterval(()=>this.tick(),100); if(!pilot?.practice)this.persistTimer=setInterval(()=>void this.persist(),1000);void this.persist();
+  this.startTimers();void this.persist();
  }
- move(to:Phase){if(!this.session)return;if(this.phase!==to&&!canTransition(this.phase,to))throw Error(`非法阶段转换 ${this.phase} → ${to}`);this.event('phase_end',{to,durationMs:this.clock()-this.phaseStarted});this.phase=to;this.session.phase=to;this.phaseStarted=this.clock();this.adapter.setPhase(to);this.adapter.showPreview(to==='camera');this.event('phase_start');this.emit();void this.persist()}
+ private startTimers(){
+   this.clearTimers();
+   this.interval=setInterval(()=>this.tick(),100);
+   if(!this.session?.pilot?.practice)this.persistTimer=setInterval(()=>{
+     if(!this.inPilotQuestions)void this.persist();
+   },1000);
+ }
+ private get inPilotQuestions(){return !!this.session?.config.pilotSurveyVersion&&(this.phase==='pre'||this.phase==='interview')}
+ restorePilot(session:Session,checkpoint:PilotCheckpoint){
+   if(this.session || session.status!=='active' || !session.config.pilotSurveyVersion || session.pilot?.practice ||
+      session.sessionId!==checkpoint.sessionId || session.participantId!==checkpoint.participantId)return false;
+   this.pageTimeOffset=performance.timeOrigin-session.timeOrigin;
+   this.session=session;
+   this.trialIndex=checkpoint.trialIndex;
+   this.phase=checkpoint.phase;
+   session.phase=this.phase;
+   session.pilotSurveys=checkpoint.surveys??session.pilotSurveys;
+   session.responses=checkpoint.responses;
+   const timing=checkpoint.timing;
+   if(timing && session.timings.at(-1)?.trialId===timing.trialId)Object.assign(session.timings.at(-1)!,timing);
+   const exposure=checkpoint.lastExposure;
+   if(exposure && session.cardExposures?.at(-1)?.exposureId===exposure.exposureId)Object.assign(session.cardExposures.at(-1)!,exposure);
+   const lastTime=Math.max(0,...[session.samples.at(-1)?.callbackTimeMs,session.events.at(-1)?.timeMs,session.cardExposures?.at(-1)?.shownMs].map(t=>t??0));
+   for(const e of session.cardExposures??[])if(e.hiddenMs===null)e.hiddenMs=Math.max(e.shownMs,lastTime);
+   if(timing?.status==='active'){
+     const interrupted=session.timings.find(t=>t.trialId===timing.trialId);
+     if(interrupted){interrupted.status='interrupted';interrupted.endedMs=Math.max(lastTime,interrupted.startedMs);interrupted.wallMs=interrupted.endedMs-interrupted.startedMs;}
+     session.qualityNotes.push('观看期间刷新，本景保留先前试次，并在重新校准后重新展示。');
+   }
+   const priorPhase=this.phase;
+   if(this.inPilotQuestions){this.reconnectAfterSurvey=true;}
+   else {this.phase='camera'; session.phase='camera';}
+   this.phaseStarted=this.lastTick=this.clock();
+   this.adapter.setPhase(this.inPilotQuestions?'pilot_questionnaire':this.phase);
+   this.event('pilot_resume_after_reload',{priorPhase,phase:this.phase,trialIndex:this.trialIndex,pageOffsetMs:this.pageTimeOffset});
+   this.startTimers();void this.persist();this.emit();
+   return true;
+ }
+ suspendForReload(){
+   if(!this.session?.config.pilotSurveyVersion || this.session.pilot?.practice || this.session.status!=='active'){this.dispose();return}
+   this.cardHidden();
+   this.event('pilot_page_hidden_for_navigation');
+   void this.persist();this.clearTimers();this.adapter.stop();
+ }
+ move(to:Phase){if(!this.session)return;if(this.phase!==to&&!canTransition(this.phase,to))throw Error(`非法阶段转换 ${this.phase} → ${to}`);this.event('phase_end',{to,durationMs:this.clock()-this.phaseStarted});this.phase=to;this.session.phase=to;this.phaseStarted=this.clock();this.adapter.setPhase(this.inPilotQuestions?'pilot_questionnaire':to);this.adapter.showPreview(to==='camera');this.event('phase_start');this.emit();void this.persist()}
  async startCamera(){if(!this.session)return;this.event('camera_requested');try{await this.adapter.start({regression:this.session.config.regression,kalman:this.session.config.kalman});this.adapter.showPreview(this.phase==='camera')}catch(e){this.camera={status:'error',message:String(e)};this.event('camera_error',{message:String(e)});this.emit()}}
  flowOnly(){if(!this.session)return;if(this.session.pilot&&!this.session.pilot.practice)throw Error('此编号需使用摄像头真实采集，请重新连接或结束本次记录。');this.session.quality='flow_only';this.session.qualityNotes.push('研究者选择仅流程试用；不能作为合格视线记录');this.event('flow_only');this.emit()}
  async calibrate(){if(!this.session)return;if(this.phase==='free_view')this.pause('recalibration_requested',true);else this.paused=true;
@@ -88,7 +141,7 @@ export class StudyEngine {
  }
  startTargets(kind:'validation'|'drift'){if(this.requireCalibration){void this.calibrate();return}this.paused=false;this.targetIndex=0;this.runId=crypto.randomUUID();this.targetStarted=this.clock();this.lastPredictionAt=this.clock();this.move(kind);this.event('target_presented',{runId:this.runId,targetId:'0',...this.target});}
  private validationRow(sample:InputSample|null,kind:ValidationRow['kind'],training=false){if(!this.session)return;const target=this.target;const valid=sample&&Number.isFinite(sample.x)&&Number.isFinite(sample.y);this.session.validation.push({sessionId:this.session.sessionId,participantId:this.session.participantId,paintingId:this.painting?.paintingId??null,kind,runId:this.runId,calibrationVersion:this.session.calibrationVersion,targetId:String(this.targetIndex),targetX:target.x,targetY:target.y,viewportWidth:window.innerWidth,viewportHeight:window.innerHeight,timeMs:sample?.callbackTimeMs??this.clock(),predictionX:sample?.x??null,predictionY:sample?.y??null,errorPx:valid?Math.hypot(sample!.x!-target.x,sample!.y!-target.y):null,settling:this.clock()-this.targetStarted<this.session.config.validation.settleMs,training:training&&this.session.quality!=='flow_only'})}
- tick(){if(!this.session||this.session.status!=='active')return;const now=this.clock();const dt=now-this.lastTick;this.lastTick=now;
+ tick(){if(!this.session||this.session.status!=='active'||this.inPilotQuestions)return;const now=this.clock();const dt=now-this.lastTick;this.lastTick=now;
   if(this.phase==='free_view'&&!this.paused&&this.session.quality!=='flow_only'&&now-this.lastPredictionAt>this.session.config.nullPauseMs){this.event('prediction_gap',{gapMs:now-this.lastPredictionAt});this.pause('sustained_no_prediction',false)}
   if(this.phase==='free_view'){
     const timing=this.currentTiming;
@@ -150,10 +203,10 @@ export class StudyEngine {
   const timing=this.currentTiming!;
   const painting=this.painting!;
   const condition=this.trialCondition!;
-  const slotLength=session.config.durationSeconds*1000/SELECTION_RULES.slots;
+  const slotLength=session.config.durationSeconds*1000/session.pilot!.selectionRules.slots;
   const index=Math.floor(timing.activeMs/slotLength);
   const withinSlot=timing.activeMs-index*slotLength;
-  if(withinSlot<slotLength*SELECTION_RULES.blankFraction){
+  if(withinSlot<slotLength*session.pilot!.selectionRules.blankFraction){
     this.visibleDecision=null;return;
   }
   const slot=index+1;
@@ -204,9 +257,11 @@ export class StudyEngine {
 
  imageReady(geometry:Geometry){if(this.phase!=='loading_image'||!this.session)return;
   this.resetCardState();
+  if(this.pageTimeOffset)geometry={...geometry,timeMs:geometry.timeMs+this.pageTimeOffset};
   if(this.session.pilot)this.deck=cardPermutation(this.painting!.cards.map(card=>card.id),this.session.pilot.seed,this.painting!.paintingId);
   this.geometry=geometry;this.session.geometries.push(geometry);this.event('image_decoded_and_presented',{geometry,browserFrameEvent:'requestAnimationFrame after decode; not hardware onset'});const now=this.clock();this.session.timings.push({trialId:`${this.session.sessionId}-${this.trialIndex+1}-a${this.session.timings.filter(t=>t.paintingId===this.painting!.paintingId).length+1}`,paintingId:this.painting!.paintingId,startedMs:now,endedMs:null,wallMs:0,activeMs:0,status:'active'});this.lastTick=now;this.lastPredictionAt=now;this.paused=false;this.move('free_view');if(document.hidden||!document.hasFocus())this.pause('not_focused_at_presentation',false)}
- sample(input:InputSample){if(!this.session||this.session.status!=='active')return;this.lastCallbackAt=input.callbackTimeMs;const predictionAvailable=Number.isFinite(input.x)&&Number.isFinite(input.y);if(predictionAvailable)this.lastPredictionAt=input.callbackTimeMs;
+ sample(input:InputSample){if(!this.session||this.session.status!=='active'||this.inPilotQuestions)return;
+  if(this.pageTimeOffset)input={...input,callbackTimeMs:input.callbackTimeMs+this.pageTimeOffset};this.lastCallbackAt=input.callbackTimeMs;const predictionAvailable=Number.isFinite(input.x)&&Number.isFinite(input.y);if(predictionAvailable)this.lastPredictionAt=input.callbackTimeMs;
   const geometry=this.phase==='free_view'?this.geometry:null;
   const point=mapPoint(input.x,input.y,geometry);
   const exposure=this.openExposure;
@@ -230,13 +285,13 @@ export class StudyEngine {
  response(row:Pick<ResponseRow,'questionId'|'answer'|'confidence'|'unknown'|'skipped'|'selectedOptions'|'otherText'>,durationMs:number){if(!this.session)return;this.session.responses.push({...structuredClone(row),sessionId:this.session.sessionId,participantId:this.session.participantId,paintingId:this.phase==='interview'?null:this.painting?.paintingId??null,phase:this.phase,durationMs,timeMs:this.clock()});void this.persist()}
  next(){
   if(this.phase==='pre'&&this.session?.pilot){
-    if(this.trialIndex<this.session.pilot.plan.length-1){this.trialIndex++;this.geometry=null;this.startTargets('drift')}
+    if(this.trialIndex<this.session.pilot.plan.length-1){this.trialIndex++;this.geometry=null;if(this.reconnectAfterSurvey){this.reconnectAfterSurvey=false;this.move('camera')}else this.startTargets('drift')}
     else{this.adapter.stop();this.move('interview')}
     return;
   }
-  switch(this.phase){case'familiarity':this.move('pre');break;case'pre':this.cardIndex=0;this.move('cards');break;case'cards':this.cardIndex++;if(this.cardIndex>=2)this.move('post');else{this.phaseStarted=this.clock();this.emit()}break;case'post':if(this.trialIndex===0){this.trialIndex++;this.geometry=null;this.startTargets('drift')}else if(this.session?.config.questionnaireVersion===COMMON_QUESTIONNAIRE_VERSION)this.complete();else{this.adapter.stop();this.move('interview')}break;case'interview':this.complete();break}}
+  switch(this.phase){case'familiarity':this.move('pre');break;case'pre':this.cardIndex=0;this.move('cards');break;case'cards':this.cardIndex++;if(this.cardIndex>=2)this.move('post');else{this.phaseStarted=this.clock();this.emit()}break;case'post':if(this.trialIndex===0){this.trialIndex++;this.geometry=null;if(this.reconnectAfterSurvey){this.reconnectAfterSurvey=false;this.move('camera')}else this.startTargets('drift')}else if(this.session?.config.questionnaireVersion===COMMON_QUESTIONNAIRE_VERSION)this.complete();else{this.adapter.stop();this.move('interview')}break;case'interview':this.complete();break}}
  complete(){if(!this.session)return;this.move('completed');this.session.status='completed';this.session.endedUtc=new Date().toISOString();this.adapter.stop();this.clearTimers();void this.persist();this.emit()}
  interrupt(reason='researcher_exit'){if(!this.session||this.session.status!=='active')return;this.cardHidden();this.visibleDecision=null;this.event('interrupted',{reason});const t=this.currentTiming;if(t?.status==='active'){if(!this.paused){t.activeMs+=Math.max(0,this.clock()-this.lastTick);this.lastTick=this.clock();}t.status='interrupted';t.endedMs=this.clock();t.wallMs=t.endedMs-t.startedMs}this.session.status='interrupted';this.session.phase='interrupted';this.phase='interrupted';this.session.endedUtc=new Date().toISOString();this.adapter.stop();this.clearTimers();void this.persist();this.emit()}
- private clearTimers(){if(this.interval)clearInterval(this.interval);if(this.persistTimer)clearInterval(this.persistTimer);this.interval=null;this.persistTimer=null}
+ private clearTimers(){if(this.draftTimer)clearTimeout(this.draftTimer);this.draftTimer=null;if(this.interval)clearInterval(this.interval);if(this.persistTimer)clearInterval(this.persistTimer);this.interval=null;this.persistTimer=null}
  dispose(){if(this.disposed)return;this.disposed=true;this.interrupt('page_exit');this.adapter.stop();this.clearTimers();this.listeners.clear()}
 }

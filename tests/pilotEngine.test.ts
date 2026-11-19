@@ -76,6 +76,24 @@ describe('physical exposure windows and camera recording',()=>{
   function callback(x:number|null,y:number|null){
     engine.sample({x,y,callbackTimeMs:now,libraryElapsedMs:now});
   }
+  it('shows each Pilot 2 card three seconds into its slot, and stops collecting in the questionnaire',()=>{
+    const session=begin('P01');
+    image(engine.painting!);
+    for(let slot=0;slot<3;slot++){
+      now=slot*20000+2999;callback(500,400);engine.tick();
+      expect(engine.activeCard).toBeNull();
+      now++;callback(500,400);engine.tick();
+      expect(engine.activeCard).toBeDefined();
+      expect(engine.activeCard?.id).toBe(engine.painting!.cards[slot].id);
+      engine.cardShown({left:10,top:10,width:60,height:20});
+      now=(slot+1)*20000;callback(500,400);engine.tick();engine.cardHidden();
+    }
+    expect(session.cardExposures!.map(e=>[e.shownMs,e.hiddenMs])).toEqual([[3000,20000],[23000,40000],[43000,60000]]);
+    expect(engine.phase).toBe('pre');
+    const count=session.samples.length;
+    now+=8000;callback(50,50);engine.tick();
+    expect(session.samples).toHaveLength(count);
+  });
   it('requires camera data for a recorded session, including drift checks',()=>{
     const session=begin('P01');
     expect(()=>engine.flowOnly()).toThrow();

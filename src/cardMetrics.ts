@@ -1,8 +1,9 @@
 import type {CardExposure, GazeSample, Session} from './types';
+import {TLX_DIMENSIONS} from './pilotSurveyRecords';
+export {TLX_DIMENSIONS};
 
 export const CONDITION_LABELS = {sequential:'顺序讲解', random:'随机讲解', gaze:'眼动讲解'} as const;
 export const ATTENTION_MAX_GAP_MS = 150;
-export const TLX_DIMENSIONS = ['mental','physical','temporal','performance','effort','frustration'] as const;
 
 function countExposure(session:Session, exposure:CardExposure) {
   let callbacks = 0;
@@ -67,12 +68,13 @@ export function pilotRatings(session:Session) {
       const score = Number(row.answer);
       return Number.isInteger(score) && score >= min && score <= max && (score-min)%step === 0 ? score : null;
     }
-    const [mental,physical,temporal,performance,effort,frustration] = TLX_DIMENSIONS.map(key=>value(key,0,100,5));
+    const survey=session.pilotSurveys?.[paintingId];
+    const [mental,physical,temporal,performance,effort,frustration] = TLX_DIMENSIONS.map(key=>survey ? survey.workload[key]??null : value(key,0,100,5));
     const scales = [mental,physical,temporal,performance,effort,frustration];
     const complete = scales.filter((v):v is number => v !== null);
     return {
       sessionId:session.sessionId, participantId:session.participantId, sessionStatus:session.status, quality:session.quality,
-      questionVersion:session.pilot!.version, period:index+1, paintingId, condition, conditionLabel:CONDITION_LABELS[condition],
+      questionVersion:session.config.pilotSurveyVersion??session.pilot!.version, period:index+1, paintingId, condition, conditionLabel:CONDITION_LABELS[condition],
       trialIds:JSON.stringify(session.timings.filter(t=>t.paintingId===paintingId).map(t=>t.trialId)),
       overall:value('overall',1,7,1), mental, physical, temporal, performance, effort, frustration,
       tlxItemsAnswered:complete.length, rawTLX:complete.length===6 ? complete.reduce((a,b)=>a+b,0)/6 : null,

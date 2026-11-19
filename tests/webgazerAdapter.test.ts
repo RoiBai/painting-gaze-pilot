@@ -15,7 +15,7 @@ function makeRuntime(doc: Document, acquire: () => Promise<MediaStream>, modelEr
     setGazeListener: vi.fn((callback: typeof listener) => { listener = callback; }), clearGazeListener: vi.fn(() => { listener = () => {}; }),
     removeMouseEventListeners: vi.fn(() => { doc.removeEventListener('click', autoTraining, true); doc.removeEventListener('mousemove', autoTraining, true); }),
     recordScreenPosition: vi.fn(), showVideoPreview: vi.fn(), showVideo: vi.fn(), showFaceOverlay: vi.fn(), showFaceFeedbackBox: vi.fn(), showPredictionPoints: vi.fn(),
-    pause: vi.fn(), end: vi.fn(), getTracker: () => tracker,
+    pause: vi.fn(), resume:vi.fn(async()=>{}), end: vi.fn(), getTracker: () => tracker,
     begin: vi.fn(async () => {
       await acquire();
       const container = doc.createElement('div');
@@ -81,6 +81,20 @@ function makeAdapter() {
 const options = { regression: 'ridge' as const, kalman: true };
 
 describe('real-library lifecycle wrapper (mock library, not camera accuracy)', () => {
+  it('pauses the model through untimed Pilot 2 questions and resumes the same trained runtime',async()=>{
+    const adapter=makeAdapter();await adapter.start(options);
+    const runtime=runtimes[0];
+    const n=samples.length;
+    adapter.setPhase('pilot_questionnaire');
+    expect(runtime.pause).toHaveBeenCalled();
+    runtime.emit({x:50,y:75},42);
+    expect(samples).toHaveLength(n);
+    adapter.setPhase('drift');
+    expect(runtime.resume).toHaveBeenCalledTimes(1);
+    runtime.emit({x:55,y:80},76);
+    expect(samples.at(-1)).toMatchObject({x:55,y:80});
+    expect(runtime.begin).toHaveBeenCalledTimes(1);
+  });
   it('deduplicates startup, never reports tracking for null, and preserves raw callback x/y', async () => {
     const adapter = makeAdapter();
     const first = adapter.start(options);

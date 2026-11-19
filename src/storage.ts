@@ -85,18 +85,23 @@ export async function listSessions(): Promise<Session[]> {
   }).sort((a,b) => b.startedUtc.localeCompare(a.startedUtc));
 }
 
-/** Recovery is archival: an unfinished run is never resumed as continuous gaze data. */
-export async function recoverInterruptedSessions(): Promise<Session[]> {
+/** Old protocols archive a broken run. For Pilot 2, keep the resumable source
+ * and return an exportable read-only snapshot when the original tab is gone. */
+export async function recoverInterruptedSessions(resumeId?:string): Promise<Session[]> {
   const sessions = await listSessions();
-  for (const session of sessions) {
-    if (session.status !== 'active') continue;
+  const locks=navigator.locks?await navigator.locks.query():null;
+  const running=new Set((locks?.held??[]).map(l=>l.name));
+  const visible=sessions.filter(s=>s.status!=='active'||!s.config.pilotSurveyVersion||s.sessionId===resumeId||!running.has('painting-pilot:'+s.sessionId));
+  for (const session of visible) {
+    if (session.status !== 'active' || session.sessionId===resumeId) continue;
+    const pilotSnapshot=Boolean(session.config.pilotSurveyVersion);
     const lastKnownMs = Math.max(session.events.reduce((max,e)=>Math.max(max,e.timeMs),0), session.samples.reduce((max,s)=>Math.max(max,s.callbackTimeMs),0));
     const previousPhase = session.phase;
     session.status = 'interrupted';
     session.phase = 'interrupted';
     session.endedUtc = new Date().toISOString();
-    session.quality = session.quality === 'flow_only' ? 'flow_only' : 'low_quality';
-    session.qualityNotes.push('页面刷新或崩溃；已恢复最后保存批次。未保存尾段不可恢复。新采集须建立新会话并重新校准。');
+    if(!pilotSnapshot)session.quality = session.quality === 'flow_only' ? 'flow_only' : 'low_quality';
+    session.qualityNotes.push(pilotSnapshot?'这是本机最后保存的只读快照。中断前已填写的问卷保留，尚未提交的页保留草稿状态。':'页面刷新或崩溃；已恢复最后保存批次。未保存尾段不可恢复。新采集须建立新会话并重新校准。');
     session.timings.forEach(timing => {
       if (timing.status === 'active') {
         timing.status = 'interrupted';
@@ -109,8 +114,8 @@ export async function recoverInterruptedSessions(): Promise<Session[]> {
       exposure.hiddenMs=Math.max(lastKnownMs,exposure.shownMs);
       session.events.push({sessionId:session.sessionId,participantId:session.participantId,timeMs:exposure.hiddenMs,type:'card_end_recovered',phase:'interrupted',paintingId:exposure.paintingId,detail:JSON.stringify({exposureId:exposure.exposureId,estimated:true})});
     }
-    session.events.push({ sessionId:session.sessionId, participantId:session.participantId, timeMs:lastKnownMs, type:'recovered_interrupted', phase:'interrupted', paintingId:null, detail:JSON.stringify({previousPhase,recoveredAtUtc:session.endedUtc,clock:'last persisted original-page monotonic timestamp; not recovery exposure time'}) });
-    await saveSession(session);
+    session.events.push({ sessionId:session.sessionId, participantId:session.participantId, timeMs:lastKnownMs, type:pilotSnapshot?'pilot_archived_snapshot':'recovered_interrupted', phase:'interrupted', paintingId:null, detail:JSON.stringify({previousPhase,recoveredAtUtc:session.endedUtc,clock:'last persisted original-page monotonic timestamp; not recovery exposure time'}) });
+    if(!pilotSnapshot)await saveSession(session);
   }
-  return sessions;
+  return visible;
 }

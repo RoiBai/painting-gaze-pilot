@@ -74,7 +74,8 @@ test('interrupted P01 downloads all three scenes and pilot CSVs in one ZIP and r
   // The production tracker sees the synthetic camera's non-face video and emits nulls.
   await expect(page.locator('.status')).toContainText('未获得有效预测', {timeout: 70_000});
   await page.getByRole('button', {name: '退出并保留记录'}).click();
-  await expect(page.getByRole('region', {name: '三种讲解方式比较'})).toBeVisible();
+  await expect(page.getByRole('region', {name: '导出并发送研究数据'})).toBeVisible();
+  await expect(page.getByRole('region', {name: '研究者结果页'})).toHaveCount(0);
   const downloading = page.waitForEvent('download', {timeout: 50_000});
   await page.getByRole('button', {name: /一键.*ZIP/}).click();
   const download = await downloading;
@@ -88,7 +89,7 @@ test('interrupted P01 downloads all three scenes and pilot CSVs in one ZIP and r
   expect(session.pilot!.plan.map(trial => trial.condition)).toEqual(['sequential', 'random', 'gaze']);
   expect(session.samples.length).toBeGreaterThan(0);
   expect(session.samples.every(sample => !sample.predictionAvailable && sample.viewportX === null && sample.viewportY === null)).toBe(true);
-  const csv = ['gaze_samples', 'phase_events', 'validation', 'responses', 'background', 'card_exposures', 'card_attention', 'pilot_ratings'];
+  const csv = ['gaze_samples', 'phase_events', 'validation', 'responses', 'background', 'card_exposures', 'card_attention', 'pilot_ratings', 'pilot_workload', 'pilot_recall'];
   for (const name of csv) expect(basenames[name + '.csv'], name).toBeDefined();
   expect(csvRecords(strFromU8(basenames['pilot_ratings.csv'])).map(row => row.condition)).toEqual(['sequential', 'random', 'gaze']);
   expect(strFromU8(basenames['gaze_samples.csv']).split('\n')[0]).toContain('cardExposureId');
@@ -116,4 +117,14 @@ test('interrupted P01 downloads all three scenes and pilot CSVs in one ZIP and r
   } finally {
     await review.close();
   }
+});
+
+
+test('researcher links expose Pilot 2 review and an independent conditions-blind marking page',async({page})=>{
+  await page.goto('./?preview=design');
+  await expect(page.getByText(/3 秒看画、17 秒单卡/)).toBeVisible();
+  await page.getByRole('link',{name:'打开回忆题盲评'}).click();
+  await expect(page.getByRole('heading',{name:'画面回忆盲评'})).toBeVisible();
+  await expect(page.getByRole('table',{name:'三条件排程'})).toHaveCount(0);
+  await expect(page.getByLabel('选择本地 ZIP 或 session.json')).toBeVisible();
 });
