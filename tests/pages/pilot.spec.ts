@@ -133,8 +133,8 @@ test('researcher links expose Pilot 2 review and an independent conditions-blind
 test('only researcher rehearsal can select a single scene and explanation on participant links',async({page})=>{
   await page.goto('./?participant=P00');
   await page.getByRole('radio',{name:'只试一景'}).check();
-  const scene=page.getByLabel('试用场景');
-  const method=page.getByLabel('讲解方式',{exact:true});
+  const scene=page.getByRole('combobox',{name:/^试用场景/});
+  const method=page.getByRole('combobox',{name:/^讲解方式/});
   await expect(scene.locator('option')).toHaveText(['蹴鞠','马球','射箭']);
   await expect(method.locator('option')).toHaveText(['顺序讲解','随机讲解','眼动讲解']);
   await scene.selectOption('ming-xingle-cuju');await method.selectOption('gaze');
