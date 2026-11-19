@@ -69,6 +69,11 @@ export function validateConfig(input: unknown): string[] {
   const errors: string[] = [];
   if (!object(input)) return ['配置须为 JSON 对象'];
   const c = input;
+  const threeConditions = c.pilotProtocol === 'three-condition-v1';
+  if (c.pilotProtocol !== undefined && !threeConditions) errors.push('未知的三条件研究版本');
+  if (threeConditions && (c.participantPlan !== undefined || c.questionnaireVersion !== undefined)) {
+    errors.push('三条件研究配置不能同时启用旧编号分组或旧问卷');
+  }
   const requireText = (value: unknown, label: string) => { if (!text(value)) errors.push(`${label}不能为空`); };
   requireText(c.version, '配置版本');
   if (!['preview', 'research'].includes(c.mode as string)) errors.push('模式须为 preview 或 research');
@@ -93,7 +98,10 @@ export function validateConfig(input: unknown): string[] {
   }
   if (!object(c.copy)) errors.push('缺少界面文案 copy');
   else for (const key of ['intro', 'consent', 'freeView', 'interview']) requireText(c.copy[key], `文案 ${key}`);
-  if (!Array.isArray(c.paintings) || c.paintings.length !== 2) errors.push('必须恰好配置两幅画');
+  const expectedSceneCount = threeConditions ? 3 : 2;
+  if (!Array.isArray(c.paintings) || c.paintings.length !== expectedSceneCount) {
+    errors.push(threeConditions ? '三条件研究必须恰好配置三个场景' : '必须恰好配置两幅画');
+  }
   if (!Array.isArray(c.paintings)) return errors;
   const paintingIds: unknown[] = [];
   for (const [index, value] of c.paintings.entries()) {
@@ -139,10 +147,24 @@ export function validateConfig(input: unknown): string[] {
     const prePrompts: unknown[] = [];
     for (const section of ['pre', 'post']) {
       const qs = p[section];
-      if (!Array.isArray(qs) || qs.length < 2 || qs.length > (section==='pre'?5:3)) errors.push(`${label} ${section} 须有 ${section==='pre'?'2–5':'2–3'} 道问题`);
+      if (threeConditions) {
+        if (!Array.isArray(qs) || (section === 'pre' ? qs.length === 0 : qs.length !== 0)) {
+          errors.push(`${label} 三条件研究使用每景结束后的一套问卷，pre 须有题目、post 须为空数组`);
+        }
+      } else if (!Array.isArray(qs) || qs.length < 2 || qs.length > (section==='pre'?5:3)) {
+        errors.push(`${label} ${section} 须有 ${section==='pre'?'2–5':'2–3'} 道问题`);
+      }
       if (Array.isArray(qs)) for (const q of qs) {
         if (!object(q)) { errors.push(`${label}问题须为对象`); continue; }
         for (const key of ['id', 'prompt', 'scoring']) requireText(q[key], `${label} ${section} ${key}`);
+        if (q.ratingScale !== undefined) {
+          const scale = q.ratingScale;
+          if (!object(scale) || !numeric(scale.min, 0) || !numeric(scale.max, 0) || scale.max <= scale.min ||
+              !numeric(scale.step, Number.EPSILON, scale.max - scale.min) || !text(scale.lowLabel) || !text(scale.highLabel) ||
+              q.type === 'multi-select') {
+            errors.push(`${label}评分量表须有递增的范围、正数步长与两端的说明`);
+          }
+        }
         if(q.type!==undefined&&!['text','multi-select'].includes(q.type as string))errors.push(`${label}问题 type 无效`);
         if(q.description!==undefined&&typeof q.description!=='string')errors.push(`${label}问题 description 须为文字`);
         for(const flag of ['optional','confidence','allowUnknown'])if(q[flag]!==undefined&&typeof q[flag]!=='boolean')errors.push(`${label}问题 ${flag} 须为布尔值`);
@@ -166,19 +188,30 @@ export function validateConfig(input: unknown): string[] {
       }
     }
     if (!unique(questionIds)) errors.push(`${label}问题 id 须在前后题中保持唯一`);
-    if (!Array.isArray(p.cards) || p.cards.length !== 2) errors.push(`${label}须有固定顺序的两张解释卡`);
+    if (!Array.isArray(p.cards) || p.cards.length !== (threeConditions ? 3 : 2)) {
+      errors.push(threeConditions ? `${label}须有三张单区域解释卡` : `${label}须有固定顺序的两张解释卡`);
+    }
     if (Array.isArray(p.cards)) {
       const ids: unknown[] = [];
+      const cardRegions: unknown[] = [];
       for (const card of p.cards) {
         if (!object(card)) { errors.push(`${label}解释卡须为对象`); continue; }
         for (const key of ['id', 'title', 'location', 'text', 'source']) requireText(card[key], `${label}解释卡 ${key}`);
         ids.push(card.id); checkAOIs(card.aoiIds, `${label}解释卡`);
+        if (threeConditions && Array.isArray(card.aoiIds)) {
+          if (card.aoiIds.length !== 1) errors.push(`${label}每张解释卡须对应一个独立区域`);
+          cardRegions.push(card.aoiIds[0]);
+        }
       }
       if (!unique(ids)) errors.push(`${label}解释卡 id 重复`);
+      if (threeConditions && !unique(cardRegions)) errors.push(`${label}解释卡的区域不能重复`);
     }
     if (!Array.isArray(p.interview) || !p.interview.length || !p.interview.every(text)) errors.push(`${label}须提供访谈问题`);
   }
-  if (!unique(paintingIds)) errors.push('两幅画的 paintingId 必须不同');
+  if (!unique(paintingIds)) errors.push('各场景的 paintingId 必须不同');
+  if (threeConditions && !['ming-xingle-cuju','ming-xingle-polo','ming-xingle-archery'].every(id => paintingIds.includes(id))) {
+    errors.push('三条件研究须包含蹴鞠、马球和射箭三个指定场景');
+  }
   if (['crossed-four-v1','common-four-v2'].includes(c.participantPlan as string) && (paintingIds.length !== 2 || !['ming-xingle-archery', 'ming-xingle-cuju'].every(id => paintingIds.includes(id)))) errors.push('四人顺序方案仅适用于射箭与蹴鞠两幅指定场景；其他材料请关闭四人方案');
   return errors;
 }

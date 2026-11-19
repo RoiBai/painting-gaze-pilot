@@ -34,6 +34,7 @@ function completed(tx: IDBTransaction): Promise<void> {
 
 /** Atomically save metadata and new chunks. At most the trailing chunk is rewritten. */
 export function saveSession(session: Session): Promise<void> {
+  if (session.participantId === 'P00' || session.pilot?.practice) return Promise.resolve();
   const snapshot = structuredClone(session);
   const operation = writes.catch(() => undefined).then(async () => {
     const db = await database();
@@ -103,6 +104,11 @@ export async function recoverInterruptedSessions(): Promise<Session[]> {
         timing.wallMs = Math.max(timing.wallMs, lastKnownMs - timing.startedMs);
       }
     });
+    for (const exposure of session.cardExposures??[]) {
+      if (exposure.hiddenMs!==null) continue;
+      exposure.hiddenMs=Math.max(lastKnownMs,exposure.shownMs);
+      session.events.push({sessionId:session.sessionId,participantId:session.participantId,timeMs:exposure.hiddenMs,type:'card_end_recovered',phase:'interrupted',paintingId:exposure.paintingId,detail:JSON.stringify({exposureId:exposure.exposureId,estimated:true})});
+    }
     session.events.push({ sessionId:session.sessionId, participantId:session.participantId, timeMs:lastKnownMs, type:'recovered_interrupted', phase:'interrupted', paintingId:null, detail:JSON.stringify({previousPhase,recoveredAtUtc:session.endedUtc,clock:'last persisted original-page monotonic timestamp; not recovery exposure time'}) });
     await saveSession(session);
   }

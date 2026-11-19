@@ -6,7 +6,7 @@ import {consentAndStart,backgroundAnswers,csvRecords} from '../e2e/helpers';
 
 test('published researcher preview and all four participant links preserve the Pages subpath', async ({page}) => {
   const site = new URL(String(test.info().project.use.baseURL));
-  await page.goto('./?preview=design');
+  await page.goto('./?study=legacy&preview=design');
   const table = page.getByRole('table', {name:'观看顺序安排'});
   await expect(table).toBeVisible();
   for(const q of [...commonQuestions['ming-xingle-archery'].pre,...commonQuestions['ming-xingle-archery'].post])await expect(page.getByText(q.prompt, {exact:true})).toBeVisible();

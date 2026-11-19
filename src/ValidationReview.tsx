@@ -6,6 +6,7 @@ export default function Quality({engine}:{engine:StudyEngine}){
  const [diagnostic,setDiagnostic]=useState(false);
  const latest=engine.session?.samples.at(-1);
  const summary=engine.session!.validationSummaries.at(-1)!;
+ const needsSignal=!!engine.session?.pilot&&!engine.session.pilot.practice&&!summary.targets.some(target=>target.n>0);
  const reasons=validationExplanation(summary,engine.session!.config.validation);
  return <>
   <div className="eyebrow">研究者检查 · 本轮检查的是视线估计记录</div>
@@ -14,7 +15,7 @@ export default function Quality({engine}:{engine:StudyEngine}){
   <div className={`notice ${summary.status==='fail'?'error':''}`} role="status">
    {reasons.map((reason,i)=><p key={i}>{reason}</p>)}
    {summary.status==='judgment'&&<p>可以继续记录。结果会保留“未判定”，不会标成低质量或合格。</p>}
-   {summary.status==='fail'&&<p>请先检查光照、坐姿和面部检测，再重新校准。也可以保留未通过标记继续试用。</p>}
+   {summary.status==='fail'&&!needsSignal&&<p>请先检查光照、坐姿和面部检测，再重新校准。也可以保留未通过标记继续试用。</p>}
   </div>
   <p>整体中位误差 <strong>{summary.medianErrorPx?.toFixed(1)??'无数据'} CSS px</strong> · 视口对角线比例 {summary.errorDiagonalRatio==null?'无数据':`${(summary.errorDiagonalRatio*100).toFixed(2)}%`}</p>
   <table><thead><tr><th>目标</th><th>有效样本</th><th>中位误差（CSS px）</th></tr></thead><tbody>{summary.targets.map(t=><tr key={t.targetId}><td>{Number(t.targetId)+1}</td><td>{t.n}</td><td>{t.medianErrorPx?.toFixed(1)??'无数据'}</td></tr>)}</tbody></table>
@@ -25,12 +26,13 @@ export default function Quality({engine}:{engine:StudyEngine}){
    <div className="diagnostic-targets"><b>左 ●</b><b>中 ●</b><b>右 ●</b></div>
    <p>当前库回调：x = {latest?.viewportX?.toFixed(1)??'null'}，y = {latest?.viewportY?.toFixed(1)??'null'}（CSS px） · {engine.camera.message}</p>
   </details>
+  {needsSignal&&<p className="notice">本轮没有有效视线。请调整设备并重新校准，再进入观看。</p>}
   <div className="actions">
    <button onClick={()=>void engine.calibrate()}>重新校准</button>
    {engine.camera.status==='error'&&<button onClick={()=>void engine.startCamera().then(()=>engine.calibrate())}>重新连接摄像头并校准</button>}
    {summary.status==='pass'&&<button className="primary" onClick={()=>engine.acceptQuality(false)}>继续</button>}
    {summary.status==='judgment'&&<button className="primary" onClick={()=>engine.acceptQuality(false)}>保留“未判定”，继续记录</button>}
-   {summary.status==='fail'&&<button className="quiet" onClick={()=>engine.acceptQuality(true)}>研究者：标记低质量后继续</button>}
+   {summary.status==='fail'&&!needsSignal&&<button className="quiet" onClick={()=>engine.acceptQuality(true)}>研究者：标记低质量后继续</button>}
   </div>
  </>;
 }

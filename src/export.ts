@@ -4,10 +4,45 @@ import type { GazeSample, PhaseEvent, ResponseRow, Session, ValidationRow } from
 import { eligibleSamples, HEATMAP_ALGORITHM, heatmapSize, renderHeatmap } from './heatmap';
 import {applyCorrection,buildCorrectionPlan,type CorrectionPlan,type CorrectionRow} from './correction';
 import {renderCorrectedHeatmap,renderCorrectedScanpath} from './correctionRender';
+import {cardAttention, pilotRatings, ATTENTION_MAX_GAP_MS} from './cardMetrics';
+
+export const PILOT_DATA_FILES = ['card_exposures.csv','card_attention.csv','pilot_ratings.csv'] as const;
+const PILOT_GAZE_COLUMNS = ['condition','cardExposureId','cardId','onCard','imageAoiId','trialActiveMs'] as const;
+const ATTENTION_COLUMNS = ['sessionId','participantId','quality','exposureId','trialId','paintingId','condition','cardId','slot','shownMs','hiddenMs','visibleMs','callbacks','validSamples','onCardSamples','observedMs','onCardMs','offCardMs','onCardShare','observationCoverage'] as const;
+const EXPOSURE_COLUMNS = ['sessionId','participantId','quality','exposureId','trialId','paintingId','condition','period','cardId','slot','cardTitle','cardBody','anchorAoiIds','selectionSource','selectionReason','selectionAoiId','validSelectionSamples','dwellMs','candidateCardIds','shownMs','hiddenMs','activeStartMs','viewportLeft','viewportTop','viewportWidth','viewportHeight','geometryVersion','calibrationVersion'] as const;
+const RATING_COLUMNS = ['sessionId','participantId','sessionStatus','quality','questionVersion','period','paintingId','condition','conditionLabel','trialIds','overall','mental','physical','temporal','performance','effort','frustration','tlxItemsAnswered','rawTLX'] as const;
+
+export function isPracticeSession(session:Session):boolean {
+  return session.participantId === 'P00' || session.pilot?.practice === true;
+}
+
+function assertExportable(session:Session) {
+  if (isPracticeSession(session)) throw Error('P00 练习数据不能导出。');
+}
+
+function pilotFiles(session:Session):Record<string,Uint8Array> {
+  if (!session.pilot) return {};
+  const rows = (session.cardExposures ?? []).map(exposure => {
+    const painting = session.config.paintings.find(p => p.paintingId === exposure.paintingId);
+    const card = painting?.cards.find(c => c.id === exposure.cardId);
+    return {...exposure,sessionId:session.sessionId,participantId:session.participantId,quality:session.quality,
+      period:session.order.indexOf(exposure.paintingId)+1,
+      cardTitle:card?.title??'',cardBody:card?.text??'',anchorAoiIds:JSON.stringify(card?.aoiIds??[]),
+      candidateCardIds:JSON.stringify(exposure.candidateCardIds),
+      viewportLeft:exposure.rect.left,viewportTop:exposure.rect.top,
+      viewportWidth:exposure.rect.width,viewportHeight:exposure.rect.height};
+  });
+  return {
+    'card_exposures.csv':strToU8('\ufeff'+toCSV(rows,[...EXPOSURE_COLUMNS])),
+    'card_attention.csv':strToU8('\ufeff'+toCSV(cardAttention(session),[...ATTENTION_COLUMNS])),
+    'pilot_ratings.csv':strToU8('\ufeff'+toCSV(pilotRatings(session),[...RATING_COLUMNS])),
+  };
+}
+
 
 export const GAZE_COLUMNS: (keyof GazeSample)[] = ['sessionId','participantId','paintingId','trialId','phase','sampleIndex','callbackTimeMs','libraryElapsedMs','viewportX','viewportY','imageX','imageY','imageNormX','imageNormY','predictionAvailable','insideImage','geometryVersion','calibrationVersion','paused','confidence'];
 export const EVENT_COLUMNS: (keyof PhaseEvent)[] = ['sessionId','participantId','timeMs','type','phase','paintingId','detail'];
-interface ExportResponseRow extends ResponseRow {planVersion:string;questionVariant:string;questionVersion:string;sceneOrder:string;paintingOrder:string;questionPrompt:string;questionIndex:number|null;analysisRole:string;selectedOptionIds:string;selectedOptionLabels:string;otherText:string}
+interface ExportResponseRow extends ResponseRow {planVersion:string;questionVariant:string;questionVersion:string;sceneOrder:string;paintingOrder:string;questionPrompt:string;questionIndex:number|null;analysisRole:string;selectedOptionIds:string;selectedOptionLabels:string;otherText:string;condition:string;period:number|null}
 export const RESPONSE_COLUMNS: (keyof ExportResponseRow)[] = ['sessionId','participantId','paintingId','phase','questionId','answer','confidence','unknown','skipped','durationMs','timeMs','planVersion','questionVariant','questionVersion','sceneOrder','paintingOrder','questionPrompt','questionIndex','analysisRole','selectedOptionIds','selectedOptionLabels','otherText'];
 export const BACKGROUND_COLUMNS = ['sessionId','participantId','backgroundVersion','questionId','questionPrompt','answer','answerCode'] as const;
 export const VALIDATION_COLUMNS: (keyof ValidationRow)[] = ['sessionId','participantId','paintingId','kind','runId','calibrationVersion','targetId','targetX','targetY','viewportWidth','viewportHeight','timeMs','predictionX','predictionY','errorPx','settling','training'];
@@ -29,6 +64,10 @@ function responseQuestionPrompt(session:Session,row:ResponseRow):string {
     return session.config.paintings.find(p=>p.paintingId===row.paintingId)?.[row.phase].find(q=>q.id===row.questionId)?.prompt??'';
   }
   if(row.phase==='interview'){
+    if(session.pilot){
+      const index=['compare','interruptions','improve'].indexOf(row.questionId);
+      return session.config.paintings[0].interview[index]??'';
+    }
     if(row.questionId==='interview')return session.config.copy.interview;
     for(const painting of session.config.paintings){
       const index=painting.interview.findIndex((_,i)=>`${painting.paintingId}-interview-${i}`===row.questionId);
@@ -44,12 +83,14 @@ function exportResponses(session:Session):ExportResponseRow[] {
     const index=questions?.findIndex(q=>q.id===row.questionId)??-1;
     const question=index<0?undefined:questions?.[index];
     return {...row,
-      planVersion:assignment?.planVersion??'',questionVariant:assignment?.questionVariant??(session.config.questionnaireVersion?'common':''),questionVersion:assignment?.questionVersion??session.config.questionnaireVersion??'',
-      sceneOrder:assignment?.order??'',paintingOrder:assignment?JSON.stringify(session.order):'',questionPrompt:responseQuestionPrompt(session,row),
+      planVersion:session.pilot?.version??assignment?.planVersion??'',questionVariant:assignment?.questionVariant??(session.config.questionnaireVersion?'common':''),questionVersion:session.pilot?.version??assignment?.questionVersion??session.config.questionnaireVersion??'',
+      sceneOrder:assignment?.order??'',paintingOrder:(assignment||session.pilot)?JSON.stringify(session.order):'',questionPrompt:responseQuestionPrompt(session,row),
       questionIndex:index<0?null:index+1,analysisRole:question?.analysisRole??'',
       selectedOptionIds:row.selectedOptions===undefined?'':JSON.stringify(row.selectedOptions),
       selectedOptionLabels:row.selectedOptions===undefined?'':JSON.stringify(row.selectedOptions.map(id=>question?.options?.find(option=>option.id===id)?.label??id)),
       otherText:row.otherText??'',
+      condition:session.pilot?.plan.find(trial=>trial.paintingId===row.paintingId)?.condition??'',
+      period:row.paintingId&&session.pilot?session.order.indexOf(row.paintingId)+1:null,
     };
   });
 }
@@ -64,6 +105,7 @@ function exportBackground(session:Session):Record<string,Uint8Array> {
   return {'background.csv':strToU8('\ufeff'+toCSV(rows,[...BACKGROUND_COLUMNS]))};
 }
 export function buildTextExportFiles(session:Session):Record<string,Uint8Array> {
+  assertExportable(session);
   if(session.dataSource!=='webgazer-camera')throw new Error('拒绝导出非摄像头研究样本。开发 fixture 只允许在测试目录使用。');
   if(session.coordinateSource==='reference-corrected')throw new Error('参考校正坐标不能作为原始数据导出；请从原始会话生成附加校正文件。');
   const scanpathParams=session.scanpath??defaultScanpath;
@@ -75,6 +117,15 @@ export function buildTextExportFiles(session:Session):Record<string,Uint8Array> 
     timestampBasis:'performance.now() in original page; UTC = timeOrigin + callbackTimeMs. Interrupted recovery event retains last persisted original-page timestamp.',
     csvEncoding:'UTF-8 BOM; RFC 4180 quoting; null and nonfinite numbers are empty cells; strings preserved verbatim',
     ...(session.config.questionnaireVersion?{questionnaireAnalysis:{version:session.config.questionnaireVersion,roles:{spontaneous:'讲解前第1–3题：参与者自主陈述的理解、需求与疑问',prompted:'讲解前第4题：定向追问活动、关系及判断依据',classification:'讲解前第5题：困难分类，用于补充开放回答','card-feedback':'讲解后两题：疑问回应与解释变化'},interpretation:'讲解前后是同一人的两个阶段，不是control group与experimental group。定向追问后出现的关系解释不能计为自发发现；仅凭前后变化不能认定讲解有效。'}}:{}),
+    ...(session.pilot ? {cardObservation:{
+      version:'raw-card-overlap-v1', clock:'All shownMs, hiddenMs, callbackTimeMs and event timeMs use performance.now() in the original session.',
+      coordinates:'Raw viewport CSS pixels. The painted card border-box can extend outside the painting. Join gaze_samples.cardExposureId to card_exposures.exposureId.',
+      interpretation:'onCard=true/false is the valid raw prediction inside/outside a visible card rectangle. A blank onCard means no visible card or no usable prediction. Null predictions are retained.',
+      maxIntervalMs:ATTENTION_MAX_GAP_MS,
+      durationEstimate:'Count consecutive valid unpaused callback pairs in the same exposure, trial, geometry and calibration up to maxIntervalMs. Equal endpoints assign the whole interval to their area. Opposite endpoints assign half to each area. No estimate before the first or after the last callback. onCardShare=onCardMs/observedMs, observationCoverage=observedMs/visibleMs. Missing observation yields a blank dwell and share.',
+      heatmapScope:'Painting heatmaps and scan paths aggregate image coordinates during scene viewing, including locations covered by a visible card. Use raw card overlap logs to distinguish the card from the covered painting.',
+      ratings:'One row per planned period, including interrupted or unplayed scenes. Overall experience 1–7, Raw TLX 0–100, unweighted mean only if all six scales present. High performance item score means worse perceived performance.',
+    }} : {}),
     heatmapAlgorithm:HEATMAP_ALGORITHM,
     heatmapFilter:'sessionId and participantId match; free_view; paintingId matches; !paused; predictionAvailable; insideImage; finite viewport/image coordinates; normalized coordinates within [0,1]',
     heatmapRenders:session.config.paintings.map(p=>({paintingId:p.paintingId,...heatmapSize(p,session.heatmap),headerPx:166,footerPx:80,sampleCount:eligibleSamples(session,p.paintingId).length,showAOI:false,parameters:session.heatmap})),
@@ -84,12 +135,13 @@ export function buildTextExportFiles(session:Session):Record<string,Uint8Array> 
     correction:{...correction,derivedFilesAvailable:correction.available,rawSamplesUnchanged:true,qualityStatusUnchanged:true,note:'事后参考校正另存；不是独立准确度验证，不替换原始数据或质量判定。'},
   }};
   return {
-    'gaze_samples.csv':strToU8('\ufeff'+toCSV(session.samples,GAZE_COLUMNS)),
+    'gaze_samples.csv':strToU8('\ufeff'+toCSV(session.samples,session.pilot?[...GAZE_COLUMNS,...PILOT_GAZE_COLUMNS]:GAZE_COLUMNS)),
     'phase_events.csv':strToU8('\ufeff'+toCSV(session.events,EVENT_COLUMNS)),
-    'responses.csv':strToU8('\ufeff'+toCSV(exportResponses(session),RESPONSE_COLUMNS)),
+    'responses.csv':strToU8('\ufeff'+toCSV(exportResponses(session),session.pilot?[...RESPONSE_COLUMNS,'condition','period']:RESPONSE_COLUMNS)),
     'validation.csv':strToU8('\ufeff'+toCSV(session.validation,VALIDATION_COLUMNS)),
     'session.json':strToU8(JSON.stringify(snapshot,null,2)),
     ...exportBackground(session),
+    ...pilotFiles(session),
   };
 }
 export async function canvasPNG(canvas:HTMLCanvasElement):Promise<Uint8Array> {
@@ -97,6 +149,7 @@ export async function canvasPNG(canvas:HTMLCanvasElement):Promise<Uint8Array> {
   return new Uint8Array(await blob.arrayBuffer());
 }
 export async function buildExportFiles(session:Session):Promise<Record<string,Uint8Array>> {
+  assertExportable(session);
   const snapshot=structuredClone(session);
   const files=buildTextExportFiles(snapshot);
   for(const painting of snapshot.config.paintings){
@@ -111,6 +164,7 @@ export async function buildExportFiles(session:Session):Promise<Record<string,Ui
 
 /** Derived files only, so a historical ZIP can retain every original entry byte-for-byte. */
 export async function buildCorrectionExportFiles(session:Session,plan:CorrectionPlan=buildCorrectionPlan(session)):Promise<Record<string,Uint8Array>> {
+  assertExportable(session);
   if(session.dataSource!=='webgazer-camera')throw new Error('拒绝导出非摄像头研究样本。');
   if(session.coordinateSource==='reference-corrected')throw new Error('请使用原始会话生成参考校正文件，不能重复校正派生坐标。');
   if(!plan.available)return {};

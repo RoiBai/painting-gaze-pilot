@@ -11,7 +11,7 @@ const transitions: Record<Phase, readonly Phase[]> = {
   loading_image: ['free_view', 'drift', 'camera', 'calibration'],
   free_view: ['familiarity', 'pre', 'calibration', 'camera'],
   familiarity: ['pre'],
-  pre: ['cards'],
+  pre: ['cards','drift','interview','calibration'],
   cards: ['post'],
   post: ['drift', 'interview', 'completed', 'calibration'],
   interview: ['completed'],

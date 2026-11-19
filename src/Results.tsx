@@ -5,10 +5,16 @@ import {defaultScanpath,scanpathExtent,renderScanpath} from './scanpath';
 import { actualSampleRate, eligibleSamples, qualityText, renderHeatmap } from './heatmap';
 import {buildCorrectionPlan,applyCorrection} from './correction';
 import {renderCorrectedHeatmap,renderCorrectedScanpath} from './correctionRender';
-import { buildTextExportFiles, canvasPNG, downloadFile, exportPrefix, exportZip } from './export';
+import { buildTextExportFiles, canvasPNG, downloadFile, exportPrefix, exportZip, isPracticeSession, PILOT_DATA_FILES } from './export';
+
+import PilotComparison from './PilotComparison';
 
 interface Props {session:Session;onChange:(session:Session)=>void;onBack:()=>void}
-export function Results({session,onChange,onBack}:Props){
+export function Results(props:Props) {
+  if(isPracticeSession(props.session)) return <section className="panel"><h2>P00 练习</h2><p>练习过程仅在当前页面临时使用。</p><button onClick={props.onBack}>结束练习</button></section>;
+  return <StudyResults {...props}/>;
+}
+function StudyResults({session,onChange,onBack}:Props){
   const [paintingId,setPaintingId]=useState(session.order[0]);
   const [showAOI,setShowAOI]=useState(false);
   const [view,setView]=useState<'heatmap'|'scanpath'>('heatmap');
@@ -71,7 +77,7 @@ export function Results({session,onChange,onBack}:Props){
   const rate=actualSampleRate(session,selected.paintingId);
   const sceneOrder=session.order.map(id=>session.config.paintings.find(p=>p.paintingId===id)?.title??id).join(' → ');
   const commonQuestionnaire=session.assignment?.questionVariant==='common'||(!session.assignment&&session.config.questionnaireVersion==='common-viewing-v1');
-  const questionLabel=commonQuestionnaire?'共同问卷':session.assignment?`${session.assignment.questionVariant==='alpha'?'甲':'乙'}（${session.assignment.questionVariant}）`:'未记录分组（旧会话或自定义配置）';
+  const questionLabel=session.pilot?'三种讲解方式共同问卷':commonQuestionnaire?'共同问卷':session.assignment?`${session.assignment.questionVariant==='alpha'?'甲':'乙'}（${session.assignment.questionVariant}）`:'未记录分组（旧会话或自定义配置）';
   const execute=async(fn:()=>void|Promise<void>,notice='')=>{
     if(exportLock.current)return;
     exportLock.current=true;setBusy(true);setPlaying(false);setExportError('');setExportNotice('');
@@ -90,6 +96,7 @@ export function Results({session,onChange,onBack}:Props){
       {exportNotice&&<p role="status" className="notice">{exportNotice}</p>}
       {exportError&&<p role="alert" className="error">{exportError}</p>}
     </section>
+    {session.pilot&&<PilotComparison session={session}/>}
     {(session.background||commonQuestionnaire)&&<details aria-label="研究者问卷记录"><summary>研究者：背景与问卷分析说明</summary>
       {session.background&&<dl>{session.background.questions.map(question=>{const value=session.background!.answers[question.id];return <div key={question.id}><dt>{question.prompt}</dt><dd>{question.options?.find(option=>option.id===String(value))?.label??String(value)}</dd></div>})}</dl>}
       {commonQuestionnaire&&<p>讲解前第 1–3 题记录参与者自主陈述的理解、需求与疑问；第 4 题是定向追问，第 5 题为困难分类。定向追问后出现的关系解释不能作为自发发现。讲解前后是同一人的两个阶段，不是对照组与实验组；仅凭前后变化不能认定讲解有效。请逐人、逐景对应原先的解释与疑问、卡片反馈，再提出内容修改建议。</p>}
@@ -141,7 +148,7 @@ export function Results({session,onChange,onBack}:Props){
     {!samples.length&&<p className="notice">{corrected?'当前参考校正范围没有画内样本。':'无可用数据。'}保留原画和质量说明，不生成占位热点。</p>}
     <div className="export-actions"><button disabled={busy} onClick={()=>void execute(async()=>{const canvas=corrected?await renderCorrectedHeatmap(session,selected,session.heatmap,false,correctionPlan):await renderHeatmap(session,selected,session.heatmap,false);downloadFile(`${exportPrefix(session)}_${corrected?'corrected_':''}heatmap_${selected.paintingId}.png`,await canvasPNG(canvas));})}>{corrected?'下载本画参考校正密度图 PNG':'下载本画密度图 PNG'}</button><button disabled={busy} onClick={()=>void execute(async()=>{const canvas=corrected?await renderCorrectedScanpath(session,selected,pathParams,{},correctionPlan):await renderScanpath(session,selected,pathParams);downloadFile(`${exportPrefix(session)}_${corrected?'corrected_':''}scanpath_${selected.paintingId}.png`,await canvasPNG(canvas));})}>{corrected?'下载本画参考校正完整轨迹 PNG':'下载本画完整轨迹 PNG'}</button></div>
     <p className="muted">单图 PNG 跟随当前原始／参考校正选择；ZIP 同时保留原始数据和可用的参考校正结果。导出图默认不含 AOI 框：密度图使用当前核宽与透明度，轨迹图使用当前显示间隔和编号密度并包含完整时段。参数、分辨率及筛选规则写入 session.json；旧会话也能从已保存的采样生成轨迹。</p>
-    <div className="export-actions">{['gaze_samples.csv','phase_events.csv','responses.csv','validation.csv','session.json',...(session.background?['background.csv']:[])].map(name=><button className="secondary" key={name} disabled={busy} onClick={()=>void execute(()=>downloadFile(`${exportPrefix(session)}_${name}`,buildTextExportFiles(session)[name]))}>{name}</button>)}</div>
+    <div className="export-actions">{['gaze_samples.csv','phase_events.csv','responses.csv','validation.csv','session.json',...(session.background?['background.csv']:[]),...(session.pilot?PILOT_DATA_FILES:[])].map(name=><button className="secondary" key={name} disabled={busy} onClick={()=>void execute(()=>downloadFile(`${exportPrefix(session)}_${name}`,buildTextExportFiles(session)[name]))}>{name}</button>)}</div>
     <details><summary>独立验证与漂移检查</summary><p>该会话冻结的合格线：{validationRuleText(session.config.validation)}</p><p>误差为预测点到目标的欧氏距离（CSS px）的中位数；相对误差以视口对角线归一化。预热期样本不进入判断。</p><div className="table-scroll"><table><thead><tr><th>运行 / 类型</th><th>校准版本</th><th>整体中位误差</th><th>对角线比例</th><th>状态</th><th>各目标有效样本 / 中位误差</th></tr></thead><tbody>{session.validationSummaries.map(v=><tr key={v.runId}><td>{v.runId}<br/>{v.kind}</td><td>{v.calibrationVersion}</td><td>{v.medianErrorPx?.toFixed(1)??'—'} px</td><td>{v.errorDiagonalRatio===null?'—':(v.errorDiagonalRatio*100).toFixed(1)+'%'}</td><td>{{pass:'符合冻结阈值',fail:'未通过',judgment:'质量未判定'}[v.status]}{validationExplanation(v,session.config.validation).map((reason,i)=><p key={i}>{reason}</p>)}</td><td>{v.targets.map(t=><div key={t.targetId}>{t.targetId}: {t.n} / {t.medianErrorPx?.toFixed(1)??'—'} px</div>)}</td></tr>)}</tbody></table></div></details>
     <details><summary>{commonQuestionnaire?'研究者编码参考与回答':'研究者评分参考与回答'}</summary><p>{commonQuestionnaire?'按同一人、同一场景对应解释、疑问与卡片反馈，并区分自主陈述和定向追问。':'评分仅供研究者离线判断；系统不推断参与者哪里没有理解。'}</p>{session.config.paintings.map(p=><section key={p.paintingId}><h3>{p.title}</h3>{[...p.pre,...p.post].map(q=><p key={q.id}><strong>{q.prompt}</strong><br/>{q.scoring}</p>)}{!commonQuestionnaire&&<><h4>访谈参考</h4>{p.interview.map(q=><p key={q}>{q}</p>)}</>}</section>)}<div className="table-scroll"><table><thead><tr><th>画作 / 阶段</th><th>题号</th><th>原话</th><th>信心</th><th>跳过 / 不知道</th></tr></thead><tbody>{session.responses.map((r,i)=><tr key={i}><td>{r.paintingId??'—'} / {r.phase}</td><td>{r.questionId}</td><td style={{whiteSpace:'pre-wrap'}}>{r.answer}</td><td>{r.confidence??'—'}</td><td>{r.skipped?'跳过':r.unknown?'不知道':'—'}</td></tr>)}</tbody></table></div></details>
     <details><summary>既有热图参考（独立资料）</summary><p>既有 R01–R09 热图仅为研究者另行保存的设计资料，本网站没有将其导入刺激或采样数据，也不会随本次参与者记录导出。</p></details>

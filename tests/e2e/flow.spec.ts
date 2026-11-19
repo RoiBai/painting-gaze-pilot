@@ -5,7 +5,7 @@ import {commonQuestions} from '../../src/commonQuestionnaire';
 import {backgroundAnswers,consentAndStart,shortFlowSettings,beginFlowOnly,enterScene,storedSessions,csvRecords} from './helpers';
 
 test('two-scene common questionnaire exports background and distinguishes spontaneous, prompted and card feedback responses',async({page})=>{
-  await page.goto('/?preview=design');
+  await page.goto('/?study=legacy&preview=design');
   await shortFlowSettings(page);await beginFlowOnly(page);
   const original='这像是"活动"场面。\n我不确定具体规则。';
   for(const paintingId of ['ming-xingle-archery','ming-xingle-cuju']){
@@ -70,7 +70,7 @@ test('two-scene common questionnaire exports background and distinguishes sponta
 });
 
 test('formal mode blocks unverified scenes and reload preserves interrupted session',async({page})=>{
-  await page.goto('/');await page.getByRole('button',{name:'研究者设置',exact:true}).click();
+  await page.goto('/?study=legacy');await page.getByRole('button',{name:'研究者设置',exact:true}).click();
   await page.getByLabel('运行模式').selectOption('research');await page.getByRole('button',{name:'返回开始页'}).click();
   await consentAndStart(page);await expect(page.getByRole('alert')).toContainText('核查');
   await page.getByRole('button',{name:'研究者设置',exact:true}).click();await page.getByLabel('运行模式').selectOption('preview');await page.getByRole('button',{name:'返回开始页'}).click();await page.getByRole('button',{name:/同意并进入/}).click();await expect(page.getByRole('heading',{name:'让摄像头看清你的脸'})).toBeVisible();

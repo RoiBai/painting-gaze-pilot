@@ -18,7 +18,7 @@ test('both long scenes preserve DOM geometry and left/centre/right positions at 
       if(JSON.stringify(list.at(-1))!==JSON.stringify(state))list.push(state);
     }).observe(document,{childList:true,subtree:true,attributes:true,attributeFilter:['style','class']});
   });
-  await page.goto('/');
+  await page.goto('/?study=legacy');
   await page.getByRole('button',{name:'研究者设置',exact:true}).click();
   await page.getByText('替换材料和完整配置（JSON）').click();
   const config=await page.evaluate(async()=>{

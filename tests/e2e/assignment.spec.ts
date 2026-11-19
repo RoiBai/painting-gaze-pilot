@@ -54,7 +54,7 @@ test('background has no invented defaults and switching participant clears the a
 });
 
 test('retired alpha beta configuration cannot replace the current common questionnaire',async({page})=>{
-  await page.goto('/?preview=design');
+  await page.goto('/?study=legacy&preview=design');
   await page.getByText('替换材料和完整配置（JSON）',{exact:true}).click();
   const config=await page.evaluate(async()=>{const path='/src/study.ts';const {defaultConfig}=await import(/* @vite-ignore */path);return {...defaultConfig,participantPlan:'crossed-four-v1'}});
   await page.getByRole('textbox',{name:'完整配置 JSON'}).fill(JSON.stringify(config));
@@ -68,7 +68,7 @@ test('retired alpha beta configuration cannot replace the current common questio
 });
 
 test('researcher preview shows one common questionnaire and custom ordering still supports N01',async({page})=>{
-  await page.goto('/?preview=design');
+  await page.goto('/?study=legacy&preview=design');
   const table=page.getByRole('table',{name:'观看顺序安排'});
   await expect(table).toBeVisible();
   for(const plan of cases){

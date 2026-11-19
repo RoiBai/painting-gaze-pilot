@@ -1,0 +1,49 @@
+{
+  "sourceImage": "/materials/ming-xingle-full.jpg",
+  "sourceSize": [
+    36088,
+    1966
+  ],
+  "sourceSha256": "988e4e96fdf3f122cbc021797df766b76e3531b219aee17601a44698ebf02ef0",
+  "sourcePage": "https://old.shuge.org/ebook/ming-xuan-zong-xing-le-tu-juan/",
+  "imageSource": "https://shuge.7rs.net/%E5%8F%A4%E5%9B%BE/%E5%8D%B7%E8%BD%B4%E7%94%BB/%E6%98%8E%E5%AE%A3%E5%AE%97%E8%A1%8C%E4%B9%90%E5%9B%BE%E5%8D%B7.36088X1966%E5%83%8F%E7%B4%A0.%E6%95%85%E5%AE%AB%E5%8D%9A%E7%89%A9%E9%99%A2%E8%97%8F.%E7%BB%A2%E6%9C%AC%E8%AE%BE%E8%89%B2.jpg",
+  "catalogue": "https://www.dpm.org.cn/collection/paint/228988.html",
+  "poloCommentary": "https://www.dpm.org.cn/court/culture/166797.html",
+  "encoding": "Pillow 11.3.0; JPEG quality 92, 4:4:4, progressive, optimize; full-height crops without resampling",
+  "sceneBounds": "马球截取左侧园墙以内的骑手群、中央前行骑手、场边坐观者、右侧门架及门旁骑手；两端沿园墙与树木留景。邻近裁图在园林分界处可有交叠。",
+  "scenes": [
+    {
+      "paintingId": "ming-xingle-cuju",
+      "image": "/materials/ming-xingle-cuju-pilot-v1.jpg",
+      "rect": [
+        24100,
+        0,
+        5900,
+        1966
+      ],
+      "sha256": "49371fc30cfc4215a7a14e6ca6885066f691be0c7f16db0729ac9e0d5cf236fd"
+    },
+    {
+      "paintingId": "ming-xingle-polo",
+      "image": "/materials/ming-xingle-polo-pilot-v1.jpg",
+      "rect": [
+        17800,
+        0,
+        6950,
+        1966
+      ],
+      "sha256": "33a06a30fd7d01df143be1fe71f2f1f915ca294e9c947747f54370b6079e2b1d"
+    },
+    {
+      "paintingId": "ming-xingle-archery",
+      "image": "/materials/ming-xingle-archery-pilot-v1.jpg",
+      "rect": [
+        29200,
+        0,
+        6888,
+        1966
+      ],
+      "sha256": "862aac9d5f6138f4d7ad0052ef292f4fa60790239815ea5fda2d0a32c7ccfa3b"
+    }
+  ]
+}
