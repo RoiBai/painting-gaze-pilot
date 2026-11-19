@@ -8,8 +8,8 @@ const percent=(value:number|null)=>value===null?'—':(value*100).toFixed(1)+'%'
 export default function PilotComparison({session}:{session:Session}) {
   const attention=useMemo(()=>cardAttention(session),[session]);
   const ratings=useMemo(()=>pilotRatings(session),[session]);
-  return <section aria-label="三种讲解方式比较">
-    <h2>本次三段体验</h2>
+  return <section aria-label={ratings.length===1?'单景试用结果':'三种讲解方式比较'}>
+    <h2>{ratings.length===1?'本次单景体验':'本次三段体验'}</h2>
     <div className="table-scroll"><table>
       <thead><tr><th>场景 / 讲解方式</th><th>体验评分（1–7）</th><th>Raw TLX（0–100）</th><th>卡片内估计时长</th><th>占有效观测时间</th></tr></thead>
       <tbody>{ratings.map(rating=>{

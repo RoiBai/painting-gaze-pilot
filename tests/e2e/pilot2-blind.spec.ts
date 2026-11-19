@@ -10,6 +10,12 @@ test('researcher grades original recall text without seeing assignment and reope
   const writes:string[]=[];
   page.on('request',request=>{if(request.method()!=='GET')writes.push(request.method())});
   await page.goto('/?review=blind');
+  const practice=pilot2SurveyFixture('P00');
+  await page.locator('input[type=file]').setInputFiles({name:'renamed.zip',mimeType:'application/zip',
+    buffer:Buffer.from(zipSync({'session.json':strToU8(JSON.stringify(practice))}))});
+  await expect(page.getByRole('status')).toContainText('已略过 P00 研究者试用');
+  await expect(page.getByRole('combobox')).toHaveCount(0);
+  await expect(page.getByRole('button',{name:'下载带评分的 ZIP 副本'})).toHaveCount(0);
   await page.locator('input[type=file]').setInputFiles({name:'P02-gaze-synthetic.zip',mimeType:'application/zip',
     buffer:Buffer.from(zipSync({'session.json':strToU8(JSON.stringify(session))}))});
   const sections=page.locator('main section');

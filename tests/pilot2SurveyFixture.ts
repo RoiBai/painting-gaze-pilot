@@ -4,12 +4,12 @@ import {buildPilotPlan,PILOT_VERSION,SELECTION_RULES} from '../src/pilotProtocol
 import {surveyForScene,submitSurveyPage,workloadIds} from '../src/pilotSurvey';
 import type {Session} from '../src/types';
 
-export function pilot2SurveyFixture():Session{
+export function pilot2SurveyFixture(participantId:'P00'|'P02'='P02'):Session{
   const session=sessionFixture();
-  const plan=buildPilotPlan('P02');
-  session.participantId='P02';
+  const plan=buildPilotPlan(participantId);
+  session.participantId=participantId;
   session.config=structuredClone(pilotConfig);
-  session.pilot={version:PILOT_VERSION,practice:false,plan,seed:123,selectionRules:{...SELECTION_RULES}};
+  session.pilot={version:PILOT_VERSION,practice:participantId==='P00',plan,seed:123,selectionRules:{...SELECTION_RULES}};
   session.order=plan.map(t=>t.paintingId);
   session.cardExposures=[];
   session.timings=[];

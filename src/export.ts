@@ -19,8 +19,15 @@ export function isPracticeSession(session:Session):boolean {
   return session.participantId === 'P00' || session.pilot?.practice === true;
 }
 
-function assertExportable(session:Session) {
-  if (isPracticeSession(session)) throw Error('P00 练习数据不能导出。');
+function analysisClassification(session:Session) {
+  if (!session.pilot) return {};
+  const practice=isPracticeSession(session);
+  return {sessionRole:practice?'researcher_rehearsal':'participant',includeInStudyAnalysis:!practice};
+}
+
+/** Keep the material catalogue frozen while rendering only the assigned scenes. */
+function exportPaintings(session:Session) {
+  return session.config.paintings.filter(p=>session.order.includes(p.paintingId));
 }
 
 function pilotFiles(session:Session):Record<string,Uint8Array> {
@@ -40,16 +47,16 @@ function pilotFiles(session:Session):Record<string,Uint8Array> {
   if(session.config.pilotSurveyVersion){
     const recall=recallRows(session);
     const workload=workloadRows(session);
-    surveyFiles['pilot_recall.csv']=strToU8('\ufeff'+toCSV(recall,[...CONTEXT_COLUMNS,'cardId','cardPresentationOrder','cardSlot','answer','rememberUnknown','submittedMs','submittedUtc','manualScore','sceneRecallScore']));
-    surveyFiles['pilot_workload.csv']=strToU8('\ufeff'+toCSV(workload,[...CONTEXT_COLUMNS,'answer','submittedMs','submittedUtc']));
+    surveyFiles['pilot_recall.csv']=encodeSessionCSV(session,recall,[...CONTEXT_COLUMNS,'cardId','cardPresentationOrder','cardSlot','answer','rememberUnknown','submittedMs','submittedUtc','manualScore','sceneRecallScore']);
+    surveyFiles['pilot_workload.csv']=encodeSessionCSV(session,workload,[...CONTEXT_COLUMNS,'answer','submittedMs','submittedUtc']);
     const ratings=ratingRows.map(row=>({...row,sceneRecallScore:recall.find(r=>r.paintingId===row.paintingId)?.sceneRecallScore??null}));
-    surveyFiles['pilot_ratings.csv']=strToU8('\ufeff'+toCSV(ratings,[...RATING_COLUMNS,'sceneRecallScore']));
+    surveyFiles['pilot_ratings.csv']=encodeSessionCSV(session,ratings,[...RATING_COLUMNS,'sceneRecallScore']);
   }else{
-    surveyFiles['pilot_ratings.csv']=strToU8('\ufeff'+toCSV(ratingRows,[...RATING_COLUMNS]));
+    surveyFiles['pilot_ratings.csv']=encodeSessionCSV(session,ratingRows,[...RATING_COLUMNS]);
   }
   return {
-    'card_exposures.csv':strToU8('\ufeff'+toCSV(rows,[...EXPOSURE_COLUMNS])),
-    'card_attention.csv':strToU8('\ufeff'+toCSV(cardAttention(session),[...ATTENTION_COLUMNS])),
+    'card_exposures.csv':encodeSessionCSV(session,rows,[...EXPOSURE_COLUMNS]),
+    'card_attention.csv':encodeSessionCSV(session,cardAttention(session),[...ATTENTION_COLUMNS]),
     ...surveyFiles,
   };
 }
@@ -67,11 +74,18 @@ export function csvCell(value:unknown):string {
   const text=String(value);
   return /[",\r\n]/.test(text) ? `"${text.replaceAll('"','""')}"` : text;
 }
-export function toCSV<T extends object>(rows:T[], columns:(keyof T)[]):string {
-  return [columns.map(String).map(csvCell).join(','),...rows.map(row=>columns.map(column=>csvCell(row[column])).join(','))].join('\r\n')+'\r\n';
+export function toCSV<T extends object>(rows:T[], columns:(keyof T)[], session?:Session):string {
+  const classification=session?analysisClassification(session):{};
+  const header=[...columns.map(String),...Object.keys(classification)].map(csvCell).join(',');
+  const roleCells=Object.values(classification).map(csvCell);
+  return [header,...rows.map(row=>[...columns.map(column=>csvCell(row[column])),...roleCells].join(','))].join('\r\n')+'\r\n';
+}
+function encodeSessionCSV<T extends object>(session:Session,rows:T[],columns:(keyof T)[]):Uint8Array {
+  return strToU8('\ufeff'+toCSV(rows,columns,session));
 }
 export function exportPrefix(session:Session):string {
-  return `${session.mode}_${session.participantId}_${session.sessionId}`.replace(/[^a-zA-Z0-9_-]/g,'_');
+  const prefix=isPracticeSession(session)?'rehearsal':session.mode;
+  return `${prefix}_${session.participantId}_${session.sessionId}`.replace(/[^a-zA-Z0-9_-]/g,'_');
 }
 /** Resolve question wording from the session snapshot, never from the current question bank. */
 function responseQuestionPrompt(session:Session,row:ResponseRow):string {
@@ -120,16 +134,16 @@ function exportBackground(session:Session):Record<string,Uint8Array> {
     return {sessionId:session.sessionId,participantId:session.participantId,backgroundVersion:background.version,
       questionId:question.id,questionPrompt:question.prompt,answer:question.options?.find(option=>option.id===String(value))?.label??String(value),answerCode:String(value)};
   });
-  return {'background.csv':strToU8('\ufeff'+toCSV(rows,[...BACKGROUND_COLUMNS]))};
+  return {'background.csv':encodeSessionCSV(session,rows,[...BACKGROUND_COLUMNS])};
 }
 export function buildTextExportFiles(session:Session):Record<string,Uint8Array> {
-  assertExportable(session);
   if(session.dataSource!=='webgazer-camera')throw new Error('拒绝导出非摄像头研究样本。开发 fixture 只允许在测试目录使用。');
   if(session.coordinateSource==='reference-corrected')throw new Error('参考校正坐标不能作为原始数据导出；请从原始会话生成附加校正文件。');
   const scanpathParams=session.scanpath??defaultScanpath;
   const correction=buildCorrectionPlan(session);
   const snapshot={...session, scanpath:scanpathParams, exportMetadata:{
     exportedAtUtc:new Date().toISOString(),
+    ...analysisClassification(session),
     rendererVersion:'1.3.0',
     terminology:'库输出的视线估计样本；回调接收时间不是摄像头曝光时间；不包含视频、眼部像素或推断的注视事件。',
     timestampBasis:'performance.now() in original page; UTC = timeOrigin + callbackTimeMs. Interrupted recovery event retains last persisted original-page timestamp.',
@@ -150,17 +164,17 @@ export function buildTextExportFiles(session:Session):Record<string,Uint8Array> 
     }} : {}),
     heatmapAlgorithm:HEATMAP_ALGORITHM,
     heatmapFilter:'sessionId and participantId match; free_view; paintingId matches; !paused; predictionAvailable; insideImage; finite viewport/image coordinates; normalized coordinates within [0,1]',
-    heatmapRenders:session.config.paintings.map(p=>({paintingId:p.paintingId,...heatmapSize(p,session.heatmap),headerPx:166,footerPx:80,sampleCount:eligibleSamples(session,p.paintingId).length,showAOI:false,parameters:session.heatmap})),
+    heatmapRenders:exportPaintings(session).map(p=>({paintingId:p.paintingId,...heatmapSize(p,session.heatmap),headerPx:166,footerPx:80,sampleCount:eligibleSamples(session,p.paintingId).length,showAOI:false,parameters:session.heatmap})),
     scanpathAlgorithm:SCANPATH_ALGORITHM,
-    scanpathRenders:session.config.paintings.map(p=>{const model=buildScanpath(session,p.paintingId,scanpathParams);return {paintingId:p.paintingId,...heatmapSize(p,{...session.heatmap,width:scanpathParams.width}),headerPx:SCANPATH_HEADER_PX,footerPx:SCANPATH_FOOTER_PX,fromMs:0,toMs:model.durationMs,sourceCount:model.sourceCount,displayedCount:model.displayedCount,segmentCount:model.segmentCount,parameters:scanpathParams,showAOI:false}}),
+    scanpathRenders:exportPaintings(session).map(p=>{const model=buildScanpath(session,p.paintingId,scanpathParams);return {paintingId:p.paintingId,...heatmapSize(p,{...session.heatmap,width:scanpathParams.width}),headerPx:SCANPATH_HEADER_PX,footerPx:SCANPATH_FOOTER_PX,fromMs:0,toMs:model.durationMs,sourceCount:model.sourceCount,displayedCount:model.displayedCount,segmentCount:model.segmentCount,parameters:scanpathParams,showAOI:false}}),
     rates:'Observed callback count / measured active display seconds. No fixed-rate resampling.',
     correction:{...correction,derivedFilesAvailable:correction.available,rawSamplesUnchanged:true,qualityStatusUnchanged:true,note:'事后参考校正另存；不是独立准确度验证，不替换原始数据或质量判定。'},
   }};
   return {
-    'gaze_samples.csv':strToU8('\ufeff'+toCSV(session.samples,session.pilot?[...GAZE_COLUMNS,...PILOT_GAZE_COLUMNS]:GAZE_COLUMNS)),
-    'phase_events.csv':strToU8('\ufeff'+toCSV(session.events,EVENT_COLUMNS)),
-    'responses.csv':strToU8('\ufeff'+toCSV(exportResponses(session),session.config.pilotSurveyVersion?[...RESPONSE_COLUMNS,'condition','period','trialId','actualCardOrder']:session.pilot?[...RESPONSE_COLUMNS,'condition','period']:RESPONSE_COLUMNS)),
-    'validation.csv':strToU8('\ufeff'+toCSV(session.validation,VALIDATION_COLUMNS)),
+    'gaze_samples.csv':encodeSessionCSV(session,session.samples,session.pilot?[...GAZE_COLUMNS,...PILOT_GAZE_COLUMNS]:GAZE_COLUMNS),
+    'phase_events.csv':encodeSessionCSV(session,session.events,EVENT_COLUMNS),
+    'responses.csv':encodeSessionCSV(session,exportResponses(session),session.config.pilotSurveyVersion?[...RESPONSE_COLUMNS,'condition','period','trialId','actualCardOrder']:session.pilot?[...RESPONSE_COLUMNS,'condition','period']:RESPONSE_COLUMNS),
+    'validation.csv':encodeSessionCSV(session,session.validation,VALIDATION_COLUMNS),
     'session.json':strToU8(JSON.stringify(snapshot,null,2)),
     ...exportBackground(session),
     ...pilotFiles(session),
@@ -171,10 +185,9 @@ export async function canvasPNG(canvas:HTMLCanvasElement):Promise<Uint8Array> {
   return new Uint8Array(await blob.arrayBuffer());
 }
 export async function buildExportFiles(session:Session):Promise<Record<string,Uint8Array>> {
-  assertExportable(session);
   const snapshot=structuredClone(session);
   const files=buildTextExportFiles(snapshot);
-  for(const painting of snapshot.config.paintings){
+  for(const painting of exportPaintings(snapshot)){
     const canvas=await renderHeatmap(snapshot,painting,snapshot.heatmap,false);
     files[`heatmap_${painting.paintingId.replace(/[^a-zA-Z0-9_-]/g,'_')}.png`]=await canvasPNG(canvas);
     const trajectory=await renderScanpath(snapshot,painting,snapshot.scanpath??defaultScanpath);
@@ -186,17 +199,16 @@ export async function buildExportFiles(session:Session):Promise<Record<string,Ui
 
 /** Derived files only, so a historical ZIP can retain every original entry byte-for-byte. */
 export async function buildCorrectionExportFiles(session:Session,plan:CorrectionPlan=buildCorrectionPlan(session)):Promise<Record<string,Uint8Array>> {
-  assertExportable(session);
   if(session.dataSource!=='webgazer-camera')throw new Error('拒绝导出非摄像头研究样本。');
   if(session.coordinateSource==='reference-corrected')throw new Error('请使用原始会话生成参考校正文件，不能重复校正派生坐标。');
   if(!plan.available)return {};
   const applied=applyCorrection(session,plan);
   const scanpathParams=session.scanpath??defaultScanpath;
   const files:Record<string,Uint8Array>={
-    'gaze_samples_corrected.csv':strToU8('\ufeff'+toCSV(applied.rows,CORRECTED_GAZE_COLUMNS)),
+    'gaze_samples_corrected.csv':encodeSessionCSV(session,applied.rows,CORRECTED_GAZE_COLUMNS),
   };
   const renders:{paintingId:string;kind:'heatmap'|'scanpath';file:string;width:number;height:number;sampleCount:number;showAOI:boolean;fullTimeRange:boolean}[]=[];
-  for(const painting of session.config.paintings){
+  for(const painting of exportPaintings(session)){
     if(!plan.models.some(model=>model.paintingId===painting.paintingId&&model.status==='available'))continue;
     const id=painting.paintingId.replace(/[^a-zA-Z0-9_-]/g,'_');
     const heatmap=await renderCorrectedHeatmap(session,painting,session.heatmap,false,plan);
@@ -210,7 +222,7 @@ export async function buildCorrectionExportFiles(session:Session,plan:Correction
     renders.push({paintingId:painting.paintingId,kind:'scanpath',file:scanpathFile,width:path.width,height:path.height,sampleCount,showAOI:false,fullTimeRange:true});
   }
   files['correction.json']=strToU8(JSON.stringify({
-    schemaVersion:1,sessionId:session.sessionId,participantId:session.participantId,rendererVersion:'1.3.0',
+    schemaVersion:1,sessionId:session.sessionId,participantId:session.participantId,...analysisClassification(session),rendererVersion:'1.3.0',
     terminology:'事后参考校正；依据观看前检查点估计偏移，不是新的独立准确度验证。',
     sourceSessionFile:'session.json',rawGazeFile:'gaze_samples.csv',derivedGazeFile:'gaze_samples_corrected.csv',
     rawSamplesUnchanged:true,originalQuality:session.quality,qualityStatusUnchanged:true,

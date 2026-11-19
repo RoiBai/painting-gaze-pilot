@@ -25,6 +25,7 @@ export interface PilotTrial {paintingId:string; condition:Condition}
 export interface PilotMetadata {
   version:'three-condition-v1';
   practice:boolean;
+  rehearsalMode?:'single-scene';
   plan:PilotTrial[];
   seed:number;
   selectionRules:{

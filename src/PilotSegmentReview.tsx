@@ -87,7 +87,7 @@ function SegmentPlayback({window:period,session,trial,scene,condition}:{window:R
       imageX:sample.imageX,imageY:sample.imageY,geometryVersion:sample.geometryVersion,calibrationVersion:sample.calibrationVersion,
       predictionAvailable:sample.predictionAvailable,onCard:sample.onCard,region,connectsToPrevious:connects,
     }));
-    if(rows.length)downloadFile(basename+'.csv',new TextEncoder().encode('\uFEFF'+toCSV(rows,Object.keys(rows[0]) as (keyof typeof rows[number])[])));
+    if(rows.length)downloadFile(basename+'.csv',new TextEncoder().encode('\uFEFF'+toCSV(rows,Object.keys(rows[0]) as (keyof typeof rows[number])[],session)));
   }
   async function downloadPNG(){
     if(!image||!period.geometry)return;
@@ -98,7 +98,7 @@ function SegmentPlayback({window:period,session,trial,scene,condition}:{window:R
       output.width=drawing.width;output.height=drawing.height+74;
       const ctx=output.getContext('2d')!;
       ctx.fillStyle='#fffdf6';ctx.fillRect(0,0,output.width,74);ctx.fillStyle='#25372e';ctx.font='18px sans-serif';
-      ctx.fillText(session.participantId+' · '+scene.title+' · '+condition+' · '+label,15,28,output.width-30);
+      ctx.fillText((isPracticeSession(session)?'P00 研究者试用':session.participantId)+' · '+scene.title+' · '+condition+' · '+label,15,28,output.width-30);
       ctx.font='15px sans-serif';ctx.fillText('原始屏幕坐标 · 卡片（红） / 画面（蓝） / 其他（紫） · 有效视口样本 '+valid+' / 全部回调 '+points.length,15,56,output.width-30);
       ctx.drawImage(drawing,0,74);downloadFile(basename+'.png',await canvasPNG(output));
     }catch(err){setError('轨迹图导出失败：'+String(err))}
@@ -122,7 +122,7 @@ function SegmentPlayback({window:period,session,trial,scene,condition}:{window:R
     </div>
     <label>时段进度　{sec(current)} / {sec(duration)} 秒<input type="range" min={0} max={duration} step="any" value={current} aria-label="时段回放进度" onChange={e=>{setPlaying(false);setPosition(Number(e.target.value))}}/></label>
     <p className="muted">按当时的屏幕位置重建原画和卡片。连续有效样本先落在卡片、随后落在画面，就计一次卡片到画面的转换，途中允许经过空白。缺失、暂停、移出视口或回调间隔超过 150 毫秒会断线。</p>
-    {!isPracticeSession(session)&&<div className="segment-controls"><button disabled={!image||!period.geometry} onClick={()=>void downloadPNG()}>下载本时段轨迹 PNG</button><button disabled={!points.length} onClick={downloadCSV}>下载本时段样本 CSV</button></div>}
+    <div className="segment-controls"><button disabled={!image||!period.geometry} onClick={()=>void downloadPNG()}>下载本时段轨迹 PNG</button><button disabled={!points.length} onClick={downloadCSV}>下载本时段样本 CSV</button></div>
     {error&&<p role="alert">{error}</p>}
   </>;
 }

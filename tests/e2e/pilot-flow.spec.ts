@@ -222,21 +222,20 @@ test('P01 completes all three conditions and downloads their linked predictions,
   expect(stored.map(s=>[s.participantId,s.status])).toEqual([['P01','completed']]);
 });
 
-test('P00 exits from camera setup, stays out of local sessions and can be repeated',async({page})=>{
+test('P00 can exit and start a second distinct saved rehearsal',async({page})=>{
   await page.goto('/?participant=P00');
-  await consentAndStart(page);
-  await expect(page.getByRole('heading',{name:'让摄像头看清你的脸'})).toBeVisible();
-  expect(await storedSessions(page)).toEqual([]);
-  await page.getByRole('button',{name:'清除并退出试用'}).click();
-  await expect(page.getByRole('heading',{name:'本次 P00 试用已清除'})).toBeVisible();
-  await expect(page.getByRole('button',{name:/一键下载 ZIP/})).toHaveCount(0);
-  expect(await storedSessions(page)).toEqual([]);
-  await page.getByRole('link',{name:'重新开始 P00'}).click();
-  await expect(page.getByLabel('匿名参与者编号')).toHaveValue('P00');
-  await expect(page.getByRole('textbox',{name:'你的主要学习或工作领域是什么？',exact:true})).toBeEmpty();
-  expect(await storedSessions(page)).toEqual([]);
+  for(let attempt=0;attempt<2;attempt++){
+    await consentAndStart(page);
+    await expect(page.getByRole('heading',{name:'让摄像头看清你的脸'})).toBeVisible();
+    await page.getByRole('button',{name:'退出并保留试用记录'}).click();
+    await expect(page.getByRole('heading',{name:'P00 研究者试用记录'})).toBeVisible();
+    await page.getByRole('button',{name:'返回会话列表'}).click();
+    await expect(page.getByRole('region',{name:'本机 P00 研究者试用'}).getByRole('button',{name:/P00.*interrupted/})).toHaveCount(attempt+1);
+  }
+  const stored=await storedSessions(page);
+  expect(new Set(stored.map(s=>s.sessionId)).size).toBe(2);
+  expect(stored.every(s=>s.pilot?.practice && s.participantId==='P00' && s.status==='interrupted')).toBe(true);
 });
-
 
 test('refresh preserves the current survey and a later exit exports submitted and missing values separately',async({page})=>{
   test.setTimeout(100_000);

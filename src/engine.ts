@@ -1,4 +1,4 @@
-import type {Session,StudyConfig,Phase,Geometry,ResponseRow,ValidationRow,BackgroundAnswers, ParticipantAssignment, CardDecision, CardExposure, CardRect, PilotMetadata} from './types';
+import type {Session,StudyConfig,Phase,Geometry,ResponseRow,ValidationRow,BackgroundAnswers, ParticipantAssignment, CardDecision, CardExposure, CardRect, PilotMetadata, PilotTrial} from './types';
 import {WebGazerAdapter} from './webgazerAdapter';
 import {saveSession} from './storage';
 import {writeCheckpoint,type PilotCheckpoint} from './pilotResume';
@@ -46,33 +46,34 @@ export class StudyEngine {
  get currentTiming(){return this.session?.timings.findLast(t=>t.paintingId===this.painting?.paintingId)}
  event(type:string,detail:unknown={}){if(!this.session)return;this.session.events.push({sessionId:this.session.sessionId,participantId:this.session.participantId,timeMs:this.clock(),type,phase:this.phase,paintingId:this.painting?.paintingId??null,detail:JSON.stringify(detail)})}
  saveSurvey(submitted=false){
-   if(!this.session || this.session.pilot?.practice)return;
+   if(!this.session)return;
    if(submitted){void this.persist();return}
    try{writeCheckpoint(this.session,this.trialIndex)}catch{/* Persist below even if sessionStorage is unavailable. */}
    if(!this.draftTimer)this.draftTimer=setTimeout(()=>void this.persist(),300);
  }
- async persist(){if(this.draftTimer){clearTimeout(this.draftTimer);this.draftTimer=null}if(!this.session||this.session.pilot?.practice)return;try{
+ async persist(){if(this.draftTimer){clearTimeout(this.draftTimer);this.draftTimer=null}if(!this.session)return;try{
    try{writeCheckpoint(this.session,this.trialIndex)}catch{/* IndexedDB remains the durable copy if per-tab storage is unavailable. */}
    await saveSession(this.session);if(this.storageError){this.storageError='';this.emit()}}catch(e){this.storageError=String(e);this.pause('storage_error',false);this.emit()}}
- begin(config:StudyConfig,id:string,background:string|BackgroundAnswers){
+ begin(config:StudyConfig,id:string,background:string|BackgroundAnswers,previewTrial?:PilotTrial){
   if(this.session?.status==='active')throw Error('已有进行中的会话');
   let copy:StudyConfig;
   let assignment:ParticipantAssignment|undefined;
   let pilot:PilotMetadata|undefined;
   if(config.pilotProtocol===PILOT_VERSION){
-    const plan=buildPilotPlan(id);
+    const plan=buildPilotPlan(id,previewTrial);
     copy=structuredClone(config);
     if(!plan.every(({paintingId})=>copy.paintings.some(p=>p.paintingId===paintingId)))throw Error('缺少本轮指定的蹴鞠、马球或射箭材料');
     const seed=crypto.getRandomValues(new Uint32Array(1))[0];
-    pilot={version:PILOT_VERSION,practice:id==='P00',seed,plan,selectionRules:{...SELECTION_RULES,blankFraction:config.pilotSurveyVersion?0.15:SELECTION_RULES.blankFraction}};
+    pilot={version:PILOT_VERSION,practice:id==='P00',...(previewTrial?{rehearsalMode:'single-scene' as const}:{}),seed,plan,selectionRules:{...SELECTION_RULES,blankFraction:config.pilotSurveyVersion?0.15:SELECTION_RULES.blankFraction}};
   }else{
+    if(previewTrial!==undefined)throw Error('仅三条件研究中的 P00 可自选场景和讲解方式');
     if(!/^N0[1-6]$/.test(id))throw Error('匿名编号须为 N01–N06');
     ({config:copy,assignment}=resolveParticipantConfig(config,id));
   }
   const errors=validateConfig(copy);if(errors.length)throw Error(errors.join('\n'));
   const backgroundSnapshot=typeof background==='string'?undefined:freezeBackground(background);
   const sessionId=`${id}-${new Date().toISOString().replace(/[:.]/g,'-')}-${crypto.randomUUID().slice(0,8)}`;
-  this.session={schemaVersion:1,sessionId,participantId:id,startedUtc:new Date().toISOString(),endedUtc:null,timeOrigin:performance.timeOrigin,status:'active',phase:'consent',mode:copy.mode,dataSource:'webgazer-camera',config:copy,order:pilot?pilot.plan.map(trial=>trial.paintingId):orderForParticipant(id,copy),...(pilot?{pilot,cardExposures:[]}:{}),...(assignment?{assignment}:{}),artBackground:typeof background==='string'?background:'',...(backgroundSnapshot?{background:backgroundSnapshot}:{}),calibrationVersion:0,quality:'pending',qualityNotes:[],dependencies:{webgazer:'3.5.3',react:'18.3.1',app:copy.pilotSurveyVersion?'2.1.0':pilot?'2.0.0':'1.5.0',browser:navigator.userAgent},geometries:[],timings:[],validationSummaries:[],heatmap:{width:1000,kernelPx:30,opacity:.65,weight:'one-per-sample',normalization:'per-image-max',colorScale:'blue-cyan-yellow-red-v1'},scanpath:{...defaultScanpath},samples:[],events:[],responses:[],validation:[]};
+  this.session={schemaVersion:1,sessionId,participantId:id,startedUtc:new Date().toISOString(),endedUtc:null,timeOrigin:performance.timeOrigin,status:'active',phase:'consent',mode:copy.mode,dataSource:'webgazer-camera',config:copy,order:pilot?pilot.plan.map(trial=>trial.paintingId):orderForParticipant(id,copy),...(pilot?{pilot,cardExposures:[]}:{}),...(assignment?{assignment}:{}),artBackground:typeof background==='string'?background:'',...(backgroundSnapshot?{background:backgroundSnapshot}:{}),calibrationVersion:0,quality:'pending',qualityNotes:[],dependencies:{webgazer:'3.5.3',react:'18.3.1',app:copy.pilotSurveyVersion?'2.1.1':pilot?'2.0.0':'1.5.0',browser:navigator.userAgent},geometries:[],timings:[],validationSummaries:[],heatmap:{width:1000,kernelPx:30,opacity:.65,weight:'one-per-sample',normalization:'per-image-max',colorScale:'blue-cyan-yellow-red-v1'},scanpath:{...defaultScanpath},samples:[],events:[],responses:[],validation:[]};
   this.phase='consent';this.trialIndex=0;this.geometry=null;this.paused=false;this.requireCalibration=false;this.cardIndex=0;
   this.resetCardState();
   if(pilot)this.event('pilot_plan_assigned',{...pilot});
@@ -83,14 +84,15 @@ export class StudyEngine {
  private startTimers(){
    this.clearTimers();
    this.interval=setInterval(()=>this.tick(),100);
-   if(!this.session?.pilot?.practice)this.persistTimer=setInterval(()=>{
+   this.persistTimer=setInterval(()=>{
      if(!this.inPilotQuestions)void this.persist();
    },1000);
  }
  private get inPilotQuestions(){return !!this.session?.config.pilotSurveyVersion&&(this.phase==='pre'||this.phase==='interview')}
  restorePilot(session:Session,checkpoint:PilotCheckpoint){
-   if(this.session || session.status!=='active' || !session.config.pilotSurveyVersion || session.pilot?.practice ||
-      session.sessionId!==checkpoint.sessionId || session.participantId!==checkpoint.participantId)return false;
+   if(this.session || session.status!=='active' || !session.config.pilotSurveyVersion ||
+      session.sessionId!==checkpoint.sessionId || session.participantId!==checkpoint.participantId ||
+      !Number.isInteger(checkpoint.trialIndex) || checkpoint.trialIndex<0 || checkpoint.trialIndex>=session.order.length)return false;
    this.pageTimeOffset=performance.timeOrigin-session.timeOrigin;
    this.session=session;
    this.trialIndex=checkpoint.trialIndex;
@@ -119,12 +121,12 @@ export class StudyEngine {
    return true;
  }
  suspendForReload(){
-   if(!this.session?.config.pilotSurveyVersion || this.session.pilot?.practice || this.session.status!=='active'){this.dispose();return}
+   if(!this.session?.config.pilotSurveyVersion || this.session.status!=='active'){this.dispose();return}
    this.cardHidden();
    this.event('pilot_page_hidden_for_navigation');
    void this.persist();this.clearTimers();this.adapter.stop();
  }
- move(to:Phase){if(!this.session)return;if(this.phase!==to&&!canTransition(this.phase,to))throw Error(`非法阶段转换 ${this.phase} → ${to}`);this.event('phase_end',{to,durationMs:this.clock()-this.phaseStarted});this.phase=to;this.session.phase=to;this.phaseStarted=this.clock();this.adapter.setPhase(this.inPilotQuestions?'pilot_questionnaire':to);this.adapter.showPreview(to==='camera');this.event('phase_start');this.emit();void this.persist()}
+ move(to:Phase){if(!this.session)return;if(this.phase!==to&&!canTransition(this.phase,to,this.session.pilot))throw Error(`非法阶段转换 ${this.phase} → ${to}`);this.event('phase_end',{to,durationMs:this.clock()-this.phaseStarted});this.phase=to;this.session.phase=to;this.phaseStarted=this.clock();this.adapter.setPhase(this.inPilotQuestions?'pilot_questionnaire':to);this.adapter.showPreview(to==='camera');this.event('phase_start');this.emit();void this.persist()}
  async startCamera(){if(!this.session)return;this.event('camera_requested');try{await this.adapter.start({regression:this.session.config.regression,kalman:this.session.config.kalman});this.adapter.showPreview(this.phase==='camera')}catch(e){this.camera={status:'error',message:String(e)};this.event('camera_error',{message:String(e)});this.emit()}}
  flowOnly(){if(!this.session)return;if(this.session.pilot&&!this.session.pilot.practice)throw Error('此编号需使用摄像头真实采集，请重新连接或结束本次记录。');this.session.quality='flow_only';this.session.qualityNotes.push('研究者选择仅流程试用；不能作为合格视线记录');this.event('flow_only');this.emit()}
  async calibrate(){if(!this.session)return;if(this.phase==='free_view')this.pause('recalibration_requested',true);else this.paused=true;
@@ -247,14 +249,6 @@ export class StudyEngine {
   this.openExposure=null;
   this.event('card_hidden',{exposureId:exposure.exposureId,cardId:exposure.cardId,trialId:exposure.trialId});
  }
- discardPractice(){
-  if(!this.session?.pilot?.practice)return;
-  if(this.session.status==='active')this.interrupt('discard_practice');
-  this.clearTimers();this.adapter.stop();this.resetCardState();
-  this.session=null;this.geometry=null;this.phase='consent';this.paused=false;
-  this.emit();
- }
-
  imageReady(geometry:Geometry){if(this.phase!=='loading_image'||!this.session)return;
   this.resetCardState();
   if(this.pageTimeOffset)geometry={...geometry,timeMs:geometry.timeMs+this.pageTimeOffset};
@@ -286,6 +280,7 @@ export class StudyEngine {
  next(){
   if(this.phase==='pre'&&this.session?.pilot){
     if(this.trialIndex<this.session.pilot.plan.length-1){this.trialIndex++;this.geometry=null;if(this.reconnectAfterSurvey){this.reconnectAfterSurvey=false;this.move('camera')}else this.startTargets('drift')}
+    else if(this.session.pilot.rehearsalMode==='single-scene')this.complete();
     else{this.adapter.stop();this.move('interview')}
     return;
   }

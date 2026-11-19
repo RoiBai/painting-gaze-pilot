@@ -1,4 +1,4 @@
-import type { Phase, StudyConfig } from './types';
+import type { Phase, StudyConfig, PilotMetadata } from './types';
 
 const transitions: Record<Phase, readonly Phase[]> = {
   consent: ['camera'],
@@ -20,7 +20,8 @@ const transitions: Record<Phase, readonly Phase[]> = {
 };
 
 /** Guard transitions; interrupted records are terminal and require a new session. */
-export function canTransition(from: Phase, to: Phase): boolean {
+export function canTransition(from: Phase, to: Phase, pilot?: PilotMetadata): boolean {
+  if (from === 'pre' && to === 'completed') return pilot?.practice === true && pilot.rehearsalMode === 'single-scene';
   if (to === 'interrupted') return from !== 'completed' && from !== 'interrupted';
   return transitions[from]?.includes(to) ?? false;
 }

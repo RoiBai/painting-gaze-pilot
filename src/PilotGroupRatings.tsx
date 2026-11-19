@@ -1,6 +1,7 @@
 import {useState} from 'react';
 import {CONDITION_LABELS, pilotRatings} from './cardMetrics';
 import {readSessionArchive} from './importSession';
+import {isPracticeSession} from './export';
 import type {Condition} from './types';
 
 const conditions:Condition[] = ['sequential','random','gaze'];
@@ -23,7 +24,11 @@ export default function PilotGroupRatings(){
       for(const file of files){
         try{
           const session=readSessionArchive(new Uint8Array(await file.arrayBuffer()),file.name);
-          if(!session.pilot || session.pilot.practice || session.status!=='completed'){
+          if(isPracticeSession(session)){
+            notices.push(file.name+'：已略过 P00 研究者试用。');
+            continue;
+          }
+          if(!session.pilot || session.status!=='completed'){
             notices.push(file.name+'：请选择已完成的 P 编号参与者会话。');
             continue;
           }

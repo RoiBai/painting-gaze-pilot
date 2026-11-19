@@ -3,20 +3,21 @@ import {describe,it,expect} from 'vitest';
 import {strFromU8,strToU8,zipSync} from 'fflate';
 import {freezeBackground} from '../src/background';
 import {cardAttention,pilotRatings,TLX_DIMENSIONS} from '../src/cardMetrics';
-import {buildTextExportFiles,buildExportFiles,buildCorrectionExportFiles,PILOT_DATA_FILES} from '../src/export';
+import {buildTextExportFiles,buildCorrectionExportFiles,exportPrefix,PILOT_DATA_FILES} from '../src/export';
 import {readSessionArchive} from '../src/importSession';
 import {pilotConfig} from '../src/pilotMaterials';
 import {buildPilotPlan,PILOT_VERSION,SELECTION_RULES} from '../src/pilotProtocol';
-import type {CardExposure,ResponseRow,Session} from '../src/types';
+import type {CardExposure,ResponseRow,Session,PilotTrial} from '../src/types';
 import {sampleFixture,sessionFixture} from './dataFixtures';
 
-function setup(participantId='P01') {
+function setup(participantId='P01',single?:PilotTrial) {
   const s=sessionFixture();
-  const plan=buildPilotPlan(participantId);
+  const plan=buildPilotPlan(participantId,single);
   s.participantId=participantId;
   s.config=structuredClone(pilotConfig);
   s.order=plan.map(t=>t.paintingId);
   s.pilot={version:PILOT_VERSION,practice:participantId==='P00',plan,seed:12345,selectionRules:{...SELECTION_RULES}};
+  if(single)s.pilot.rehearsalMode='single-scene';
   s.background=freezeBackground({studyField:'历史',artEducation:'short',paintingInterest:3});
   const {paintingId,condition}=plan[0];
   const scene=s.config.paintings.find(p=>p.paintingId===paintingId)!;
@@ -121,14 +122,75 @@ describe('three-condition local results and archives',()=>{
     expect(()=>read(s)).toThrow('观看顺序');
   });
 
-  it('rejects P00 in all export paths and archive import while preserving historical N headers',async()=>{
+  it('labels rehearsal files and restores the recorded P00 session for local review',async()=>{
     const s=setup('P00');
-    expect(()=>buildTextExportFiles(s)).toThrow('P00');
-    await expect(buildExportFiles(s)).rejects.toThrow('P00');
-    await expect(buildCorrectionExportFiles(s)).rejects.toThrow('P00');
-    expect(()=>read(s)).toThrow();
+    emit(s,1010,true);emit(s,1050,false);write(s,'overall','5');
+    const files=buildTextExportFiles(s);
+    expect(exportPrefix(s)).toMatch(/^rehearsal_P00_/);
+    const restored=readSessionArchive(zipSync(files),'rehearsal_P00_test.zip');
+    expect(restored.pilot).toEqual(s.pilot);
+    expect(restored.order).toEqual(['ming-xingle-cuju','ming-xingle-polo','ming-xingle-archery']);
+    expect(restored.samples).toEqual(s.samples);
+    expect(restored.cardExposures).toEqual(s.cardExposures);
+    expect(restored.responses).toEqual(s.responses);
+    const snapshot=JSON.parse(strFromU8(files['session.json']));
+    expect(snapshot.exportMetadata).toMatchObject({sessionRole:'researcher_rehearsal',includeInStudyAnalysis:false});
+    for(const [name,data] of Object.entries(files).filter(([key])=>key.endsWith('.csv'))){
+      expect(strFromU8(data).split('\r\n')[0],name).toMatch(/,sessionRole,includeInStudyAnalysis$/);
+    }
+    expect(strFromU8(files['gaze_samples.csv'])).toContain(',researcher_rehearsal,false\r\n');
+    expect(strFromU8(files['pilot_ratings.csv'])).toContain(',researcher_rehearsal,false\r\n');
+    expect(await buildCorrectionExportFiles(s)).toEqual({});
+    const participant=setup('P01');
+    const survey=buildTextExportFiles(participant);
+    expect(strFromU8(survey['pilot_ratings.csv'])).toContain(',participant,true\r\n');
+    s.pilot!.practice=false;expect(()=>read(s)).toThrow();
+    participant.pilot!.practice=true;expect(()=>read(participant)).toThrow();
+  });
+
+  it('round-trips each single-scene rehearsal, retaining the catalogue and limiting analyses to the selected scene',()=>{
+    for(const painting of pilotConfig.paintings){
+      for(const condition of ['sequential','random','gaze'] as const){
+        const selected={paintingId:painting.paintingId,condition};
+        const session=setup('P00',selected);
+        emit(session,1020,true);
+        const files=buildTextExportFiles(session);
+        for(const [name,expected] of [['pilot_ratings.csv',1],['pilot_workload.csv',6],['pilot_recall.csv',3]] as const){
+          const rows=strFromU8(files[name]).trim().split('\r\n').slice(1);
+          expect(rows).toHaveLength(expected);
+          expect(rows.every(row=>row.includes(selected.paintingId)&&row.includes(condition)&&row.endsWith('researcher_rehearsal,false'))).toBe(true);
+        }
+        const restored=readSessionArchive(zipSync(files),'single.zip');
+        expect(restored.pilot?.plan).toEqual([selected]);
+        expect(restored.order).toEqual([selected.paintingId]);
+        expect(restored.config.paintings).toEqual(pilotConfig.paintings);
+        const {heatmapRenders,scanpathRenders}=JSON.parse(strFromU8(files['session.json'])).exportMetadata;
+        for(const renders of [heatmapRenders,scanpathRenders]){
+          expect(renders.map((r:{paintingId:string})=>r.paintingId)).toEqual([selected.paintingId]);
+        }
+      }
+    }
+  });
+
+  it('rejects single-scene participant plans, malformed practice plans and data from outside a selected scene',()=>{
+    const p=setup('P00',{paintingId:'ming-xingle-polo',condition:'gaze'});
+    const invalid=(mutate:(s:Session)=>void)=>{
+      const copy=structuredClone(p);mutate(copy);expect(()=>read(copy)).toThrow();
+    };
+    invalid(s=>{s.participantId='P02';s.pilot!.practice=false});
+    invalid(s=>{delete s.pilot!.rehearsalMode});
+    invalid(s=>{s.pilot!.plan=[]});
+    invalid(s=>{s.pilot!.plan[0].condition='bogus' as PilotTrial['condition']});
+    invalid(s=>{s.pilot!.plan[0].paintingId='wrong'});
+    invalid(s=>{s.pilot!.plan.push(s.pilot!.plan[0])});
+    invalid(s=>{s.order=['ming-xingle-cuju']});
+    invalid(s=>{s.geometries[0].paintingId='ming-xingle-cuju'});
+  });
+
+  it('preserves historical N archive columns',()=>{
     const files=buildTextExportFiles(sessionFixture());
     for(const name of PILOT_DATA_FILES)expect(files[name]).toBeUndefined();
     expect(strFromU8(files['gaze_samples.csv'])).not.toContain('cardExposureId');
+    expect(strFromU8(files['gaze_samples.csv'])).not.toContain('includeInStudyAnalysis');
   });
 });

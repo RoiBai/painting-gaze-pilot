@@ -1,11 +1,11 @@
 import {expect,test} from '@playwright/test';
 import type {StudyConfig} from '../../src/types';
+import {readFile} from 'node:fs/promises';
+import {readSessionArchive} from '../../src/importSession';
 import {beginFlowOnly,enterScene,skipQuestions} from './helpers';
 
-test('P00 can review the second card of each scenario after the interview and then discard its entire practice',async({page})=>{
+test('P00 retains a complete rehearsal, downloads its ZIP, inspects data rows and reopens from the practice archive',async({page},testInfo)=>{
   test.setTimeout(120_000);
-  const downloads:string[]=[];
-  page.on('download',d=>downloads.push(d.suggestedFilename()));
   await page.goto('/?participant=P00');
   await expect(page.getByLabel('匿名参与者编号')).toHaveValue('P00');
   await page.evaluate(async()=>{
@@ -15,6 +15,7 @@ test('P00 can review the second card of each scenario after the interview and th
     Object.assign(pilotConfig,{durationSeconds:6,calibrationClicks:1});
     Object.assign(pilotConfig.validation,{targetDurationMs:200,settleMs:50});
   });
+  await expect(page.getByText(/蹴鞠（顺序讲解） → 马球（随机讲解） → 射箭（眼动讲解）/)).toBeVisible();
   await beginFlowOnly(page);
   for(let i=0;i<3;i++){
     await enterScene(page);
@@ -29,7 +30,7 @@ test('P00 can review the second card of each scenario after the interview and th
   }
   await expect(page.getByRole('heading',{name:'最后，聊聊这次体验'})).toBeVisible();
   await skipQuestions(page,3);
-  await expect(page.getByRole('heading',{name:'P00 临时回看'})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'P00 研究者试用记录'})).toBeVisible();
   const review=page.getByRole('region',{name:'分时段视线回看'});
   for(const id of ['ming-xingle-cuju','ming-xingle-polo','ming-xingle-archery']){
     await review.getByLabel('回看场景').selectOption(id);
@@ -40,14 +41,25 @@ test('P00 can review the second card of each scenario after the interview and th
     await expect(review.locator('canvas')).toHaveAttribute('aria-label',/第 2 张卡/);
     await expect(review).toContainText('本时段没有可显示的视线样本');
   }
-  await expect(page.getByRole('button',{name:/下载|ZIP/})).toHaveCount(0);
-  await expect(page.getByRole('table')).toHaveCount(0);
-  await page.getByRole('button',{name:'结束并清除试用'}).click();
-  await expect(page.getByRole('heading',{name:'本次 P00 试用已清除'})).toBeVisible();
-  await expect(page.getByRole('region',{name:'分时段视线回看'})).toHaveCount(0);
-  expect(await page.evaluate(async()=>(await indexedDB.databases()).map(db=>db.name))).not.toContain('painting-pilot-study-v1');
-  expect(await page.evaluate(()=>[JSON.stringify(localStorage),JSON.stringify(sessionStorage)].join(''))).not.toContain('P00');
+  await page.getByText('查看本次试用的数据行',{exact:true}).click();
+  const rows=page.getByRole('table',{name:'试用数据行'}).locator('tbody tr');
+  await expect(rows).toHaveCount(9);
+  await page.getByLabel('预览的数据表').selectOption('pilot_recall.csv');
+  await expect(rows).toHaveCount(9);
+  await expect(rows.first()).toContainText('true');
+  const downloading=page.waitForEvent('download');
+  await page.getByRole('button',{name:/一键下载 ZIP/}).click();
+  const download=await downloading;
+  expect(download.suggestedFilename()).toMatch(/^rehearsal_P00_/);
+  const path=testInfo.outputPath('P00-demo-flow-only.zip');
+  await download.saveAs(path);
+  const session=readSessionArchive(new Uint8Array(await readFile(path)),download.suggestedFilename());
+  expect(session.pilot?.practice).toBe(true);
+  expect(session.status).toBe('completed');expect(session.quality).toBe('flow_only');
+  expect(session.cardExposures).toHaveLength(9);
+  expect(Object.keys(session.pilotSurveys!)).toHaveLength(3);
   await page.reload();
-  await expect(page.getByLabel('匿名参与者编号')).toHaveValue('P00');
-  expect(downloads).toEqual([]);
+  const practice=page.getByRole('region',{name:'本机 P00 研究者试用'});
+  await practice.getByRole('button',{name:/P00.*completed/}).click();
+  await expect(page.getByRole('heading',{name:'P00 研究者试用记录'})).toBeVisible();
 });

@@ -4,8 +4,10 @@ import {buildPilotPlan,cardPermutation,selectCard} from '../src/pilotProtocol';
 import {pilotConfig} from '../src/pilotMaterials';
 import {containGeometry} from '../src/geometry';
 import {saveSession} from '../src/storage';
+import {readCheckpoint} from '../src/pilotResume';
+import {surveyForScene} from '../src/pilotSurvey';
 import {sampleFixture} from './dataFixtures';
-import type {Painting,Session} from '../src/types';
+import type {Painting,PilotTrial,Session} from '../src/types';
 
 vi.mock('../src/storage',()=>({saveSession:vi.fn().mockResolvedValue(undefined)}));
 
@@ -32,6 +34,16 @@ describe('P protocol and assignment',()=>{
       expect(counts.size).toBe(9);
       expect([...counts.values()].every(value=>value===n/3)).toBe(true);
     }
+  });
+  it('exposes all nine single-scene combinations exclusively to the rehearsal profile',()=>{
+    for(const scene of pilotConfig.paintings) for(const condition of ['sequential','random','gaze'] as const){
+      const trial={paintingId:scene.paintingId,condition};
+      expect(buildPilotPlan('P00',trial)).toEqual([trial]);
+      expect(()=>buildPilotPlan('P01',trial)).toThrow(/仅 P00/);
+    }
+    expect(()=>buildPilotPlan('P00',{paintingId:'unknown',condition:'gaze'})).toThrow();
+    expect(()=>buildPilotPlan('P00',{paintingId:'ming-xingle-archery',condition:'invalid'} as unknown as PilotTrial)).toThrow();
+    expect(()=>buildPilotPlan('P00',null as unknown as PilotTrial)).toThrow();
   });
   it('uses only a current, stable, eligible run and marks fallback/last-card decisions',()=>{
     const painting=pilotConfig.paintings[0];
@@ -149,17 +161,72 @@ describe('physical exposure windows and camera recording',()=>{
     expect(session.cardExposures!.every(row=>row.hiddenMs!==null)).toBe(true);
   });
 
-  it('P00 rehearsal generates no persistence writes and disposal drops all data',async()=>{
-    begin('P00');
-    engine.flowOnly();
+  it('retains the practice flag, recorded samples and card exposures on exit and assigns each P00 a new session id',async()=>{
+    const first=begin('P00');
     image(engine.painting!);
-    now+=8010;engine.tick();engine.cardShown({left:10,top:10,width:40,height:60});
-    callback(20,25);
+    now+=3100;callback(50,55);engine.tick();
+    engine.cardShown({left:10,top:10,width:40,height:60});
+    now+=28;callback(20,25);
     engine.interrupt('practice exit');
     await engine.persist();
-    expect(saveSession).not.toHaveBeenCalled();
-    engine.discardPractice();
-    expect(engine.session).toBeNull();expect(engine.activeCard).toBeNull();
-    expect(saveSession).not.toHaveBeenCalled();
+    expect(first.pilot?.practice).toBe(true);
+    expect(first.status).toBe('interrupted');
+    expect(first.cardExposures?.[0].hiddenMs).toBe(now);
+    expect(first.samples.at(-1)).toMatchObject({onCard:true,cardId:first.cardExposures?.[0].cardId});
+    expect(saveSession).toHaveBeenCalledWith(first);
+    expect(readCheckpoint()).toBeNull();
+    const second=begin('P00');
+    engine.flowOnly();engine.interrupt();
+    expect(second.sessionId).not.toBe(first.sessionId);
+    expect(second.quality).toBe('flow_only');
+    expect(second.samples).toHaveLength(0);
+  });
+
+  it('resumes one chosen scene and finishes immediately after its survey',()=>{
+    const trial:PilotTrial={paintingId:'ming-xingle-polo',condition:'gaze'};
+    engine.begin(pilotConfig,'P00',{studyField:'test',artEducation:'none',paintingInterest:3},trial);
+    const s=engine.session!;
+    expect(s.pilot).toMatchObject({practice:true,rehearsalMode:'single-scene',plan:[trial]});
+    expect(s.order).toEqual([trial.paintingId]);
+    expect(engine.phase).toBe('camera');
+    engine.flowOnly();image(engine.painting!);
+    now=3000;engine.tick();engine.cardShown({left:30,top:30,width:70,height:50});
+    now=60000;engine.tick();
+    expect(s.cardExposures![0]).toMatchObject(trial);
+    expect(engine.phase).toBe('pre');
+    expect(s.timings[0]).toMatchObject({paintingId:trial.paintingId,activeMs:60000,status:'completed'});
+    const checkpoint=readCheckpoint()!;
+    engine.suspendForReload();
+    const restored=new StudyEngine(()=>engine.adapter,()=>now);
+    expect(restored.restorePilot(s,{...checkpoint,trialIndex:1})).toBe(false);
+    expect(restored.restorePilot(s,checkpoint)).toBe(true);
+    expect(restored.painting?.paintingId).toBe(trial.paintingId);
+    restored.next();
+    expect(restored.session?.status).toBe('completed');
+    expect(restored.session?.events.some(e=>e.phase==='interview')).toBe(false);
+    expect(readCheckpoint()).toBeNull();
+    restored.dispose();
+  });
+
+  it('restores the current P00 survey draft after navigation and clears its checkpoint only when finished',()=>{
+    const s=begin('P00');
+    engine.flowOnly();
+    image(engine.painting!);
+    now+=60000;engine.tick();
+    expect(engine.phase).toBe('pre');
+    const snapshot=structuredClone(s);
+    const survey=surveyForScene(s,engine.painting!);
+    survey.workload.mental=0;
+    engine.saveSurvey();
+    const checkpoint=readCheckpoint();
+    expect(checkpoint?.participantId).toBe('P00');
+    engine.suspendForReload();
+    expect(s.status).toBe('active');
+    const restored=new StudyEngine(()=>engine.adapter,()=>now);
+    expect(restored.restorePilot(snapshot,checkpoint!)).toBe(true);
+    expect(restored.phase).toBe('pre');
+    expect(restored.session?.pilotSurveys?.[s.order[0]].workload.mental).toBe(0);
+    restored.dispose();
+    expect(readCheckpoint()).toBeNull();
   });
 });

@@ -10,13 +10,13 @@ import {sessionFixture} from '../dataFixtures';
 const firstScores={sequential:[1,0],random:[3,50],gaze:[7,100]};
 const secondScores={sequential:[7,10],random:[1,60],gaze:[5,90]};
 
-function archive(id:'P01'|'P02',sessionId:string) {
+function archive(id:'P00'|'P01'|'P02',sessionId:string) {
   const s=sessionFixture(sessionId);
   const plan=buildPilotPlan(id);
   s.participantId=id;
   s.config=structuredClone(pilotConfig);
   s.order=plan.map(trial=>trial.paintingId);
-  s.pilot={version:PILOT_VERSION,practice:false,plan,seed:42,selectionRules:{...SELECTION_RULES}};
+  s.pilot={version:PILOT_VERSION,practice:id==='P00',plan,seed:42,selectionRules:{...SELECTION_RULES}};
   s.cardExposures=[];
   s.background=freezeBackground({studyField:'测试',artEducation:'none',paintingInterest:3});
   const scores:Record<Condition,number[]>=id==='P01'?firstScores:secondScores;
@@ -38,7 +38,9 @@ test('compares multiple local P archives by condition, with paired complete rati
   await page.getByText('比较多位参与者的评分',{exact:true}).click();
   const input=page.getByLabel('选择参与者 ZIP（可多选）');
   const a=archive('P01','first'),b=archive('P02','second');
-  await input.setInputFiles([b,a,{...a,name:'same-session-another-filename.zip'}]);
+  const practice={...archive('P00','researcher-rehearsal'),name:'renamed-test.zip'};
+  await input.setInputFiles([b,practice,a,{...a,name:'same-session-another-filename.zip'}]);
+  await expect(page.getByLabel('未纳入的会话')).toContainText('renamed-test.zip：已略过 P00 研究者试用。');
   const personal=page.getByRole('table',{name:'每位参与者的三个条件评分'});
   const means=page.getByRole('table',{name:'三种方式的配对描述均值'});
   await expect(personal.locator('thead th')).toHaveText(['参与者','指标','顺序讲解','随机讲解','眼动讲解']);
@@ -56,4 +58,8 @@ test('compares multiple local P archives by condition, with paired complete rati
   await expect(personal.locator('tbody th')).toHaveText(['P02','P02']);
   await expect(means.locator('tbody tr').nth(0).locator('td')).toHaveText(['1','7.0','1.0','5.0']);
   await expect(means.locator('tbody tr').nth(1).locator('td')).toHaveText(['0','—','—','—']);
+  await input.setInputFiles(practice);
+  await expect(personal).toHaveCount(0);
+  await expect(means).toHaveCount(0);
+  await expect(page.getByLabel('未纳入的会话')).toContainText('已略过 P00');
 });

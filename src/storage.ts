@@ -34,7 +34,6 @@ function completed(tx: IDBTransaction): Promise<void> {
 
 /** Atomically save metadata and new chunks. At most the trailing chunk is rewritten. */
 export function saveSession(session: Session): Promise<void> {
-  if (session.participantId === 'P00' || session.pilot?.practice) return Promise.resolve();
   const snapshot = structuredClone(session);
   const operation = writes.catch(() => undefined).then(async () => {
     const db = await database();

@@ -45,23 +45,24 @@ test('P researcher schedule and all three full-width paintings load from the Pag
   expect(requests.every(request => request.method === 'GET' && request.url.origin === site.origin)).toBe(true);
 });
 
-test('P00 exercise can be cleared without a result download or a saved study record', async ({page}) => {
-  const {requests} = observeNetwork(page);
-  const downloads: string[] = [];
-  page.on('download', download => downloads.push(download.suggestedFilename()));
+test('P00 retains an identifiable study-excluded ZIP and reopens from local history after reload',async({page})=>{
+  const {requests}=observeNetwork(page);
   await page.goto('./?participant=P00');
-  await expect(page.getByLabel('匿名参与者编号')).toHaveValue('P00');
+  await expect(page.getByText(/蹴鞠（顺序讲解） → 马球（随机讲解） → 射箭（眼动讲解）/)).toBeVisible();
   await consentAndStart(page);
-  await page.getByText('摄像头无法工作？', {exact: true}).click();
-  await page.getByRole('button', {name: /仅试用流程/}).click();
-  await page.getByRole('button', {name: '校准目标'}).click();
-  await page.getByRole('button', {name: '清除并退出试用'}).click();
-  await expect(page.getByRole('heading', {name: '本次 P00 试用已清除'})).toBeVisible();
+  await page.getByRole('button',{name:'退出并保留试用记录'}).click();
+  const downloadPromise=page.waitForEvent('download');
+  await page.getByRole('button',{name:/一键下载 ZIP/}).click();
+  const download=await downloadPromise;
+  expect(download.suggestedFilename()).toMatch(/^rehearsal_P00_.*\.zip$/);
+  const files=unzipSync(await readFile((await download.path())!));
+  const json=Object.entries(files).find(([name])=>name.endsWith('/session.json'))!;
+  const s=JSON.parse(strFromU8(json[1]));
+  expect(s).toMatchObject({participantId:'P00',status:'interrupted',pilot:{practice:true},exportMetadata:{includeInStudyAnalysis:false}});
   await page.reload();
-  await expect(page.getByRole('textbox', {name: '你的主要学习或工作领域是什么？'})).toHaveValue('');
-  expect((await page.evaluate(() => indexedDB.databases())).map(db => db.name)).not.toContain('painting-pilot-study-v1');
-  expect(downloads).toEqual([]);
-  expect(requests.every(request => request.method === 'GET' && request.url.origin === siteUrl().origin)).toBe(true);
+  await page.getByRole('region',{name:'本机 P00 研究者试用'}).getByRole('button',{name:/P00.*interrupted/}).click();
+  await expect(page.getByRole('heading',{name:'P00 研究者试用记录'})).toBeVisible();
+  expect(requests.every(request=>request.method==='GET'&&request.url.origin===siteUrl().origin)).toBe(true);
 });
 
 test('interrupted P01 downloads all three scenes and pilot CSVs in one ZIP and reopens it locally', async ({page, browser}) => {
@@ -127,4 +128,20 @@ test('researcher links expose Pilot 2 review and an independent conditions-blind
   await expect(page.getByRole('heading',{name:'画面回忆盲评'})).toBeVisible();
   await expect(page.getByRole('table',{name:'三条件排程'})).toHaveCount(0);
   await expect(page.getByLabel('选择本地 ZIP 或 session.json')).toBeVisible();
+});
+
+test('only researcher rehearsal can select a single scene and explanation on participant links',async({page})=>{
+  await page.goto('./?participant=P00');
+  await page.getByRole('radio',{name:'只试一景'}).check();
+  const scene=page.getByLabel('试用场景');
+  const method=page.getByLabel('讲解方式',{exact:true});
+  await expect(scene.locator('option')).toHaveText(['蹴鞠','马球','射箭']);
+  await expect(method.locator('option')).toHaveText(['顺序讲解','随机讲解','眼动讲解']);
+  await scene.selectOption('ming-xingle-cuju');await method.selectOption('gaze');
+  await expect(page.getByText(/你将观看自选的一个场景/)).toBeVisible();
+  await page.goto('./?participant=P03&preview=design&scene=cuju&condition=gaze');
+  await expect(page.getByLabel('匿名参与者编号')).toBeDisabled();
+  await expect(page.getByLabel('匿名参与者编号')).toHaveValue('P03');
+  await expect(page.getByRole('radio',{name:'只试一景'})).toHaveCount(0);
+  await expect(page.getByRole('button',{name:'研究者设置'})).toHaveCount(0);
 });

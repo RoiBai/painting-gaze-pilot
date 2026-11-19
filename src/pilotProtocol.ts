@@ -24,8 +24,14 @@ const FIRST_ROWS = [
 ];
 const SIX_ROWS = [...FIRST_ROWS,...FIRST_ROWS.map(row=>[...row].reverse())];
 
-export function buildPilotPlan(participantId:string):PilotTrial[] {
+export function buildPilotPlan(participantId:string,previewTrial?:PilotTrial):PilotTrial[] {
   if(!/^P(?:[0-2]\d|3[0-6])$/.test(participantId)) throw Error('本轮编号为 P00–P36');
+  if(previewTrial!==undefined){
+    if(participantId!=='P00')throw Error('仅 P00 可自选场景和讲解方式');
+    if(!previewTrial || !SCENES.includes(previewTrial.paintingId) || !CONDITIONS.includes(previewTrial.condition))
+      throw Error('请从三个场景与三种讲解方式中选择');
+    return [{paintingId:previewTrial.paintingId,condition:previewTrial.condition}];
+  }
   const index=Math.max(0,Number(participantId.slice(1))-1);
   const rotation=Math.floor(index/6)%3;
   return SIX_ROWS[index%6].map(([condition,scene])=>{

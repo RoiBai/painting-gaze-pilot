@@ -2,6 +2,8 @@ import 'fake-indexeddb/auto';
 import {describe,it,expect} from 'vitest';
 import {saveSession,listSessions,recoverInterruptedSessions,STUDY_DB_NAME} from '../src/storage';
 import {sampleFixture,sessionFixture} from './dataFixtures';
+import {pilotConfig} from '../src/pilotMaterials';
+import {buildPilotPlan,PILOT_VERSION,SELECTION_RULES} from '../src/pilotProtocol';
 
 describe('isolated chunked IndexedDB',()=>{
   it('atomically persists appended batches, preserving completed participants',async()=>{
@@ -34,5 +36,20 @@ describe('isolated chunked IndexedDB',()=>{
     const again=(await recoverInterruptedSessions()).find(x=>x.sessionId==='crash')!;
     expect(again.events).toHaveLength(1);
     expect((await listSessions()).find(x=>x.sessionId==='first')?.status).toBe('completed');
+  });
+  it('opens separate P00 runs from IndexedDB with their saved status and original rehearsal data',async()=>{
+    const practice=sessionFixture('practice-one');
+    practice.participantId='P00';
+    practice.config=structuredClone(pilotConfig);
+    const plan=buildPilotPlan('P00');
+    practice.pilot={version:PILOT_VERSION,practice:true,plan,seed:42,selectionRules:{...SELECTION_RULES}};
+    practice.order=plan.map(t=>t.paintingId);
+    practice.samples=[sampleFixture({participantId:'P00',sessionId:practice.sessionId,paintingId:practice.order[0]})];
+    const second=structuredClone(practice);
+    second.sessionId='practice-two';second.phase='interrupted';second.status='interrupted';second.samples=[];
+    await Promise.all([saveSession(practice),saveSession(second)]);
+    const saved=await recoverInterruptedSessions();
+    expect(saved.find(s=>s.sessionId===practice.sessionId)).toEqual(practice);
+    expect(saved.find(s=>s.sessionId===second.sessionId)).toEqual(second);
   });
 });

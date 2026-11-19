@@ -1,6 +1,6 @@
 import {useRef,useState} from 'react';
 import type {Session} from './types';
-import {exportZip} from './export';
+import {exportZip,isPracticeSession} from './export';
 import {readSessionArchive} from './importSession';
 import {recallRows} from './pilotSurveyRecords';
 import {recallAnswerExamples} from './pilotRecallRubric';
@@ -15,6 +15,7 @@ export default function PilotBlindReview({onBack}:{onBack:()=>void}){
     pending.current=true;setBusy(true);setMessage('');
     try{
       const data=readSessionArchive(new Uint8Array(await file.arrayBuffer()),file.name);
+      if(isPracticeSession(data))throw Error('已略过 P00 研究者试用。请在「导入会话回看」中查看试用数据。');
       if(data.config.pilotSurveyVersion!=='pilot2-recall-v1')throw Error('请选择使用 Pilot 2 回忆问卷的会话。');
       if(!recallRows(data).some(row=>row.submittedMs!==null))throw Error('这份会话没有已提交的回忆页。');
       setSession(data);

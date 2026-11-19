@@ -17,7 +17,7 @@ export function readCheckpoint():PilotCheckpoint|null {
     const raw=sessionStorage.getItem(KEY);
     if(!raw)return null;
     const item=JSON.parse(raw);
-    return /^P(0[1-9]|[12]\d|3[0-6])$/.test(item.participantId) && typeof item.sessionId==='string'
+    return /^P(0\d|[12]\d|3[0-6])$/.test(item.participantId) && typeof item.sessionId==='string'
       && Number.isInteger(item.trialIndex) && item.trialIndex>=0 && item.trialIndex<3 && Array.isArray(item.responses)?item:null;
   }catch{return null}
 }
@@ -27,7 +27,7 @@ export function clearCheckpoint(sessionId:string){
 // A per-tab copy saves small questionnaire drafts synchronously before a reload.
 // The much larger camera records stay in IndexedDB.
 export function writeCheckpoint(s:Session,trialIndex:number){
-  if(!s.config.pilotSurveyVersion||s.pilot?.practice)return;
+  if(!s.config.pilotSurveyVersion)return;
   if(s.status!=='active'){clearCheckpoint(s.sessionId);return}
   const checkpoint:PilotCheckpoint={sessionId:s.sessionId,participantId:s.participantId,trialIndex,phase:s.phase,
     surveys:s.pilotSurveys,responses:s.responses,timing:s.timings.at(-1)??null,lastExposure:s.cardExposures?.at(-1)??null};

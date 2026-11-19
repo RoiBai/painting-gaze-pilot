@@ -67,17 +67,25 @@ function checkSurvey(session:Session):void {
 /** Validate the P archive's schedule and observed card-to-callback links without modifying its data. */
 function checkPilot(session:Session):void {
   const pilot=session.pilot;
-  if (!pilot || pilot.practice!==false || pilot.version!==PILOT_VERSION
+  const single=pilot?.rehearsalMode==='single-scene';
+  if (!pilot || (pilot.rehearsalMode!==undefined && (!single || session.participantId!=='P00')) || pilot.practice!==(session.participantId==='P00') || pilot.version!==PILOT_VERSION
     || session.config.pilotProtocol!==PILOT_VERSION || session.coordinateSource==='reference-corrected'
-    || !Number.isInteger(pilot.seed) || !Array.isArray(pilot.plan) || pilot.plan.length!==3
+    || !Number.isInteger(pilot.seed) || !Array.isArray(pilot.plan) || pilot.plan.length!==(single?1:3)
     || !object(pilot.selectionRules) || !Array.isArray(session.cardExposures)) {
     throw Error('三种讲解方式的计划、随机种子或曝光记录不完整。');
   }
-  const expected=buildPilotPlan(session.participantId);
+  const expected=buildPilotPlan(session.participantId,single?pilot.plan[0]:undefined);
   if (session.order.length!==expected.length || pilot.plan.some((trial,index)=>
     !trial || trial.paintingId!==expected[index].paintingId || trial.condition!==expected[index].condition
     || session.order[index]!==trial.paintingId || !session.config.paintings.some(p=>p.paintingId===trial.paintingId))) {
     throw Error('三种讲解方式与参与者的观看顺序不一致。');
+  }
+  if(single){
+    const otherScene=(row:{paintingId:string|null})=>row.paintingId!=null && row.paintingId!==session.order[0];
+    if(session.geometries.some(otherScene)||session.timings.some(otherScene)||session.samples.some(otherScene)
+      ||session.validation.some(otherScene)||session.events.some(otherScene)||session.responses.some(otherScene)){
+      throw Error('单景试用含有未选择场景的记录。');
+    }
   }
   const exposures=session.cardExposures;
   const byId=new Map<string,typeof exposures[number]>();
@@ -137,7 +145,7 @@ export function readSessionArchive(bytes:Uint8Array,name:string):Session {
   }
   if(!value||typeof value!=='object')throw new Error('会话格式无效。');
   const s=value as Session;
-  const pId=/^P(?:0[1-9]|[12][0-9]|3[0-6])$/.test(s.participantId);
+  const pId=/^P(?:0[0-9]|[12][0-9]|3[0-6])$/.test(s.participantId);
   if(s.schemaVersion!==1||s.dataSource!=='webgazer-camera'||s.coordinateSource==='reference-corrected'||typeof s.sessionId!=='string'||(!/^N0[1-6]$/.test(s.participantId)&&!pId)||!['completed','interrupted'].includes(s.status))throw new Error('请选择本站导出的已完成或中断的原始会话。');
   const problems=validateConfig(s.config);if(problems.length)throw new Error(`会话配置不完整：${problems[0]}`);
   const groups=['samples','events','responses','validation','validationSummaries','geometries','timings','qualityNotes','order'] as const;
