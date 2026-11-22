@@ -66,3 +66,38 @@ test('drawing the bow changes the grip and forearm but keeps the robe and feet r
     expect(pair.moving).toBeGreaterThan(100);
   }
 });
+
+test('v5 session replay keeps the original detached shaft in all three archery cards',async({page})=>{
+  await page.goto('/?participant=P00&preview=setup');
+  const sources=await page.evaluate(async()=>{
+    const moduleAt=(name:string)=>'/src/'+name;
+    const {pilotConfig}:typeof import('../../src/pilotMaterials')=await import(moduleAt('pilotMaterials.ts'));
+    const {containGeometry}:typeof import('../../src/geometry')=await import(moduleAt('geometry.ts'));
+    const {makePaperGuide,drawPaperGuide}:typeof import('../../src/paperGuide')=await import(moduleAt('paperGuide.ts'));
+    const {prepareCard}:typeof import('../../src/IllustratedStage')=await import(moduleAt('IllustratedStage.tsx'));
+    const {paperEdition}:typeof import('../../src/cardPresentation')=await import(moduleAt('cardPresentation.ts'));
+    const version=paperEdition('ming-uci-collage-v5');
+    const scene=pilotConfig.paintings.find(p=>p.paintingId==='ming-xingle-archery')!;
+    const canvas=document.createElement('canvas');canvas.width=1440;canvas.height=900;
+    const ctx=canvas.getContext('2d')!;
+    const g=containGeometry({version:1,paintingId:scene.paintingId,timeMs:0,viewportWidth:1440,viewportHeight:900,dpr:1,
+      naturalWidth:scene.width,naturalHeight:scene.height,box:{left:0,top:0,width:1440,height:900}});
+    const draw=ctx.drawImage.bind(ctx);
+    const originals:string[]=[];
+    ctx.drawImage=function(...args:Parameters<typeof draw>){
+      const image=args[0];
+      if(image instanceof HTMLCanvasElement && image.dataset.archerLayer==='shaft')originals.push('v5 detached shaft');
+      if(image instanceof HTMLImageElement && image.src.endsWith('/figma-1-6.webp'))originals.push('feathered arrow');
+      draw(...args);
+    } as typeof draw;
+    const observed:string[][]=[];
+    for(const card of scene.cards.slice(4,7)){
+      const image=await prepareCard(card,version);
+      const l=makePaperGuide(ctx,card,g,scene.aois.find(a=>a.id===card.aoiIds[0])!,version);
+      drawPaperGuide(ctx,card,image,l,5000,10000);
+      observed.push(originals.splice(0));
+    }
+    return observed;
+  });
+  expect(sources).toEqual([['v5 detached shaft'],['v5 detached shaft'],['v5 detached shaft']]);
+});

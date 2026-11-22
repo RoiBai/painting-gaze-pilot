@@ -44,12 +44,12 @@ function makePainting({id,title,left,width,links}:Scene):Painting{
     cards:entries.map(entry=>({
       id:id+'-'+regionId(entry.node),aoiIds:[regionId(entry.node)],location:entry.title,
       title:entry.title,text:entry.scene==='archery' && entry.node==='1:6'
-        ? '细长的箭杆一端带着尾羽，另一端指向画面左侧、两面旗帜之间的箭靶。'+entry.text
+        ? '细长的箭杆右端带着尾羽，左端的箭尖指向两面旗帜之间的箭靶。'+entry.text
         : entry.scene==='archery'&&entry.node==='1:2'?archerGuide.text:entry.text,
       art:{image:entry.image,board:entry.board,glow:entry.glow,shape:entry.shape},
       source:catalogue.document+' 「'+catalogue.tab+'」 '+entry.ranges.map(r=>r.join('–')).join(', ')+' · '+catalogue.figma+'?node-id='+entry.node.replace(':','-')
         +(entry.scene==='archery' && entry.node==='1:6'?' · 首句据原画羽箭形态和方向描述。':'')
-        +(entry.scene==='archery' && (entry.node==='1:6'||entry.node==='0:6')?' · 动画中的羽箭取自弓手抠图 '+catalogue.figma+'?node-id=1-2':'')
+        +(entry.scene==='archery' && ['1:2','1:6','0:6'].includes(entry.node)?' · 动画中的羽箭采用独立羽箭抠图，箭尖朝左、尾羽在右。'+catalogue.figma+'?node-id=1-6':'')
         +(hasPaintedPoses(id+'-'+regionId(entry.node))?' · 动作演示由原画和两张 ImageGen 局部补帧构成。':''),
     })),
     relations:links.map((link,i)=>({id:id+'-relation-'+(i+1),text:link.text,aoiIds:link.nodes.map(regionId),source:catalogue.document})),
@@ -59,7 +59,7 @@ function makePainting({id,title,left,width,links}:Scene):Painting{
 }
 
 export const pilotConfig:StudyConfig={
-  ...defaultConfig,version:'pilot-three-uci-3.3.1',pilotSurveyVersion:UCI_RECALL_VERSION,
+  ...defaultConfig,version:'pilot-three-uci-3.3.2',pilotSurveyVersion:UCI_RECALL_VERSION,
   mode:'preview',pilotProtocol:'three-condition-v1',participantPlan:undefined,questionnaireVersion:undefined,
   paintings:scenes.map(makePainting),
   copy:{

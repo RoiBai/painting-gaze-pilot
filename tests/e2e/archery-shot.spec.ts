@@ -4,7 +4,7 @@ const site=process.env.PAGES_TEST_URL??'http://localhost:5173/';
 const detailLink=(id:string)=>new URL('?participant=P00&preview=layout&scene=ming-xingle-archery&card='+id,site).href;
 
 type Box={x:number;y:number;width:number;height:number};
-type Shaft={x:number;y:number;length:number};
+type Shaft={x:number;y:number;length:number;featherX:number;featherContrast:number;featherBreadth:number;tipTaper:number;source:string};
 type Frame={actor?:Box;actorLayer?:string;shaft?:Shaft;titleY?:number;boardY?:number};
 
 // Observe only the viewer canvas. Derive shaft endpoints from the ink on its
@@ -13,7 +13,8 @@ async function observe(stage:Locator){
   await stage.evaluate(element=>{
     const canvas=element as HTMLCanvasElement,ctx=canvas.getContext('2d')!;
     const clear=ctx.clearRect.bind(ctx),text=ctx.fillText.bind(ctx),rect=ctx.fillRect.bind(ctx),draw=ctx.drawImage.bind(ctx);
-    const endpointCache=new WeakMap<HTMLCanvasElement,number[][]>();
+    type VisibleArrow={ends:number[][];featherEnd:0|1;contrast:number;breadth:number;taper:number};
+    const endpointCache=new WeakMap<HTMLCanvasElement|HTMLImageElement,VisibleArrow>();
     let frame:Frame={};
     function record(){canvas.dataset.observed=JSON.stringify(frame)}
     ctx.clearRect=(...args)=>{frame={};clear(...args);record()};
@@ -28,24 +29,54 @@ async function observe(stage:Locator){
     ctx.drawImage=function(...args:Parameters<typeof draw>){
       const image=args[0],sprite=image instanceof HTMLCanvasElement?image.dataset.archerLayer:undefined;
       const [x,y,width,height]=args.slice(-4) as number[];
-      if((image instanceof HTMLImageElement&&image.src.endsWith('/figma-1-2.webp'))||sprite?.startsWith('draw-')||sprite==='released'){
+      const actor=(image instanceof HTMLImageElement&&image.src.endsWith('/figma-1-2.webp'))||sprite?.startsWith('draw-')||sprite==='released';
+      if(actor && Array.from<unknown>(args).length===5){
         frame.actor={x,y,width,height};frame.actorLayer=sprite??'original';
       }
-      if(image instanceof HTMLCanvasElement&&sprite==='shaft'){
-        let points=endpointCache.get(image);
-        if(!points){
-          const pix=image.getContext('2d')!.getImageData(0,0,image.width,image.height).data;
+      const isShaft=(image instanceof HTMLCanvasElement && sprite==='shaft')
+        || (image instanceof HTMLImageElement && image.src.endsWith('/figma-1-6.webp'));
+      if(isShaft && (image instanceof HTMLCanvasElement||image instanceof HTMLImageElement)){
+        const iw=image instanceof HTMLImageElement?image.naturalWidth:image.width;
+        const ih=image instanceof HTMLImageElement?image.naturalHeight:image.height;
+        let registered=endpointCache.get(image);
+        if(!registered){
+          const probe=document.createElement('canvas');probe.width=iw;probe.height=ih;
+          const ink=probe.getContext('2d')!;ink.drawImage(image,0,0);
+          const pix=ink.getImageData(0,0,iw,ih).data;
           const ends:number[][]=[];
-          for(let u=0;u<image.width;u++){
+          const inkCount=[0,0],paleCount=[0,0],columnInk:number[]=[];
+          for(let u=0;u<iw;u++){
             let total=0,count=0;
-            for(let v=0;v<image.height;v++)if(pix[(v*image.width+u)*4+3]>48){total+=v;count++}
+            for(let v=0;v<ih;v++){
+              const offset=(v*iw+u)*4;
+              if(pix[offset+3]<=48)continue;
+              total+=v;count++;
+              if(u>=iw*.20 && u<iw*.80)continue;
+              const side=Number(u>=iw*.80);
+              inkCount[side]++;
+              if(Math.min(pix[offset],pix[offset+1],pix[offset+2])>145)paleCount[side]++;
+            }
+            columnInk.push(count);
             if(count){const point=[u+.5,total/count+.5];if(!ends.length)ends.push(point);ends[1]=point;}
           }
-          points=ends;endpointCache.set(image,points);
+          // Identify the actual light-colored, broad fletching before applying any
+          // canvas transforms. This also catches a second mirror at draw time.
+          const feathers=paleCount[0]>paleCount[1]?0:1;
+          const point=1-feathers;
+          const columnsFromTip=point===0?columnInk:columnInk.reverse();
+          const band=Math.max(1,Math.floor(iw*.01)),inside=Math.floor(iw*.035);
+          const sum=(values:number[])=>values.reduce((a,b)=>a+b,0);
+          registered={ends,featherEnd:feathers,contrast:(paleCount[feathers]+1)/(paleCount[point]+1),
+            breadth:inkCount[feathers]/inkCount[point],
+            taper:sum(columnsFromTip.slice(inside,inside+band))/Math.max(1,sum(columnsFromTip.slice(0,band)))};
+          endpointCache.set(image,registered);
         }
         const transform=ctx.getTransform();
-        const [tip,tail]=points.map(([u,v])=>transform.transformPoint(new DOMPoint(x+u*width/image.width,y+v*height/image.height)));
-        frame.shaft={x:tip.x,y:tip.y,length:Math.hypot(tail.x-tip.x,tail.y-tip.y)};
+        const ends=registered.ends.map(([u,v])=>transform.transformPoint(new DOMPoint(x+u*width/iw,y+v*height/ih)));
+        const tip=ends[1-registered.featherEnd],tail=ends[registered.featherEnd];
+        frame.shaft={x:tip.x,y:tip.y,length:Math.hypot(tail.x-tip.x,tail.y-tip.y),
+          featherX:tail.x,featherContrast:registered.contrast,featherBreadth:registered.breadth,tipTaper:registered.taper,
+          source:image instanceof HTMLImageElement?new URL(image.src).pathname.split('/').pop()!:'detached-canvas'};
       }
       draw(...args);record();
     } as typeof draw;
@@ -64,7 +95,15 @@ for(const viewport of [{width:1440,height:900},{width:390,height:844}]){
     async function sample(ms:number,cardId:string):Promise<Frame>{
       await page.clock.runFor(ms-previous);previous=ms;
       await expect(player).toHaveAttribute('data-card','archery-figma-'+cardId);
-      const frame=JSON.parse((await stage.getAttribute('data-observed'))!);
+      const frame:Frame=JSON.parse((await stage.getAttribute('data-observed'))!);
+      if(frame.shaft){
+        const ink=frame.shaft;
+        expect(ink.featherX-ink.x,'fletching stays behind the point, '+ms+' ms').toBeGreaterThan(ink.length*.85);
+        expect(ink.featherContrast,'the rear has the light-colored feathers').toBeGreaterThan(2);
+        expect(ink.featherBreadth,'the feathers occupy more area than the point').toBeGreaterThan(1.1);
+        expect(ink.tipTaper,'the metal head narrows to its leading point').toBeGreaterThan(2);
+        expect(ink.source,'arrow artwork at '+ms+' ms').toBe('figma-1-6.webp');
+      }
       return frame;
     }
 

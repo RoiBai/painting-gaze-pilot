@@ -21,9 +21,11 @@ export function prepareIllustrationScene(painting:Painting):Promise<void>{
   return Promise.all([base,...painting.cards.filter(c=>c.art).map(card=>prepareCard(card,paperEdition(painting.materialVersion)))]).then(()=>{});
 }
 export async function prepareCard(card:GuideCard,edition?:PaperEdition):Promise<HTMLImageElement>{
-  const usesPaintedPoses=edition===undefined||edition==='v4';
+  const independentArrow=edition===undefined;
+  const focused=independentArrow||edition==='v5';
+  const usesPaintedPoses=focused||edition==='v4';
   const [image]=await Promise.all([loadCutout(card.art!),prepareCutoutMotion(card,edition==='legacy'),
-    edition==='legacy'?undefined:prepareArcheryStory(card,edition==='v3',edition===undefined),usesPaintedPoses?preparePaintedPoses(card):undefined]);
+    edition==='legacy'?undefined:prepareArcheryStory(card,edition==='v3',focused,independentArrow),usesPaintedPoses?preparePaintedPoses(card):undefined]);
   if(usesPaintedPoses && card.id==='archery-figma-1-2')prepareArcherDetail(image);
   return image;
 }

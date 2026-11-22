@@ -1,5 +1,5 @@
 import type {AOI, CardDecision, CardRect, Condition, GazeSample, Painting, PilotMetadata, PilotTrial} from './types';
-import {PAPER_MATERIAL} from './cardPresentation';
+import {PAPER_MATERIAL,V5_PAPER_MATERIAL} from './cardPresentation';
 
 export type {Condition} from './types';
 export const PILOT_VERSION='three-condition-v1' as const;
@@ -36,7 +36,7 @@ export function cardWindows(painting:Painting,condition:Condition,rules:PilotMet
   const slot=duration/count;
   const wait=Math.min(slot*rules.blankFraction,rules.maximumSelectionMs??Infinity);
   const windows=Array.from({length:count},(_,i)=>({start:i*slot,reveal:i*slot+wait,end:(i+1)*slot}));
-  if(condition!=='sequential'||painting.materialVersion!==PAPER_MATERIAL||painting.paintingId!=='ming-xingle-archery')return windows;
+  if(condition!=='sequential'||![V5_PAPER_MATERIAL,PAPER_MATERIAL].includes(painting.materialVersion)||painting.paintingId!=='ming-xingle-archery')return windows;
 
   const first=painting.cards.findIndex(c=>c.id==='archery-figma-1-2');
   if(first<0||first+2>=count||painting.cards[first+1]?.id!=='archery-figma-1-6'||painting.cards[first+2]?.id!=='archery-figma-0-6')return windows;

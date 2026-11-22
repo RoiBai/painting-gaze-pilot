@@ -1,5 +1,5 @@
 import {loadCutout,type GuideCard} from './cutoutCard';
-import {prepareArcherDetail,prepareBowDraw,archerArrowPose,drawArrowRim,drawBowArcher,drawReleasedArcher,drawReleasedArrow,hitArrowRim,hitDrawingArcher,hitReleasedArcher,hitReleasedArrow,type ArrowPose} from './archerDetail';
+import {prepareArcherDetail,prepareBowDraw,archerArrowPose,drawArrowRim,drawBowArcher,drawBowGrip,drawReleasedArcher,drawReleasedArrow,hitArrowRim,hitDrawingArcher,hitReleasedArcher,hitReleasedArrow,type ArrowPose} from './archerDetail';
 import type {PaperGuideLayout} from './paperGuide';
 import {hitCollageSubject} from './cutoutMotion';
 import catalogue from './uciCatalogue.json' with {type:'json'};
@@ -16,7 +16,8 @@ const arrowCard:GuideCard={id:arrowId,aoiIds:['figma-1-6'],location:arrow.title,
 let arrowImage:HTMLImageElement|undefined;
 let paperSilhouette:HTMLCanvasElement|undefined;
 
-export async function prepareArcheryStory(card:GuideCard,prior=false,focused=false):Promise<void>{
+export async function prepareArcheryStory(card:GuideCard,prior=false,focused=false,independent=false):Promise<void>{
+  if(independent&&(card.id===archerGuide.id||card.id===arrowId||card.id===targetId))await loadArrowIllustration();
   if(focused&&card.id==='archery-figma-1-2'){
     prepareBowDraw(await loadCutout(archer));
     return;
@@ -30,8 +31,11 @@ export async function prepareArcheryStory(card:GuideCard,prior=false,focused=fal
     return;
   }
   if(card.id!==targetId&&card.id!==arrowId)return;
+  await loadArrowIllustration();
+}
+async function loadArrowIllustration(){
   arrowImage=await loadCutout(arrow);
-  if(card.id===arrowId&&!paperSilhouette){
+  if(!paperSilhouette){
     const mask=document.createElement('canvas');
     mask.width=arrowImage.naturalWidth;mask.height=arrowImage.naturalHeight;
     const ctx=mask.getContext('2d')!;
@@ -43,7 +47,7 @@ export async function prepareArcheryStory(card:GuideCard,prior=false,focused=fal
 
 interface Point {x:number;y:number}
 interface Placement {source?:CardRect;tip?:Point;detailWidth?:number;rightSpace?:number}
-type Layout=Pick<PaperGuideLayout,'source'|'art'|'impact'|'landedArrowLength'|'reveal'|'bowBox'>;
+type Layout=Pick<PaperGuideLayout,'source'|'art'|'impact'|'landedArrowLength'|'reveal'|'bowBox'|'arrowSprite'>;
 type Shaft={x:number;y:number;length:number;angle:number};
 
 // Landmarks in the full 6888 × 1966 crop, independent of the padded acquisition
@@ -182,19 +186,43 @@ function hitShaft(x:number,y:number,shaft:Shaft,readingContrast=0){
   return readingContrast>.025&&rimOffsets.some(([dx,dy])=>hitCollageSubject(arrowCard,rect,u-dx,v-dy,0,true));
 }
 
+// Figma 1:6 is already point-left. Pin the first metal pixel (0,17) to the
+// trajectory and map the nock at x=767 to the requested tip-to-tail length.
+function registerCatalogueArrow(pose:ArrowPose):Shaft{
+  const scale=pose.length/767;
+  const dx=-.5*scale,dy=-1.5*scale,cos=Math.cos(pose.angle),sin=Math.sin(pose.angle);
+  return {...pose,x:pose.x+dx*cos-dy*sin,y:pose.y+dx*sin+dy*cos,length:768*scale};
+}
+function drawCatalogueArrow(ctx:CanvasRenderingContext2D,pose:ArrowPose,contrast=0){
+  if(!arrowImage)throw Error('羽箭抠图尚未载入。');
+  drawShaft(ctx,arrowImage,registerCatalogueArrow(pose),contrast);
+}
+function hitCatalogueArrow(pose:ArrowPose,x:number,y:number,contrast=0){
+  return hitShaft(x,y,registerCatalogueArrow(pose),contrast);
+}
+
 export function drawArcheryStory(ctx:CanvasRenderingContext2D,card:GuideCard,image:HTMLImageElement,layout:Layout,
   subject:CardRect,elapsed:number,duration:number,reduced:boolean):boolean{
   if(layout.reveal==='archer-draw'){
-    drawBowArcher(ctx,subject,elapsed,duration,reduced);
+    drawBowArcher(ctx,subject,elapsed,duration,reduced,layout.arrowSprite?drawCatalogueArrow:undefined);
     return true;
   }
   if(layout.reveal==='arrow-release'){
     const alpha=archerContextAlpha(elapsed,duration,reduced);
     const pose=focusedArrowPose(layout,elapsed,duration,reduced);
-    drawArrowRim(ctx,pose,(1-alpha)*archeryTiming(elapsed,duration,reduced).boardAlpha);
-    drawReleasedArrow(ctx,pose);
+    const contrast=(1-alpha)*archeryTiming(elapsed,duration,reduced).boardAlpha;
+    if(!layout.arrowSprite){
+      drawArrowRim(ctx,pose,contrast);
+      drawReleasedArrow(ctx,pose);
+    }
     if(alpha>0){
       ctx.save();ctx.globalAlpha*=alpha;drawReleasedArcher(ctx,layout.bowBox!);ctx.restore();
+    }
+    if(layout.arrowSprite){
+      drawCatalogueArrow(ctx,pose,contrast);
+      if(alpha>0){
+        ctx.save();ctx.globalAlpha*=alpha;drawBowGrip(ctx,layout.bowBox!,3);ctx.restore();
+      }
     }
     return true;
   }
@@ -217,17 +245,20 @@ function targetPose(subject:CardRect,layout:Layout):ArrowPose{
 }
 export function drawArcheryImpact(ctx:CanvasRenderingContext2D,card:GuideCard,subject:CardRect,layout:Layout){
   if(card.id!==targetId)return;
-  if(layout.reveal==='landed-arrow')drawReleasedArrow(ctx,targetPose(subject,layout));
+  if(layout.arrowSprite)drawCatalogueArrow(ctx,targetPose(subject,layout));
+  else if(layout.reveal==='landed-arrow')drawReleasedArrow(ctx,targetPose(subject,layout));
   else if(arrowImage)drawShaft(ctx,arrowImage,lodgedArrow(subject));
 }
 export function hitArcheryStory(card:GuideCard,layout:Layout,subject:CardRect,x:number,y:number,
   elapsed:number,duration:number,reduced:boolean):boolean|undefined{
-  if(layout.reveal==='archer-draw')return hitDrawingArcher(card,subject,x,y,elapsed,duration,reduced);
+  if(layout.reveal==='archer-draw')return hitDrawingArcher(card,subject,x,y,elapsed,duration,reduced,layout.arrowSprite?hitCatalogueArrow:hitReleasedArrow);
   if(layout.reveal==='arrow-release'){
     const pose=focusedArrowPose(layout,elapsed,duration,reduced);
     const alpha=archerContextAlpha(elapsed,duration,reduced);
-    if(hitReleasedArrow(pose,x,y))return true;
-    if((1-alpha)*archeryTiming(elapsed,duration,reduced).boardAlpha>.025&&hitArrowRim(pose,x,y))return true;
+    const contrast=(1-alpha)*archeryTiming(elapsed,duration,reduced).boardAlpha;
+    if(layout.arrowSprite){
+      if(hitCatalogueArrow(pose,x,y,contrast))return true;
+    }else if(hitReleasedArrow(pose,x,y)||(contrast>.025&&hitArrowRim(pose,x,y)))return true;
     // The fading contextual silhouette is the archer's cutout, not the
     // detached arrow entry whose gaze region and alpha mask are different.
     return alpha>.025&&hitReleasedArcher(archerGuide,layout.bowBox!,x,y);
@@ -241,7 +272,10 @@ export function hitArcheryStory(card:GuideCard,layout:Layout,subject:CardRect,x:
     const {shaft,readingContrast}=archeryFlight(layout,elapsed,duration,reduced);
     return hitShaft(x,y,shaft,readingContrast);
   }
-  if(layout.reveal==='landed-arrow')return hitReleasedArrow(targetPose(subject,layout),x,y)||undefined;
+  if(layout.reveal==='landed-arrow'){
+    const hit=layout.arrowSprite?hitCatalogueArrow:hitReleasedArrow;
+    return hit(targetPose(subject,layout),x,y)||undefined;
+  }
   if(card.id===targetId&&hitShaft(x,y,lodgedArrow(subject)))return true;
   return undefined;
 }

@@ -91,7 +91,17 @@ describe('paper illustration layout',()=>{
     const scene=pilotConfig.paintings.find(p=>p.paintingId==='ming-xingle-archery')!;
     for(const [vw,vh] of [[390,844],[1440,900]]){
       const g=geometry(scene,vw,vh);
-      const [bow,arrow,target]=scene.cards.slice(4,7).map(card=>makePaperGuide(measure,card,g,scene.aois.find(a=>a.id===card.aoiIds[0])!));
+      const cards=scene.cards.slice(4,7);
+      const [bow,arrow,target]=cards.map(card=>makePaperGuide(measure,card,g,scene.aois.find(a=>a.id===card.aoiIds[0])!));
+      for(const layout of [bow,arrow,target]){
+        expect(layout.arrowSprite).toBe('figma-1-6');
+        expect(validPaperGuideLayout(layout)).toBe(true);
+      }
+      for(const version of ['v4','v5'] as const)for(const card of cards){
+        const layout=makePaperGuide(measure,card,g,scene.aois.find(a=>a.id===card.aoiIds[0])!,version);
+        expect(layout.arrowSprite).toBeUndefined();
+        expect(validPaperGuideLayout(layout)).toBe(true);
+      }
       expect(bow.reveal).toBe('archer-draw');
       expect(paperFrame(bow,8000,10000).textAlpha).toBe(1);
       expect(arrow.bowBox).toEqual(bow.art);

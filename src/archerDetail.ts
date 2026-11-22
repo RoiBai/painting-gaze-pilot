@@ -71,16 +71,30 @@ export function prepareBowDraw(image:HTMLImageElement){
   if(!drawingFrames)drawingFrames=drawingPoses(layers!.figure);
 }
 
-export function drawBowArcher(ctx:CanvasRenderingContext2D,box:CardRect,elapsed:number,duration:number,reduced:boolean){
+// Reapply just the fingers over the shaft while the fletching remains visible at the cheek.
+export function drawBowGrip(ctx:CanvasRenderingContext2D,box:CardRect,index:number){
+  if(!layers)throw Error('弓手图层尚未载入。');
+  const slack=bowDrawSlack(index);
+  const x=Math.round(59+46*slack),y=Math.round(188+10*slack),w=21,h=35;
+  ctx.drawImage(drawingFrames?.[index]??layers.figure,x,y,w,h,box.left+x*box.width/728,box.top+y*box.height/896,w*box.width/728,h*box.height/896);
+}
+export function drawBowArcher(ctx:CanvasRenderingContext2D,box:CardRect,elapsed:number,duration:number,reduced:boolean,
+  catalogueArrow?:(ctx:CanvasRenderingContext2D,pose:ArrowPose)=>void){
   if(!layers||!drawingFrames)throw Error('弓手动作帧尚未载入。');
   const index=bowDrawIndex(elapsed,duration,reduced);
-  drawReleasedArrow(ctx,arrowAtDraw(archerArrowPose(box),box,index));
+  const pose=arrowAtDraw(archerArrowPose(box),box,index);
+  if(!catalogueArrow)drawReleasedArrow(ctx,pose);
   ctx.drawImage(drawingFrames[index]??layers.figure,box.left,box.top,box.width,box.height);
+  if(catalogueArrow){
+    catalogueArrow(ctx,pose);
+    drawBowGrip(ctx,box,index);
+  }
 }
 
-export function hitDrawingArcher(card:GuideCard,box:CardRect,x:number,y:number,elapsed:number,duration:number,reduced:boolean){
+export function hitDrawingArcher(card:GuideCard,box:CardRect,x:number,y:number,elapsed:number,duration:number,reduced:boolean,
+  arrowHit=hitReleasedArrow){
   const index=bowDrawIndex(elapsed,duration,reduced);
-  if(hitReleasedArrow(arrowAtDraw(archerArrowPose(box),box,index),x,y))return true;
+  if(arrowHit(arrowAtDraw(archerArrowPose(box),box,index),x,y))return true;
   const src=bowSample((x-box.left)*728/box.width,(y-box.top)*896/box.height,bowDrawSlack(index));
   return hitReleasedArcher(card,box,box.left+src.x*box.width/728,box.top+src.y*box.height/896);
 }
@@ -118,7 +132,8 @@ export function drawArrowRim(ctx:CanvasRenderingContext2D,pose:ArrowPose,opacity
   ctx.restore();
 }
 export function hitArrowRim(pose:ArrowPose,x:number,y:number){
-  return rimOffsets.some(([dx,dy])=>hitReleasedArrow(pose,x-dx,y-dy));
+  const cos=Math.cos(pose.angle),sin=Math.sin(pose.angle);
+  return rimOffsets.some(([dx,dy])=>hitReleasedArrow(pose,x-dx*cos+dy*sin,y-dx*sin-dy*cos));
 }
 
 export function hitReleasedArcher(card:GuideCard,box:CardRect,x:number,y:number):boolean{

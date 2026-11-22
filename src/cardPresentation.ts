@@ -4,13 +4,15 @@ import type {CardExposure} from './types';
 
 export const LEGACY_PAPER_MATERIAL='ming-uci-collage-v2';
 export const PRIOR_PAPER_MATERIAL='ming-uci-collage-v3';
-export const PAPER_MATERIAL='ming-uci-collage-v5';
+export const V5_PAPER_MATERIAL='ming-uci-collage-v5';
+export const PAPER_MATERIAL='ming-uci-collage-v6';
 
 const paperReleases=new Map<string,{edition?:PaperEdition;app?:string}>([
   [LEGACY_PAPER_MATERIAL,{edition:'legacy'}],
   [PRIOR_PAPER_MATERIAL,{edition:'v3',app:'3.2.0'}],
   ['ming-uci-collage-v4',{edition:'v4',app:'3.3.0'}],
-  [PAPER_MATERIAL,{app:'3.3.1'}],
+  [V5_PAPER_MATERIAL,{edition:'v5',app:'3.3.1'}],
+  [PAPER_MATERIAL,{app:'3.3.2'}],
 ]);
 
 export function paperEdition(version:string){return paperReleases.get(version)?.edition}

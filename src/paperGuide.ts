@@ -6,7 +6,7 @@ import {drawPaintedPose,hitPaintedPose,hasPaintedPoses} from './paintedPoses';
 import {archerArrowPose} from './archerDetail';
 import catalogue from './uciCatalogue.json' with {type:'json'};
 
-export type PaperEdition='legacy'|'v3'|'v4';
+export type PaperEdition='legacy'|'v3'|'v4'|'v5';
 
 export interface PaperGuideLayout {
   /** Absent from the archived two-sheet presentation. */
@@ -14,6 +14,8 @@ export interface PaperGuideLayout {
   reveal?:'explain-then-shoot'|'archer-release'|'arrow-detail'|'polo-swing'|'stepped-poses'|'landed-arrow'|'archer-draw'|'arrow-release';
   /** The enlarged bow on the preceding demonstration. Stored for faithful replay. */
   bowBox?:CardRect;
+  /** Registered Figma cutout, with its metal point at the left edge. */
+  arrowSprite?:'figma-1-6';
   landedArrowLength?:number;
   impact?:{x:number;y:number};
   source:CardRect;
@@ -116,15 +118,18 @@ export function makePaperGuide(ctx:CanvasRenderingContext2D,card:GuideCard,g:Geo
   const cx=centerX(area),cy=centerY(area);
   const nativeW=Math.max(area.width,area.height*aspect);
   const placement=edition==='legacy'?{}:archeryPlacement(card,g);
+  const continuousShot=edition===undefined||edition==='v5';
   const source=placement.source??centered(cx,cy,nativeW,nativeW/aspect);
   source.left=clamp(source.left,0,vw-source.width);
   source.top=clamp(source.top,0,vh-source.height);
   if(placement.tip && placement.detailWidth){
-    if(edition)return arrowGuide(ctx,card,g,source,placement.detailWidth,edition==='v3'?placement.tip:undefined);
-    const bowBox=makePaperGuide(ctx,archerGuide,g,archerArea).art;
+    if(!continuousShot)return arrowGuide(ctx,card,g,source,placement.detailWidth,edition==='v3'?placement.tip:undefined);
+    const bowBox=makePaperGuide(ctx,archerGuide,g,archerArea,edition).art;
     const tip=archerArrowPose(bowBox),height=tip.length/aspect;
     const held={left:tip.x,top:tip.y-height/2,width:tip.length,height};
-    return arrowGuide(ctx,card,g,held,focusedArrowLength(tip.length,vw),placement.tip,bowBox);
+    const detail=arrowGuide(ctx,card,g,held,focusedArrowLength(tip.length,vw),placement.tip,bowBox);
+    if(edition===undefined)detail.arrowSprite='figma-1-6';
+    return detail;
   }
   // Reserve page margins and paper borders only where the original subject leaves room.
   const edgeX=clamp(vw*.018,8,24);
@@ -143,10 +148,10 @@ export function makePaperGuide(ctx:CanvasRenderingContext2D,card:GuideCard,g:Geo
   const target=paintedEdition&&card.id==='archery-figma-0-6';
   let landedArrowLength=0;
   if(target){
-    const archerText=edition?{...archerGuide,text:archerEntry.text}:archerGuide;
+    const archerText=continuousShot?archerGuide:{...archerGuide,text:archerEntry.text};
     const handLength=archerArrowPose(makePaperGuide(ctx,archerText,g,archerArea,edition).art).length;
-    landedArrowLength=edition?handLength:focusedArrowLength(handLength,vw);
-    if(!edition){
+    landedArrowLength=continuousShot?focusedArrowLength(handLength,vw):handLength;
+    if(continuousShot){
       // Register the small target's disk to the impact at this exact viewport.
       const point=archeryTargetPoint(g);
       source.left=point.x-source.width*121/172;
@@ -196,7 +201,8 @@ export function makePaperGuide(ctx:CanvasRenderingContext2D,card:GuideCard,g:Geo
   const top=Math.min(art.top+artH*.07,panel.top);
   const bottom=Math.max(art.top+artH*.96,panel.top+panel.height);
   return {...layout,style:'single-board',backing:{left,top,width:bounds.left+bounds.width-left,height:bottom-top},
-    ...(target?{reveal:'landed-arrow',landedArrowLength}:impact?{reveal:edition?'archer-release':'archer-draw',impact}:{reveal:paintedEdition?poseReveal(card.id,edition):undefined})};
+    ...(edition===undefined&&(archer||target)?{arrowSprite:'figma-1-6' as const}:{}),
+    ...(target?{reveal:'landed-arrow',landedArrowLength}:impact?{reveal:continuousShot?'archer-draw':'archer-release',impact}:{reveal:paintedEdition?poseReveal(card.id,edition):undefined})};
 }
 function poseReveal(id:string,edition?:PaperEdition):'polo-swing'|'stepped-poses'|undefined{
   if(edition==='v4'&&id==='polo-figma-3-23')return 'polo-swing';
@@ -217,7 +223,8 @@ export function validPaperGuideLayout(value:unknown):value is PaperGuideLayout{
     || (l.reveal==='landed-arrow'&&finite(l.landedArrowLength)&&l.landedArrowLength>0&&l.landedArrowLength<=32768);
   const hasTarget=(l.reveal==='archer-release'||l.reveal==='explain-then-shoot'||l.reveal==='archer-draw'
     ||(l.reveal==='arrow-release'&&rectValid(l.bowBox))) && !!l.impact&&finite(l.impact.x)&&finite(l.impact.y);
-  return (l.style===undefined||l.style==='single-board') && (l.reveal===undefined||l.style==='single-board'&&(plainReveal||hasTarget))
+  const spriteValid=l.arrowSprite===undefined||l.arrowSprite==='figma-1-6'&&['archer-draw','arrow-release','landed-arrow'].includes(l.reveal??'');
+  return spriteValid && (l.style===undefined||l.style==='single-board') && (l.reveal===undefined||l.style==='single-board'&&(plainReveal||hasTarget))
     && [l.source,l.art,l.backing,l.panel,l.bounds].every(rectValid) && !!l.viewport &&
     [l.viewport.width,l.viewport.height].every(n=>finite(n)&&n>0&&n<=32768) && !!t &&
     [t.pad,t.titleSize,t.bodySize].every(n=>finite(n)&&n>0&&n<=200) && counts(t.title)&&counts(t.body);
