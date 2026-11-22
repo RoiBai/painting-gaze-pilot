@@ -69,7 +69,7 @@ function SegmentPlayback({window:period,session,trial,scene,condition}:{window:R
   },[scene.image]);
   useEffect(()=>{
     let active=true;
-    if(card&&art)void (period.exposure?.paper?prepareCard(card):loadCutout(art)).then(img=>{if(active)setCutout(img)}).catch(()=>{if(active)setError('该版讲解抠图加载失败。')});
+    if(card&&art)void (period.exposure?.paper?prepareCard(card,period.exposure.paper.layout.style!=='single-board'):loadCutout(art)).then(img=>{if(active)setCutout(img)}).catch(()=>{if(active)setError('该版讲解抠图加载失败。')});
     return ()=>{active=false};
   },[art,card,period.exposure]);
   useEffect(()=>{

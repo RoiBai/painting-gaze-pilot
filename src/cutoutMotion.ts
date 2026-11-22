@@ -17,7 +17,7 @@ const latticeSize=36;
  * carries a displacement in source-image units; displacements taper smoothly
  * to zero at the edges, keeping the painted robe attached to the moving leg.
  */
-const gestures:Record<string,readonly Gesture[]>={
+const archivedGestures:Record<string,readonly Gesture[]>={
   '0-9': [[.49,.22,.29,.29,.014,.011],[.54,.52,.36,.27,.002,-.007]], // seated emperor, nod and sleeve
   '1-5': [[.087,.49,.085,.22,.028,.004],[.91,.50,.09,.21,-.023,.003]], // the two hanging knots
   '3-17': [[.17,.15,.20,.24,-.012,.009],[.21,.73,.23,.23,.018,-.013],[.79,.72,.22,.24,-.018,.008],[.94,.26,.12,.20,.011,-.008]],
@@ -42,6 +42,26 @@ const gestures:Record<string,readonly Gesture[]>={
   '1-3': [[.22,.40,.24,.20,.027,-.012],[.69,.20,.20,.24,-.016,.013],[.65,.63,.30,.14,.014,.006]],
 };
 const kickerId='1-4';
+const pavilionId='1-5';
+const currentGestures:Record<string,readonly Gesture[]>={
+  // The guards shift their folded arms and shoulders. The centers lie inside
+  // the original figures; their feet, the emperor and the roof stay pinned.
+  [pavilionId]: [[.241,.568,.039,.060,.004,-.008],[.244,.624,.034,.039,-.005,-.003],
+    [.629,.559,.039,.060,-.004,.007],[.623,.606,.034,.045,.004,-.005]],
+  [kickerId]:archivedGestures[kickerId],
+  // A raised polo stick and the rider's extended arm, shoulder to stick tip.
+  '3-23': [[.69,.287,.19,.145,.002,-.016],[.91,.229,.26,.20,.004,-.045]],
+  // The mounted flag bearer lifts the flag with their raised hand.
+  '3-19': [[.39,.125,.35,.25,-.032,-.013],[.61,.264,.19,.17,-.012,-.011],
+    [.74,.348,.16,.17,-.006,-.010]],
+};
+
+function rigFor(card:Card,legacyMotion:boolean):string|undefined{
+  const id=nodeKey(card);
+  if(legacyMotion)return archivedGestures[id]?'archive:'+id:undefined;
+  return currentGestures[id]?id:undefined;
+}
+
 const ball=catalogue.cards.find(c=>c.node==='0:10')!;
 const cachedBits=new WeakMap<Shape,Uint8Array>();
 
@@ -62,7 +82,10 @@ function frameAt(elapsed:number,reduced:boolean){
   return slot<beat.length && beat[slot]!==0 ? slot : 0;
 }
 
-function sourcePoint(id:string,u:number,v:number,amplitude:number,aspect:number):SourcePoint{
+function sourcePoint(rig:string,u:number,v:number,amplitude:number,aspect:number):SourcePoint{
+  const archived=rig.startsWith('archive:');
+  const id=archived?rig.slice(8):rig;
+  const gestures=archived?archivedGestures:currentGestures;
   let x=u,y=v;
   for(const [cx,cy,rx,ry,dx,dy] of gestures[id]??[]){
     const nx=(u-cx)/rx,ny=(v-cy)/ry;
@@ -70,6 +93,19 @@ function sourcePoint(id:string,u:number,v:number,amplitude:number,aspect:number)
     if(influence<=0)continue;
     const amount=amplitude*influence*influence;
     x-=dx*amount;y-=dy*amount;
+  }
+  if(!archived&&id===pavilionId){
+    // The left and right cords hang at x=82 and x=668 on the 768 px export.
+    // Give the pendants opposite arcs. Keep the fixing at the beam stationary.
+    for(const [axis,sign] of [[82/768,1],[668/768,-1]]){
+      const yFromPin=v-.299;
+      if(yFromPin<=0||v>.592)continue;
+      const side=Math.min(1,Math.max(0,(.066-Math.abs(u-axis))/.028));
+      const bottom=Math.min(1,(.592-v)/.030);
+      const angle=sign*.098*amplitude*side*bottom;
+      x-=Math.sin(angle)*yFromPin/aspect;
+      y+=yFromPin*(1-Math.cos(angle));
+    }
   }
   if(id===kickerId){
     // The raised shoe extends to the right at 83% of the image height.
@@ -117,8 +153,9 @@ function mapPosePoint(id:string,frame:number,u:number,v:number,aspect:number){
 
 let ballImage:HTMLImageElement|undefined;
 let loadingBall:Promise<void>|undefined;
-export async function prepareCutoutMotion(card:Card):Promise<void>{
-  if(nodeKey(card)!==kickerId || ballImage)return;
+export async function prepareCutoutMotion(card:Card,legacyMotion=false):Promise<void>{
+  const rig=rigFor(card,legacyMotion);
+  if((rig!==kickerId && rig!=='archive:'+kickerId)||ballImage)return;
   if(!loadingBall){
     const img=new Image();img.src=publicAssetUrl(ball.image);
     loadingBall=img.decode().then(()=>{ballImage=img}).catch(error=>{loadingBall=undefined;throw error});
@@ -129,20 +166,21 @@ export async function prepareCutoutMotion(card:Card):Promise<void>{
 interface FrameBuilder {
   frame:number;canvas:HTMLCanvasElement;context:CanvasRenderingContext2D;grid:Grid;
   raster:ImageData;destination:Uint32Array;row:number;columns:Uint16Array;fractions:Float32Array;
+  gridYScale:number;gridYOffset:number;
 }
 interface PoseCache {
-  image:HTMLImageElement;pixels:Uint32Array;width:number;height:number;
+  image:HTMLImageElement;rig:string;source:ImageData;pixels:Uint32Array;width:number;height:number;
   poses:Map<number,HTMLCanvasElement>;building?:FrameBuilder;
 }
 let active:PoseCache|undefined;
-function bitmapFor(image:HTMLImageElement):PoseCache{
-  if(active?.image===image)return active;
+function bitmapFor(image:HTMLImageElement,rig:string):PoseCache{
+  if(active?.image===image&&active.rig===rig)return active;
   const read=document.createElement('canvas');
   read.width=image.naturalWidth;read.height=image.naturalHeight;
   const ctx=read.getContext('2d',{willReadFrequently:true})!;
   ctx.drawImage(image,0,0);
-  const {data}=ctx.getImageData(0,0,read.width,read.height);
-  active={image,pixels:new Uint32Array(data.buffer,data.byteOffset,data.byteLength/4),width:read.width,height:read.height,poses:new Map()};
+  const source=ctx.getImageData(0,0,read.width,read.height),data=source.data;
+  active={image,rig,source,pixels:new Uint32Array(data.buffer,data.byteOffset,data.byteLength/4),width:read.width,height:read.height,poses:new Map()};
   return active;
 }
 
@@ -150,15 +188,23 @@ function beginFrame(cache:PoseCache,id:string,frame:number):FrameBuilder{
   const {width,height}=cache;
   const grid=gridFor(id,frame,width/height);
   const canvas=document.createElement('canvas');
-  canvas.width=Math.round(width*(1+margin*2));canvas.height=Math.round(height*(1+margin*2));
+  // For current materials, keep the unwarped pixels on their original texel
+  // centers, even when padding rounds to a different fraction on each axis.
+  const legacy=id.startsWith('archive:');
+  const padX=Math.floor(width*margin),padY=Math.floor(height*margin);
+  canvas.width=legacy?Math.round(width*(1+margin*2)):width+2*padX;
+  canvas.height=legacy?Math.round(height*(1+margin*2)):height+2*padY;
+  const gridXScale=latticeSize/(legacy?canvas.width:width*(1+margin*2));
+  const gridYScale=latticeSize/(legacy?canvas.height:height*(1+margin*2));
+  const gridXOffset=legacy?0:width*margin-padX,gridYOffset=legacy?0:height*margin-padY;
   const context=canvas.getContext('2d')!;
   const raster=context.createImageData(canvas.width,canvas.height);
   const columns=new Uint16Array(canvas.width),fractions=new Float32Array(canvas.width);
   for(let x=0;x<canvas.width;x++){
-    const u=(x+.5)*latticeSize/canvas.width;
+    const u=(x+.5+gridXOffset)*gridXScale;
     columns[x]=Math.floor(u);fractions[x]=u-columns[x];
   }
-  return {frame,canvas,context,raster,grid,columns,fractions,row:0,destination:new Uint32Array(raster.data.buffer)};
+  return {frame,canvas,context,raster,grid,columns,fractions,gridYScale,gridYOffset,row:0,destination:new Uint32Array(raster.data.buffer)};
 }
 
 /** Inverse rasterization keeps the robe continuous at the joint. Store straight-alpha source pixels. */
@@ -167,7 +213,7 @@ function paintRows(cache:PoseCache,builder:FrameBuilder,count:number){
   const {grid,canvas,columns,fractions,destination}=builder;
   const end=Math.min(canvas.height,builder.row+count);
   for(let y=builder.row;y<end;y++){
-    const v=(y+.5)*latticeSize/canvas.height,iy=Math.floor(v),dy=v-iy,row=iy*(latticeSize+1);
+    const v=(y+.5+builder.gridYOffset)*builder.gridYScale,iy=Math.floor(v),dy=v-iy,row=iy*(latticeSize+1);
     for(let x=0;x<canvas.width;x++){
       const anchor=row+columns[x],dx=fractions[x];
       const sx=Math.floor(interpolate(grid.x,anchor,dx,dy)*width),sy=Math.floor(interpolate(grid.y,anchor,dx,dy)*height);
@@ -182,9 +228,10 @@ function paintRows(cache:PoseCache,builder:FrameBuilder,count:number){
 }
 
 let warmingImage:HTMLImageElement|undefined;
+let warmingRig:string|undefined;
 function warmPoses(image:HTMLImageElement,id:string){
-  if(warmingImage===image)return;
-  warmingImage=image;
+  if(warmingImage===image&&warmingRig===id)return;
+  warmingImage=image;warmingRig=id;
   // Use the introduction to prepare the nine poses a few rows at a time so that
   // camera callbacks can run between batches. Only the current card retains bitmaps.
   const schedule=()=>{
@@ -192,8 +239,8 @@ function warmPoses(image:HTMLImageElement,id:string){
     else window.setTimeout(()=>work(),8);
   };
   function work(deadline?:IdleDeadline){
-    if(warmingImage!==image)return;
-    const start=performance.now(),cache=bitmapFor(image);
+    if(warmingImage!==image||warmingRig!==id)return;
+    const start=performance.now(),cache=bitmapFor(image,id);
     do{
       const frame=beat.findIndex((value,index)=>value!==0 && !cache.poses.has(index));
       if(frame===-1)return;
@@ -205,8 +252,16 @@ function warmPoses(image:HTMLImageElement,id:string){
   schedule();
 }
 function paintedFrame(image:HTMLImageElement,id:string,frame:number){
-  const cache=bitmapFor(image),previous=cache.poses.get(frame);
+  const cache=bitmapFor(image,id),previous=cache.poses.get(frame);
   if(previous)return previous;
+  if(frame===0){
+    const x=Math.floor(cache.width*margin),y=Math.floor(cache.height*margin);
+    const still=document.createElement('canvas');
+    still.width=cache.width+2*x;still.height=cache.height+2*y;
+    still.getContext('2d')!.putImageData(cache.source,x,y);
+    cache.poses.set(0,still);
+    return still;
+  }
   // Seeking straight to a pose in a researcher replay must draw it immediately.
   const builder=cache.building?.frame===frame?cache.building:beginFrame(cache,id,frame);
   paintRows(cache,builder,builder.canvas.height-builder.row);
@@ -220,26 +275,33 @@ function kickBallBox(box:CardRect,frame:number):CardRect{
   return {left:box.left+box.width*(.925+.076*lift),top:box.top+box.height*(.817-.106*lift)-height,width,height};
 }
 
-export function hitCollageSubject(card:Card,box:CardRect,x:number,y:number,elapsedMs:number,reducedMotion:boolean):boolean{
+export function hitCollageSubject(card:Card,box:CardRect,x:number,y:number,elapsedMs:number,reducedMotion:boolean,legacyMotion=false):boolean{
   const art:CutoutArt|undefined=card.art;
   if(!art?.shape)return false;
-  const id=nodeKey(card),frame=frameAt(elapsedMs,reducedMotion);
-  if(id===kickerId){
+  const rig=rigFor(card,legacyMotion),frame=rig?frameAt(elapsedMs,reducedMotion):0;
+  if(nodeKey(card)===kickerId){
     const b=kickBallBox(box,frame);
     if(shapeContains(ball.shape,(x-b.left)/b.width,(y-b.top)/b.height))return true;
   }
-  const q=mapPosePoint(id,frame,(x-box.left)/box.width,(y-box.top)/box.height,art.shape.width/art.shape.height);
+  const q=mapPosePoint(rig??'',frame,(x-box.left)/box.width,(y-box.top)/box.height,art.shape.width/art.shape.height);
   return shapeContains(art.shape,q.x,q.y);
 }
 
-export function drawCollageSubject(ctx:CanvasRenderingContext2D,card:Card,image:HTMLImageElement,box:CardRect,elapsedMs:number,reducedMotion:boolean){
-  const id=nodeKey(card),frame=frameAt(elapsedMs,reducedMotion);
-  if(!reducedMotion&&gestures[id])warmPoses(image,id);
-  if(frame&&gestures[id]){
-    const pose=paintedFrame(image,id,frame);
-    ctx.drawImage(pose,box.left-box.width*margin,box.top-box.height*margin,box.width*(1+margin*2),box.height*(1+margin*2));
+export function drawCollageSubject(ctx:CanvasRenderingContext2D,card:Card,image:HTMLImageElement,box:CardRect,elapsedMs:number,reducedMotion:boolean,legacyMotion=false){
+  const rig=rigFor(card,legacyMotion),frame=rig?frameAt(elapsedMs,reducedMotion):0;
+  if(!reducedMotion&&rig)warmPoses(image,rig);
+  // Keep the pavilion on the same raster grid in both the rest and moving
+  // frames, so the architecture remains bit-identical through a gesture.
+  if(rig&&(frame||rig===pavilionId)){
+    const pose=paintedFrame(image,rig,frame);
+    if(legacyMotion){
+      ctx.drawImage(pose,box.left-box.width*margin,box.top-box.height*margin,box.width*(1+margin*2),box.height*(1+margin*2));
+    }else{
+      const w=box.width/image.naturalWidth,h=box.height/image.naturalHeight;
+      ctx.drawImage(pose,box.left-w*Math.floor(image.naturalWidth*margin),box.top-h*Math.floor(image.naturalHeight*margin),pose.width*w,pose.height*h);
+    }
   }else ctx.drawImage(image,box.left,box.top,box.width,box.height);
-  if(id===kickerId&&ballImage){
+  if(nodeKey(card)===kickerId&&ballImage){
     const b=kickBallBox(box,frame);
     ctx.drawImage(ballImage,b.left,b.top,b.width,b.height);
   }

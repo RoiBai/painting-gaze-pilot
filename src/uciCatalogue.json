@@ -98,8 +98,8 @@
         ]
       ],
       "image": "/materials/uci/figma-3-17.webp",
-      "board": "#505452",
-      "glow": "#a49c7f",
+      "board": "#4f654a",
+      "glow": "#67a85b",
       "rect": [
         0.45214,
         0.32548,
@@ -158,8 +158,8 @@
         ]
       ],
       "image": "/materials/uci/figma-1-4.webp",
-      "board": "#4d4c48",
-      "glow": "#a29779",
+      "board": "#434646",
+      "glow": "#909894",
       "rect": [
         0.53857,
         0.61242,
@@ -440,8 +440,8 @@
         ]
       ],
       "image": "/materials/uci/figma-0-3.webp",
-      "board": "#ae874d",
-      "glow": "#d5b67c",
+      "board": "#8fa96a",
+      "glow": "#ddc578",
       "rect": [
         0.73143,
         0.13131,

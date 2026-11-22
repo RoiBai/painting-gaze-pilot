@@ -19,8 +19,21 @@ describe('paper illustration layout',()=>{
           const a=p.aois.find(a=>a.id===c.aoiIds[0])!;
           const l=makePaperGuide(measure,c,g,a);
           expect(validPaperGuideLayout(l),c.title).toBe(true);
-          expect(l.source.width,c.title).toBeGreaterThanOrEqual(a.rect[2]*g.width-1e-5);
-          expect(l.source.height,c.title).toBeGreaterThanOrEqual(a.rect[3]*g.height-1e-5);
+          // The acquisition region around the thin arrow has generous tolerance.
+          // Its takeoff point and size are registered to the actual painted shaft.
+          if(c.id==='archery-figma-1-6'){
+            expect(l.source.left).toBeCloseTo(g.left+4120*g.scale);
+            expect(l.source.width).toBeCloseTo(156*g.scale);
+            expect(l.art.left).toBeCloseTo(g.left+1631*g.scale);
+            expect(l.art.top+l.art.height/2).toBeCloseTo(g.top+915*g.scale);
+            expect(paperFrame(l,1510,10000).backingAlpha).toBe(0);
+            expect(paperFrame(l,1950,10000).textAlpha).toBe(0);
+            expect(paperFrame(l,2700,10000).textAlpha).toBe(1);
+            expect(paperFrame(l,0,10000,true).backingAlpha).toBe(1);
+          }else{
+            expect(l.source.width,c.title).toBeGreaterThanOrEqual(a.rect[2]*g.width-1e-5);
+            expect(l.source.height,c.title).toBeGreaterThanOrEqual(a.rect[3]*g.height-1e-5);
+          }
           expect(l.art.width,c.title).toBeGreaterThanOrEqual(a.rect[2]*g.width-1e-5);
           expect(l.art.height,c.title).toBeGreaterThanOrEqual(a.rect[3]*g.height-1e-5);
           expect(l.art.width/l.art.height).toBeCloseTo(c.art!.shape!.width/c.art!.shape!.height);
@@ -37,7 +50,7 @@ describe('paper illustration layout',()=>{
       }
     });
   }
-  it('lights the original, moves the whole group onto its mount, unfolds the text, then releases the scene',()=>{
+  it('lights the original, brings up the board and type, then releases the scene',()=>{
     const p=pilotConfig.paintings[0],g=geometry(p,1440,900);
     const card=p.cards.find(c=>c.id.endsWith('3-17'))!,area=p.aois.find(a=>a.id===card.aoiIds[0])!;
     const l=makePaperGuide(measure,card,g,area);
@@ -54,5 +67,26 @@ describe('paper illustration layout',()=>{
     expect(hitPaperGuide(l.backing.left+5,l.backing.top+5,card,l,5000,10000)).toBe(true);
     expect(hitPaperGuide(l.backing.left+5,l.backing.top+5,card,l,10000,10000)).toBe(false);
     expect(paperFrame(l,0,10000,true).subject.width).toBeCloseTo(l.art.width);
+    expect(paperFrame(l,9999,10000,true).alpha).toBe(1);
+    expect(paperFrame(l,10000,10000,true).alpha).toBe(0);
+  });
+  it('registers both the transparent gap between the groups and the copy to one pigment board',()=>{
+    const p=pilotConfig.paintings[0],g=geometry(p,1440,900),card=p.cards[2];
+    const area=p.aois.find(a=>a.id===card.aoiIds[0])!;
+    const l=makePaperGuide(measure,card,g,area);
+    expect(l.style).toBe('single-board');
+    expect(l.backing.left).toBeGreaterThan(l.art.left);
+    expect(l.backing.left).toBeLessThan(l.art.left+.1*l.art.width);
+    expect(l.backing.left+l.backing.width).toBe(l.panel.left+l.panel.width);
+    for(const box of [l.art,l.panel]){
+      expect(hitPaperGuide(box.left+box.width/2,box.top+box.height/2,card,l,5000,10000)).toBe(true);
+    }
+    // The transparent upper left corner of the protruding cutout remains painting.
+    expect(hitPaperGuide(l.art.left+1,l.art.top+1,card,l,5000,10000)).toBe(false);
+    const legacy=makePaperGuide(measure,card,g,area,'legacy');
+    expect(legacy.style).toBeUndefined();
+    expect(legacy.backing.left).toBeLessThan(legacy.art.left);
+    expect(legacy.backing.left+legacy.backing.width).toBeLessThan(legacy.panel.left+legacy.panel.width);
+    expect(paperFrame(legacy,9999,10000,true).alpha).toBeLessThan(.1);
   });
 });

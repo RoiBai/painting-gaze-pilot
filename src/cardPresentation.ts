@@ -2,7 +2,12 @@ import {hitGuide,type GuideCard} from './cutoutCard';
 import {hitPaperGuide} from './paperGuide';
 import type {CardExposure} from './types';
 
-export const PAPER_MATERIAL='ming-uci-collage-v2';
+export const LEGACY_PAPER_MATERIAL='ming-uci-collage-v2';
+export const PAPER_MATERIAL='ming-uci-collage-v3';
+
+export function hasPaperLayout(version:string){
+  return version===PAPER_MATERIAL || version===LEGACY_PAPER_MATERIAL;
+}
 
 // Only the entrance and exit require smooth motion. Use the same frame clock in
 // the experiment, hit testing, and replay, leaving time for webcam inference.

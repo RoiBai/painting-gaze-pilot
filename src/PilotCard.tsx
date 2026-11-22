@@ -1,6 +1,6 @@
 import {useLayoutEffect,useRef,useState} from 'react';
 import {makePaperGuide,drawPaperGuide} from './paperGuide';
-import {PAPER_MATERIAL,paperTime} from './cardPresentation';
+import {hasPaperLayout,LEGACY_PAPER_MATERIAL,paperTime} from './cardPresentation';
 import {prepareCard} from './IllustratedStage';
 import type {StudyEngine} from './engine';
 import type {Painting,CardRect} from './types';
@@ -8,7 +8,7 @@ import {animatedRect,cardPosition,drawCutout,entranceDuration,entranceRect,loadC
 
 interface Props {engine:StudyEngine;card:Painting['cards'][number];painting:Painting}
 export function PilotCard(props:Props){
-  if(props.card.art&&props.painting.materialVersion===PAPER_MATERIAL)return <PaperCard {...props}/>;
+  if(props.card.art&&hasPaperLayout(props.painting.materialVersion))return <PaperCard {...props}/>;
   return props.card.art?<ArtCard {...props}/>:<TextCard {...props}/>;
 }
 function PaperCard({engine,card,painting}:Props){
@@ -19,12 +19,13 @@ function PaperCard({engine,card,painting}:Props){
     const aoi=painting.aois.find(a=>card.aoiIds.includes(a.id));
     if(!el||!article||!ctx||!geometry||!aoi)return;
     let active=true,frame=0;
-    void prepareCard(card).then(image=>{
+    const legacy=painting.materialVersion===LEGACY_PAPER_MATERIAL;
+    void prepareCard(card,legacy).then(image=>{
       if(!active)return;
       const {viewportWidth:w,viewportHeight:h,dpr}=geometry;
       el.width=Math.round(w*dpr);el.height=Math.round(h*dpr);
       ctx.setTransform(el.width/w,0,0,el.height/h,0,0);
-      const layout=makePaperGuide(ctx,card,geometry,aoi);
+      const layout=makePaperGuide(ctx,card,geometry,aoi,legacy?'legacy':undefined);
       for(const [key,value] of Object.entries(layout.bounds))article.style.setProperty(key,value+'px');
       const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
       const exposure=engine.cardShown(layout.bounds,card.id,undefined,undefined,{layout,reducedMotion});

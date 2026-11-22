@@ -101,3 +101,33 @@ test('P00 links start on the requested detail and ignore details belonging to ot
   await expect(player).toBeVisible();
   await expect(player.getByRole('combobox',{name:/^讲解部位/})).toHaveValue(pilotConfig.paintings[0].cards[0].id);
 });
+
+test('the six cuju cards use the selected boards and only animate the pavilion detail and the kick',async({page})=>{
+  const fixed=new Date('2026-11-23T08:00:00Z');
+  await page.clock.install({time:fixed});
+  await page.clock.pauseAt(new Date(fixed.getTime()+1000));
+  const root=page.locator('main.layout-playback');
+  for(const card of pilotConfig.paintings[0].cards){
+    await page.goto('/?participant=P00&preview=layout&scene=ming-xingle-cuju&card='+card.id);
+    await expect(root).toHaveAttribute('data-card',card.id);
+    const canvas=root.locator('canvas');
+    await page.clock.runFor(2010);
+    // The entrance has finished. The same exact pigment should run behind the
+    // illustration and the text, including the large gaps in the group portrait.
+    const score=await canvas.evaluate((el,board)=>{
+      const canvas=el as HTMLCanvasElement,ctx=canvas.getContext('2d')!;
+      const data=ctx.getImageData(0,0,canvas.width,canvas.height).data;
+      let pigment=0;
+      for(let i=0;i<data.length;i+=4){
+        if(data[i]===board[0]&&data[i+1]===board[1]&&data[i+2]===board[2]&&data[i+3]===255)pigment++;
+      }
+      return pigment/(canvas.width*canvas.height);
+    },[1,3,5].map(i=>parseInt(card.art!.board.slice(i,i+2),16)));
+    expect(score,card.title).toBeGreaterThan(.015);
+    const before=await canvas.evaluate(el=>(el as HTMLCanvasElement).toDataURL());
+    await page.clock.runFor(1000);
+    const after=await canvas.evaluate(el=>(el as HTMLCanvasElement).toDataURL());
+    const shouldMove=['cuju-figma-1-5','cuju-figma-1-4'].includes(card.id);
+    expect(before!==after,card.title).toBe(shouldMove);
+  }
+});
