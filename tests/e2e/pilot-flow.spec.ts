@@ -2,7 +2,7 @@ import {expect,test,type Page} from '@playwright/test';
 import {readFile} from 'node:fs/promises';
 import {strFromU8,unzipSync} from 'fflate';
 import {pilotConfig} from '../../src/pilotMaterials';
-import {hitGuide} from '../../src/cutoutCard';
+import {cardHitAt} from '../../src/cardPresentation';
 import {sceneDurationSeconds} from '../../src/pilotProtocol';
 import type {Session,StudyConfig} from '../../src/types';
 import {consentAndStart,csvRecords,storedSessions} from './helpers';
@@ -197,7 +197,9 @@ test('P01 completes all three conditions and downloads their linked predictions,
     for(const sample of samples){
       const x=Number(sample.viewportX),y=Number(sample.viewportY),t=Number(sample.callbackTimeMs);
       const material=session.config.paintings.find(p=>p.paintingId===card.paintingId)!.cards.find(c=>c.id===card.cardId)!;
-      const hit=hitGuide(x,y,{left:Number(card.viewportLeft),top:Number(card.viewportTop),width:Number(card.viewportWidth),height:Number(card.viewportHeight)},t-Number(card.shownMs),Number(card.entranceMs),material.art,card.entranceRect?JSON.parse(card.entranceRect):undefined);
+      const recorded=session.cardExposures!.find(e=>e.exposureId===card.exposureId)!;
+      expect(JSON.parse(card.paperPresentation)).toEqual(recorded.paper);
+      const hit=cardHitAt(x,y,recorded,t,material);
       expect(sample.onCard).toBe(String(hit));
       expect(sample.condition).toBe(card.condition);
       expect(t>=Number(card.shownMs)&&t<=Number(card.hiddenMs)).toBe(true);

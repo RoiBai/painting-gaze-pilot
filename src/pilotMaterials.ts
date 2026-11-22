@@ -1,3 +1,4 @@
+import {PAPER_MATERIAL} from './cardPresentation';
 import type {AOI,Painting,StudyConfig} from './types';
 import {defaultConfig} from './study';
 import {pilotInterviewQuestions,pilotSceneQuestions,UCI_RECALL_VERSION,uciRecallQuestionsByScene} from './pilotQuestions';
@@ -28,7 +29,7 @@ function makePainting({id,title,left,width,links}:Scene):Painting{
   const entries=catalogue.cards.filter(entry=>entry.scene===id);
   return {
     paintingId:'ming-xingle-'+id,title:'《明宣宗行乐图》局部 · '+title,
-    materialVersion:'ming-uci-cutouts-v1',
+    materialVersion:PAPER_MATERIAL,
     source:'故宫博物院馆藏故00006247。原画裁切记录见 /materials/provenance-pilot-v1.json。讲解摘自研究组文档「'+catalogue.tab+'」。',
     image:'/materials/ming-xingle-'+id+'-pilot-v1.jpg',
     crop:{sourceImage:'/materials/ming-xingle-full.jpg',sourceWidth:36088,sourceHeight:1966,sourceSha256,rect:[left,0,width,1966]},
@@ -46,7 +47,7 @@ function makePainting({id,title,left,width,links}:Scene):Painting{
 }
 
 export const pilotConfig:StudyConfig={
-  ...defaultConfig,version:'pilot-three-uci-3.0.0',pilotSurveyVersion:UCI_RECALL_VERSION,
+  ...defaultConfig,version:'pilot-three-uci-3.1.0',pilotSurveyVersion:UCI_RECALL_VERSION,
   mode:'preview',pilotProtocol:'three-condition-v1',participantPlan:undefined,questionnaireVersion:undefined,
   paintings:scenes.map(makePainting),
   copy:{

@@ -1,4 +1,5 @@
-import {hitGuide} from './cutoutCard';
+import {cardHitAt} from './cardPresentation';
+import {validPaperGuideLayout} from './paperGuide';
 import {unzipSync,strFromU8} from 'fflate';
 import type {Session} from './types';
 import {buildPilotPlan,PILOT_VERSION} from './pilotProtocol';
@@ -109,10 +110,16 @@ function checkPilot(session:Session):void {
       || (exposure.entranceMs!==undefined && (!Number.isFinite(exposure.entranceMs)||exposure.entranceMs<0||exposure.entranceMs>2000))
       || !exposure.rect || ![exposure.rect.left,exposure.rect.top,exposure.rect.width,exposure.rect.height].every(Number.isFinite)
       || exposure.rect.width<=0 || exposure.rect.height<=0) throw Error('卡片曝光的试次、时段或显示边界无效。');
+    if(exposure.paper!==undefined){
+      const p=exposure.paper;
+      if(!p||!validPaperGuideLayout(p.layout)||!Number.isFinite(p.durationMs)||p.durationMs<=0||p.durationMs>3600000||
+        !Number.isFinite(p.offsetMs)||p.offsetMs<0||p.offsetMs>p.durationMs||typeof p.reducedMotion!=='boolean'||
+        !painting?.cards.find(c=>c.id===exposure.cardId)?.art)throw Error('剪贴画卡片的版面或动画时间无效。');
+    }
     previousEnd=exposure.hiddenMs??Infinity;
     byId.set(exposure.exposureId,exposure);
   }
-  const artByCard=new Map(session.config.paintings.flatMap(p=>p.cards.map(c=>[c.id,c.art] as const)));
+  const cardsById=new Map(session.config.paintings.flatMap(p=>p.cards.map(c=>[c.id,c] as const)));
   for (const sample of session.samples) {
     if (sample.phase!=='free_view') continue;
     const trial=pilot.plan.find(t=>t.paintingId===sample.paintingId);
@@ -129,7 +136,7 @@ function checkPilot(session:Session):void {
       throw Error('看画回调所关联的卡片曝光无效。');
     }
     const expectedHit=sample.paused||!sample.predictionAvailable||sample.viewportX===null||sample.viewportY===null
-      ?null:hitGuide(sample.viewportX,sample.viewportY,exposure.rect,sample.callbackTimeMs-exposure.shownMs,exposure.entranceMs,artByCard.get(exposure.cardId),exposure.entranceRect);
+      ?null:cardHitAt(sample.viewportX,sample.viewportY,exposure,sample.callbackTimeMs,cardsById.get(exposure.cardId)!);
     if (sample.onCard!==expectedHit) throw Error('卡片命中与原始坐标、显示边界不一致。');
   }
 }

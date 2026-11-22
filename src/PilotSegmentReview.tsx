@@ -1,4 +1,5 @@
 import {loadCutout} from './cutoutCard';
+import {prepareCard} from './IllustratedStage';
 import {useEffect,useMemo,useRef,useState} from 'react';
 import {publicAssetUrl} from './assets';
 import {canvasPNG,downloadFile,exportPrefix,isPracticeSession,toCSV} from './export';
@@ -47,7 +48,8 @@ function SegmentPlayback({window:period,session,trial,scene,condition}:{window:R
   const canvas=useRef<HTMLCanvasElement>(null);
   const [image,setImage]=useState<HTMLImageElement|null>(null);
   const [cutout,setCutout]=useState<HTMLImageElement|null>(null);
-  const art=scene.cards.find(c=>c.id===period.exposure?.cardId)?.art;
+  const card=scene.cards.find(c=>c.id===period.exposure?.cardId);
+  const art=card?.art;
   const [error,setError]=useState('');
   const [position,setPosition]=useState<number|null>(null);
   const [playing,setPlaying]=useState(false);
@@ -67,9 +69,9 @@ function SegmentPlayback({window:period,session,trial,scene,condition}:{window:R
   },[scene.image]);
   useEffect(()=>{
     let active=true;
-    if(art)void loadCutout(art).then(img=>{if(active)setCutout(img)}).catch(()=>{if(active)setError('该版讲解抠图加载失败。')});
+    if(card&&art)void (period.exposure?.paper?prepareCard(card):loadCutout(art)).then(img=>{if(active)setCutout(img)}).catch(()=>{if(active)setError('该版讲解抠图加载失败。')});
     return ()=>{active=false};
-  },[art]);
+  },[art,card,period.exposure]);
   useEffect(()=>{
     if(image&&(!art||cutout)&&canvas.current)drawSegment(canvas.current,image,scene,period,points,period.start+current,position!==null,cutout);
   },[image,scene,period,points,current,position,cutout,art]);
@@ -129,7 +131,7 @@ function SegmentPlayback({window:period,session,trial,scene,condition}:{window:R
       </select></label>
     </div>
     <label>时段进度　{sec(current)} / {sec(duration)} 秒<input type="range" min={0} max={duration} step="any" value={current} aria-label="时段回放进度" onChange={e=>{setPlaying(false);setPosition(Number(e.target.value))}}/></label>
-    <p className="muted">按当时的屏幕位置重建原画和卡片。连续有效样本先落在卡片、随后落在画面，就计一次卡片到画面的转换，途中允许经过空白。缺失、暂停、移出视口或回调间隔超过 150 毫秒会断线。</p>
+    <p className="muted">按当时的屏幕位置重建原画和卡片。{period.exposure?.paper&&'整段轨迹以这段曝光的中间帧为底图，播放时可看到实际动效。'}连续有效样本先落在卡片、随后落在画面，就计一次卡片到画面的转换，途中允许经过空白。缺失、暂停、移出视口或回调间隔超过 150 毫秒会断线。</p>
     <div className="segment-controls"><button disabled={!image||!period.geometry||Boolean(art&&!cutout)} onClick={()=>void downloadPNG()}>下载本时段轨迹 PNG</button><button disabled={!points.length} onClick={downloadCSV}>下载本时段样本 CSV</button></div>
     {error&&<p role="alert">{error}</p>}
   </>;

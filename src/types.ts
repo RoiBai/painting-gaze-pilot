@@ -1,3 +1,4 @@
+import type {PaperGuideLayout} from './paperGuide';
 export type Phase = 'consent'|'camera'|'calibration'|'validation'|'quality'|'drift'|'drift_result'|'loading_image'|'free_view'|'familiarity'|'pre'|'cards'|'post'|'interview'|'completed'|'interrupted';
 export interface AOI {id:string;label:string;rect:[number,number,number,number];hitRects?:AOI['rect'][]}
 export interface Question {ratingScale?:{min:number;max:number;step:number;lowLabel:string;highLabel:string};id:string;prompt:string;scoring:string;type?:'text'|'multi-select';description?:string;optional?:boolean;options?:{id:string;label:string;exclusive?:boolean}[];otherOptionId?:string;analysisRole?:'spontaneous'|'prompted'|'classification'|'card-feedback';confidence?:boolean;allowUnknown?:boolean}
@@ -57,6 +58,7 @@ export interface CardDecision {
   candidateCardIds:string[];
 }
 export interface CardExposure extends CardDecision {
+  paper?:{layout:PaperGuideLayout;offsetMs:number;durationMs:number;reducedMotion:boolean};
   entranceMs?:number;
   entranceRect?:CardRect;
   exposureId:string;

@@ -1,3 +1,5 @@
+import {drawPaperGuide} from './paperGuide';
+import {paperTime} from './cardPresentation';
 import {drawCutout} from './cutoutCard';
 import type {Painting} from './types';
 import type {GazeRegion,ReviewWindow,SegmentPoint} from './pilotSegments';
@@ -35,7 +37,12 @@ export function drawSegment(canvas:HTMLCanvasElement,image:HTMLImageElement,pain
   if(window.exposure){
     const {left,top,width:cardWidth,height:cardHeight}=window.exposure.rect;
     const card=painting.cards.find(c=>c.id===window.exposure!.cardId);
-    if(card?.art&&cutout){
+    const exposure=window.exposure,paper=exposure.paper;
+    if(card&&cutout&&paper){
+      // Keep the card visible under the full trace. Playback follows its recorded fade-out.
+      const elapsed=paper.offsetMs+(live?until-window.exposure.shownMs:(window.start+window.end)/2-window.exposure.shownMs);
+      drawPaperGuide(ctx,card,cutout,paper.layout,paperTime(elapsed,paper.durationMs),paper.durationMs,paper.reducedMotion);
+    }else if(card?.art&&cutout){
       drawCutout(ctx,card,cutout,window.exposure.rect,until-window.exposure.shownMs,window.exposure.entranceMs??0,window.exposure.entranceRect);
     }else{
     ctx.save();

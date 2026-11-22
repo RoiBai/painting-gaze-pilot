@@ -1,3 +1,4 @@
+import {PAPER_MATERIAL} from './cardPresentation';
 import {UCI_RECALL_VERSION} from './pilotQuestions';
 import {useState} from 'react';
 import {CONDITION_LABELS, pilotRatings} from './cardMetrics';
@@ -34,7 +35,8 @@ export default function PilotGroupRatings(){
             continue;
           }
           const id=session.participantId;
-          const version=session.config.pilotSurveyVersion??session.pilot.version;
+          const survey=session.config.pilotSurveyVersion??session.pilot.version;
+          const version=survey===UCI_RECALL_VERSION?survey+' · '+session.config.paintings[0].materialVersion:survey;
           const key=version+'/'+id;
           if(conflicts.has(key))continue;
           const previous=unique.get(key);
@@ -49,7 +51,7 @@ export default function PilotGroupRatings(){
       }
       const collected=[...unique.values()].sort((a,b)=>a.id.localeCompare(b.id));
       setEntries(collected);
-      chooseVersion(collected.find(e=>e.version===UCI_RECALL_VERSION)?.version??collected[0]?.version??'');
+      chooseVersion(collected.find(e=>e.version===UCI_RECALL_VERSION+' · '+PAPER_MATERIAL)?.version??collected[0]?.version??'');
       setMessages(notices);
     }finally{setBusy(false)}
   }
@@ -64,7 +66,7 @@ export default function PilotGroupRatings(){
     }}/></label>
     {busy&&<p role="status">正在读取本地评分…</p>}
     {messages.length>0&&<ul aria-label="未纳入的会话">{messages.map((m,i)=><li key={i}>{m}</li>)}</ul>}
-    {versions.length>1&&<label>比较的问卷版本<select value={chosenVersion} onChange={e=>chooseVersion(e.target.value)}>{versions.map(v=><option key={v}>{v}</option>)}</select></label>}
+    {versions.length>1&&<label>比较的材料与问卷版本<select value={chosenVersion} onChange={e=>chooseVersion(e.target.value)}>{versions.map(v=><option key={v}>{v}</option>)}</select></label>}
     {entries.length>0&&<>
       <div className="table-scroll"><table aria-label="每位参与者的三个条件评分">
         <thead><tr><th>参与者</th><th>指标</th>{conditions.map(c=><th key={c}>{CONDITION_LABELS[c]}</th>)}</tr></thead>

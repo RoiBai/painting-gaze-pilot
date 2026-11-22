@@ -1,12 +1,54 @@
 import {useLayoutEffect,useRef,useState} from 'react';
+import {makePaperGuide,drawPaperGuide} from './paperGuide';
+import {PAPER_MATERIAL,paperTime} from './cardPresentation';
+import {prepareCard} from './IllustratedStage';
 import type {StudyEngine} from './engine';
 import type {Painting,CardRect} from './types';
 import {animatedRect,cardPosition,drawCutout,entranceDuration,entranceRect,loadCutout} from './cutoutCard';
 
 interface Props {engine:StudyEngine;card:Painting['cards'][number];painting:Painting}
 export function PilotCard(props:Props){
+  if(props.card.art&&props.painting.materialVersion===PAPER_MATERIAL)return <PaperCard {...props}/>;
   return props.card.art?<ArtCard {...props}/>:<TextCard {...props}/>;
 }
+function PaperCard({engine,card,painting}:Props){
+  const wrapper=useRef<HTMLElement>(null),canvas=useRef<HTMLCanvasElement>(null);
+  const geometry=engine.geometry;
+  useLayoutEffect(()=>{
+    const el=canvas.current,article=wrapper.current,ctx=el?.getContext('2d');
+    const aoi=painting.aois.find(a=>card.aoiIds.includes(a.id));
+    if(!el||!article||!ctx||!geometry||!aoi)return;
+    let active=true,frame=0;
+    void prepareCard(card).then(image=>{
+      if(!active)return;
+      const {viewportWidth:w,viewportHeight:h,dpr}=geometry;
+      el.width=Math.round(w*dpr);el.height=Math.round(h*dpr);
+      ctx.setTransform(el.width/w,0,0,el.height/h,0,0);
+      const layout=makePaperGuide(ctx,card,geometry,aoi);
+      for(const [key,value] of Object.entries(layout.bounds))article.style.setProperty(key,value+'px');
+      const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const exposure=engine.cardShown(layout.bounds,card.id,undefined,undefined,{layout,reducedMotion});
+      if(!exposure?.paper)return;
+      const {offsetMs,durationMs}=exposure.paper;
+      let previous=-1;
+      function draw(){
+        const elapsed=paperTime(engine.exposureTime(exposure!)+offsetMs,durationMs);
+        if(elapsed!==previous){
+          ctx!.clearRect(0,0,w,h);
+          drawPaperGuide(ctx!,card,image,layout,elapsed,durationMs,reducedMotion);
+          previous=elapsed;
+        }
+        if(elapsed<durationMs&&!reducedMotion)frame=requestAnimationFrame(draw);
+      }
+      draw();
+    }).catch(()=>{if(active)engine.interrupt('illustrated_card_load_failure')});
+    return ()=>{active=false;cancelAnimationFrame(frame);engine.cardHidden(card.id)};
+  },[engine,card,geometry,painting]);
+  return <article ref={wrapper} className="pilot-card paper-guide" data-card={card.id}>
+    <canvas ref={canvas} aria-hidden="true"/><h2>{card.title}</h2><p>{card.text}</p>
+  </article>;
+}
+
 function ArtCard({engine,card,painting}:Props){
   const canvas=useRef<HTMLCanvasElement>(null);
   const [rect,setRect]=useState<CardRect>();

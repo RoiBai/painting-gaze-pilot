@@ -1,4 +1,5 @@
-import {hitGuide} from './cutoutCard';
+import {cardHitAt} from './cardPresentation';
+import type {PaperGuideLayout} from './paperGuide';
 import type {Session,StudyConfig,Phase,Geometry,ResponseRow,ValidationRow,BackgroundAnswers, ParticipantAssignment, CardDecision, CardExposure, CardRect, PilotMetadata, PilotTrial} from './types';
 import {WebGazerAdapter} from './webgazerAdapter';
 import {saveSession} from './storage';
@@ -27,6 +28,7 @@ export class StudyEngine {
  private slotChoices=new Map<number,CardDecision>();
  private visibleDecision:CardDecision|null=null;
  private visibleUntilActiveMs=0;
+ private visibleSinceActiveMs=0;
  private openExposure:CardExposure|null=null;
  private windowResetMs=0;
  private deck:string[]=[];
@@ -79,7 +81,7 @@ export class StudyEngine {
   const errors=validateConfig(copy);if(errors.length)throw Error(errors.join('\n'));
   const backgroundSnapshot=typeof background==='string'?undefined:freezeBackground(background);
   const sessionId=`${id}-${new Date().toISOString().replace(/[:.]/g,'-')}-${crypto.randomUUID().slice(0,8)}`;
-  this.session={schemaVersion:1,sessionId,participantId:id,startedUtc:new Date().toISOString(),endedUtc:null,timeOrigin:performance.timeOrigin,status:'active',phase:'consent',mode:copy.mode,dataSource:'webgazer-camera',config:copy,order:pilot?pilot.plan.map(trial=>trial.paintingId):orderForParticipant(id,copy),...(pilot?{pilot,cardExposures:[]}:{}),...(assignment?{assignment}:{}),artBackground:typeof background==='string'?background:'',...(backgroundSnapshot?{background:backgroundSnapshot}:{}),calibrationVersion:0,quality:'pending',qualityNotes:[],dependencies:{webgazer:'3.5.3',react:'18.3.1',app:copy.pilotSurveyVersion==='pilot2-uci-recall-v2'?'3.0.0':copy.pilotSurveyVersion?'2.1.1':pilot?'2.0.0':'1.5.0',browser:navigator.userAgent},geometries:[],timings:[],validationSummaries:[],heatmap:{width:1000,kernelPx:30,opacity:.65,weight:'one-per-sample',normalization:'per-image-max',colorScale:'blue-cyan-yellow-red-v1'},scanpath:{...defaultScanpath},samples:[],events:[],responses:[],validation:[]};
+  this.session={schemaVersion:1,sessionId,participantId:id,startedUtc:new Date().toISOString(),endedUtc:null,timeOrigin:performance.timeOrigin,status:'active',phase:'consent',mode:copy.mode,dataSource:'webgazer-camera',config:copy,order:pilot?pilot.plan.map(trial=>trial.paintingId):orderForParticipant(id,copy),...(pilot?{pilot,cardExposures:[]}:{}),...(assignment?{assignment}:{}),artBackground:typeof background==='string'?background:'',...(backgroundSnapshot?{background:backgroundSnapshot}:{}),calibrationVersion:0,quality:'pending',qualityNotes:[],dependencies:{webgazer:'3.5.3',react:'18.3.1',app:copy.pilotSurveyVersion==='pilot2-uci-recall-v2'?'3.1.0':copy.pilotSurveyVersion?'2.1.1':pilot?'2.0.0':'1.5.0',browser:navigator.userAgent},geometries:[],timings:[],validationSummaries:[],heatmap:{width:1000,kernelPx:30,opacity:.65,weight:'one-per-sample',normalization:'per-image-max',colorScale:'blue-cyan-yellow-red-v1'},scanpath:{...defaultScanpath},samples:[],events:[],responses:[],validation:[]};
   this.phase='consent';this.trialIndex=0;this.geometry=null;this.paused=false;this.requireCalibration=false;this.cardIndex=0;
   this.resetCardState();
   if(pilot)this.event('pilot_plan_assigned',{...pilot});
@@ -234,6 +236,7 @@ export class StudyEngine {
     samples:session.samples,trialId:timing.trialId,now,windowStart:Math.max(this.windowResetMs,now-withinSlot),qualityOK,rules});
   if(!choice || (beforeDeadline && choice.selectionSource!=='gaze'))return;
   this.slotChoices.set(slot,choice);
+  this.visibleSinceActiveMs=timing.activeMs;
   // Advance the end along with the onset so an early gaze trigger never buys
   // extra reading time. The remaining blank time is carried at the slot's end.
   this.visibleUntilActiveMs=(index+1)*slotLength-Math.max(0,deadline-withinSlot);
@@ -241,22 +244,27 @@ export class StudyEngine {
   this.event('card_selected',{...choice,condition,trialId:timing.trialId,activeMs:timing.activeMs,plannedEndActiveMs:this.visibleUntilActiveMs});
  }
  /** Called in a layout effect after the card has a measurable viewport rectangle. */
- cardShown(rect:CardRect,cardId?:string,entranceMs?:number,entranceRect?:CardRect){
+ cardShown(rect:CardRect,cardId?:string,entranceMs?:number,entranceRect?:CardRect,illustration?:{layout:PaperGuideLayout;reducedMotion:boolean}){
   const session=this.session;
   const card=this.activeCard;
   if(!session?.pilot||!this.geometry||!card||!this.visibleDecision||(cardId&&cardId!==card.id))return;
   if(![rect.left,rect.top,rect.width,rect.height].every(Number.isFinite)||rect.width<=0||rect.height<=0)return;
   const old=this.openExposure;
-  if(old && old.cardId===card.id && old.rect.left===rect.left && old.rect.top===rect.top && old.rect.width===rect.width && old.rect.height===rect.height)return;
+  if(old && old.cardId===card.id && old.rect.left===rect.left && old.rect.top===rect.top && old.rect.width===rect.width && old.rect.height===rect.height)return old;
   this.cardHidden();
   const now=this.clock();
-  const exposure:CardExposure={...structuredClone(this.visibleDecision),...(entranceMs===undefined?{}:{entranceMs,entranceRect}),exposureId:crypto.randomUUID(),trialId:this.currentTiming!.trialId,
+  const activeStartMs=this.currentTiming!.activeMs+Math.max(0,now-this.lastTick);
+  const durationMs=Math.max(1,this.visibleUntilActiveMs-this.visibleSinceActiveMs);
+  const paper=illustration?{...illustration,durationMs,offsetMs:Math.min(durationMs,Math.max(0,activeStartMs-this.visibleSinceActiveMs))}:undefined;
+  const exposure:CardExposure={...structuredClone(this.visibleDecision),...(paper?{paper}:{}),...(entranceMs===undefined?{}:{entranceMs,entranceRect}),exposureId:crypto.randomUUID(),trialId:this.currentTiming!.trialId,
     paintingId:this.painting!.paintingId,condition:this.trialCondition!,geometryVersion:this.geometry.version,calibrationVersion:session.calibrationVersion,
-    activeStartMs:this.currentTiming!.activeMs+Math.max(0,now-this.lastTick),shownMs:now,hiddenMs:null,
+    activeStartMs,shownMs:now,hiddenMs:null,
     rect:{left:rect.left,top:rect.top,width:rect.width,height:rect.height}};
   this.openExposure=exposure;session.cardExposures!.push(exposure);
   this.event('card_shown',{exposureId:exposure.exposureId,slot:exposure.slot,cardId:card.id,rect:exposure.rect,trialId:exposure.trialId});
+  return exposure;
  }
+ exposureTime(exposure:CardExposure){return this.clock()-exposure.shownMs}
  cardHidden(cardId?:string){
   const exposure=this.openExposure;
   if(!exposure||(cardId&&exposure.cardId!==cardId))return;
@@ -274,9 +282,10 @@ export class StudyEngine {
   const geometry=this.phase==='free_view'?this.geometry:null;
   const point=mapPoint(input.x,input.y,geometry);
   const exposure=this.openExposure;
+  const exposedCard=exposure?this.painting?.cards.find(c=>c.id===exposure.cardId):undefined;
   const pilotFields=this.session.pilot && this.phase==='free_view'?{
     condition:this.trialCondition,cardExposureId:exposure?.exposureId??null,cardId:exposure?.cardId??null,
-    onCard:!this.paused&&exposure&&predictionAvailable?hitGuide(input.x!,input.y!,exposure.rect,input.callbackTimeMs-exposure.shownMs,exposure.entranceMs,this.activeCard?.art,exposure.entranceRect):null,
+    onCard:!this.paused&&exposure&&exposedCard&&predictionAvailable?cardHitAt(input.x!,input.y!,exposure,input.callbackTimeMs,exposedCard):null,
     imageAoiId:!this.paused&&point.insideImage?singleAoi(point.imageNormX,point.imageNormY,this.painting!.aois,!!this.session.pilot!.selectionRules.maximumSelectionMs):null,
     trialActiveMs:this.currentTiming!.activeMs+(!this.paused?Math.max(0,input.callbackTimeMs-this.lastTick):0),
   }:{};

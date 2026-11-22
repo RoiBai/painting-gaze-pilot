@@ -25,8 +25,16 @@ export default function PilotLanding({config,initialId,onStart}:Props){
   const [single,setSingle]=useState(false);
   const [scene,setScene]=useState('ming-xingle-cuju');
   const [condition,setCondition]=useState<Condition>('gaze');
+  const [trackGaze,setTrackGaze]=useState(()=>!(initialId==='P00'&&new URLSearchParams(location.search).get('preview')==='setup'));
+  const [layoutOrder,setLayoutOrder]=useState<'sequential'|'random'>('sequential');
   const [showAll,setShowAll]=useState(false);
   const practice=id==='P00';
+  const layoutsOnly=practice&&!trackGaze;
+  function openLayout(){
+    const options=new URLSearchParams({participant:'P00',preview:'layout',order:layoutOrder});
+    if(single)options.set('scene',scene);
+    location.assign(publicAssetUrl('/')+'?'+options);
+  }
   const durations=config.paintings.map(p=>sceneDurationSeconds(p,config.durationSeconds));
   const selectedDuration=durations[config.paintings.findIndex(p=>p.paintingId===scene)];
   const timeSummary=durations.every(seconds=>seconds===durations[0])?`每景 ${durations[0]} 秒`:`共 ${durations.reduce((sum,s)=>sum+s,0)} 秒`;
@@ -46,7 +54,7 @@ export default function PilotLanding({config,initialId,onStart}:Props){
         <p><a href={publicAssetUrl('/')+'?study=legacy'}>打开早期 N 编号试测</a></p>
       </section>:<>
         <h1>观看《明宣宗行乐图》</h1>
-        <p className="lede">{practice&&single?`你将观看自选的一个场景，共 ${selectedDuration} 秒。`:`你将观看三个场景，${timeSummary}。`}请自然看画、阅读讲解，之后试着用自己的话介绍这个场景。</p>
+        {layoutsOnly?<p className="lede">选择场景和讲解方式，直接查看卡片布局与动效。</p>:<p className="lede">{practice&&single?`你将观看自选的一个场景，共 ${selectedDuration} 秒。`:`你将观看三个场景，${timeSummary}。`}请自然看画、阅读讲解，之后试着用自己的话介绍这个场景。</p>}
         <section className="panel"><label>匿名参与者编号<select aria-label="匿名参与者编号" disabled={Boolean(initialId)} value={id} onChange={e=>changeId(e.target.value)}>
           {initialId?<option value={initialId}>{initialId==='P00'?'P00 · 研究者试用':initialId}</option>:<>
             <option value="">请选择分配给你的编号</option>
@@ -54,19 +62,24 @@ export default function PilotLanding({config,initialId,onStart}:Props){
             <optgroup label="扩展招募">{pids.slice(6).map(pid=><option key={pid}>{pid}</option>)}</optgroup>
           </>}
         </select></label>
-        <p className="notice">{practice?'P00 的每次试用单独保存在本机，可以回看并下载完整 ZIP，正式研究统计会自动排除。':'请在电脑的 Chrome 普通窗口中打开。摄像头在本机估计视线。结束后请下载 ZIP 并自行交给研究者。'}</p>
+        {practice&&<label className="check"><input type="checkbox" checked={trackGaze} onChange={e=>setTrackGaze(e.target.checked)}/>记录眼动</label>}
+        <p className="notice">{layoutsOnly?'排版预览直接播放，只在当前页面运行。':practice?'P00 的每次试用单独保存在本机，可以回看并下载完整 ZIP，正式研究统计会自动排除。':'请在电脑的 Chrome 普通窗口中打开。摄像头在本机估计视线。结束后请下载 ZIP 并自行交给研究者。'}</p>
         {practice&&<fieldset className="practice-mode"><legend>P00 试用范围</legend>
           <label className="check"><input type="radio" name="practice-scope" checked={!single} onChange={()=>setSingle(false)}/>完整三景</label>
           <label className="check"><input type="radio" name="practice-scope" checked={single} onChange={()=>setSingle(true)}/>只试一景</label>
-          {single?<div className="grid two"><label>试用场景<select value={scene} onChange={e=>setScene(e.target.value)}>
+          {(single||layoutsOnly)?<div className="grid two">{single&&<label>试用场景<select value={scene} onChange={e=>setScene(e.target.value)}>
             {config.paintings.map(p=><option key={p.paintingId} value={p.paintingId}>{p.title.split(' · ').at(-1)}</option>)}
-          </select></label><label>讲解方式<select value={condition} onChange={e=>setCondition(e.target.value as Condition)}>
+          </select></label>}
+          {layoutsOnly?<label>讲解方式<select value={layoutOrder} onChange={e=>setLayoutOrder(e.target.value as typeof layoutOrder)}>
+            <option value="sequential">顺序讲解</option><option value="random">随机讲解</option>
+          </select></label>:<label>讲解方式<select value={condition} onChange={e=>setCondition(e.target.value as Condition)}>
             {Object.entries(pilotLabels).map(([value,title])=><option key={value} value={value}>{title}</option>)}
-          </select></label></div>:<p><strong>P00 观看顺序</strong>　{buildPilotPlan('P00').map(p=>(config.paintings.find(scene=>scene.paintingId===p.paintingId)?.title.split(' · ').at(-1)??p.paintingId)+'（'+pilotLabels[p.condition]+'）').join(' → ')}</p>}
+          </select></label>}</div>:<p><strong>P00 观看顺序</strong>　{buildPilotPlan('P00').map(p=>(config.paintings.find(scene=>scene.paintingId===p.paintingId)?.title.split(' · ').at(-1)??p.paintingId)+'（'+pilotLabels[p.condition]+'）').join(' → ')}</p>}
         </fieldset>}
+        {layoutsOnly?<div className="actions"><button className="primary" onClick={openLayout}>开始排版预览 →</button></div>:<>
         <BackgroundFields value={background} onChange={setBackground}/>
         <label className="check"><input aria-label="参与同意" type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)}/>{practice?'我同意此次试用在本机保存我的背景、回答和摄像头视线估计。':config.copy.consent}</label>
-        <div className="actions"><button className="primary" disabled={!id||!consent||!backgroundComplete(background)} onClick={()=>{if(id&&consent&&backgroundComplete(background))onStart(id,background,practice&&single?{paintingId:scene,condition}:undefined)}}>同意并进入摄像头准备 →</button></div>
+        <div className="actions"><button className="primary" disabled={!id||!consent||!backgroundComplete(background)} onClick={()=>{if(id&&consent&&backgroundComplete(background))onStart(id,background,practice&&single?{paintingId:scene,condition}:undefined)}}>同意并进入摄像头准备 →</button></div></>}
         </section>
       </>}
     </main>

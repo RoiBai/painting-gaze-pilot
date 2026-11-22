@@ -69,8 +69,8 @@ test('compares multiple local P archives by condition, with paired complete rati
   await expect(means.locator('tbody tr').nth(1).locator('td')).toHaveText(['0','—','—','—']);
   const legacy=archive('P01','previous-protocol',PILOT_SURVEY_VERSION);
   await input.setInputFiles([legacy,b]);
-  const selector=page.getByLabel('比较的问卷版本');
-  await expect(selector).toHaveValue(UCI_RECALL_VERSION);
+  const selector=page.getByLabel('比较的材料与问卷版本');
+  await expect(selector).toHaveValue(UCI_RECALL_VERSION+' · '+pilotConfig.paintings[0].materialVersion);
   await expect(personal.locator('tbody th')).toHaveText(['P02','P02']);
   await selector.selectOption(PILOT_SURVEY_VERSION);
   await expect(personal.locator('tbody th')).toHaveText(['P01','P01']);
