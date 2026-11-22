@@ -1,12 +1,13 @@
 import type {AOI,CardRect,Geometry} from './types';
 import type {GuideCard} from './cutoutCard';
-import {archeryPlacement, drawArcheryImpact, drawArcheryStory, hitArcheryStory} from './archeryNarrative';
+import {archeryPlacement, archeryTiming, drawArcheryImpact, drawArcheryStory, hitArcheryStory} from './archeryNarrative';
 import {drawCollageSubject,hitCollageSubject} from './cutoutMotion';
 
 export interface PaperGuideLayout {
   /** Absent from the archived two-sheet presentation. */
   style?:'single-board';
-  reveal?:'after-shot';
+  reveal?:'explain-then-shoot';
+  impact?:{x:number;y:number};
   source:CardRect;
   art:CardRect;
   backing:CardRect;
@@ -41,9 +42,10 @@ function breaks(ctx:CanvasRenderingContext2D,text:string,width:number){
   if(line)result.push(Array.from(line).length);
   return result;
 }
-function typography(ctx:CanvasRenderingContext2D,card:GuideCard,width:number,viewportWidth:number,legacy:boolean){
-  const pad=clamp(width*.083,17,33),titleSize=clamp(viewportWidth*.023,22,36);
-  const bodySize=clamp(viewportWidth*.0135,15,20);
+function typography(ctx:CanvasRenderingContext2D,card:GuideCard,width:number,viewportWidth:number,legacy:boolean,compact=false){
+  const pad=compact?14:clamp(width*.083,17,33);
+  const titleSize=compact?clamp(viewportWidth*.018,19,23):clamp(viewportWidth*.023,22,36);
+  const bodySize=compact?clamp(viewportWidth*.012,14,16):clamp(viewportWidth*.0135,15,20);
   // One spare ideograph also keeps closing punctuation on the previous line.
   const textWidth=width-pad*2;
   ctx.font=titleFont(titleSize);
@@ -54,6 +56,28 @@ function typography(ctx:CanvasRenderingContext2D,card:GuideCard,width:number,vie
 }
 function textHeight(t:PaperGuideLayout['type']){
   return t.title.length*t.titleSize*1.30+Math.round(t.bodySize*.82)+t.body.length*t.bodySize*1.68;
+}
+
+/** The arrow is a small detail of the bow. Place the reading board just above
+ * the release hand, leaving the archer's head, hands and body visible. */
+function arrowGuide(ctx:CanvasRenderingContext2D,card:GuideCard,g:Geometry,source:CardRect,
+  impact:{x:number;y:number},width:number):PaperGuideLayout{
+  const vw=g.viewportWidth,vh=g.viewportHeight;
+  const edge=clamp(vw*.015,8,18);
+  const panelWidth=Math.min(vw-edge*2,clamp(vw*.22,228,305));
+  const type=typography(ctx,card,panelWidth,vw,false,true);
+  const panelHeight=Math.ceil(textHeight(type)+2*type.pad);
+  const artH=width*source.height/source.width;
+  const lift=clamp(g.height*.076,18,40)+9;
+  const art=centered(centerX(source)-clamp(width*.3,9,20), centerY(source)-lift, width, artH);
+  const left=clamp(art.left+width*.19,edge,vw-edge-panelWidth);
+  const top=clamp(centerY(art)+12-panelHeight,edge,vh-edge-panelHeight);
+  const panel={left,top,width:panelWidth,height:panelHeight};
+  const minX=Math.min(art.left,left),minY=Math.min(art.top,top);
+  const bounds={left:minX,top:minY,width:Math.max(left+panelWidth,art.left+width)-minX,
+    height:Math.max(top+panelHeight,art.top+artH)-minY};
+  return {style:'single-board',reveal:'explain-then-shoot',source,art,panel,backing:panel,bounds,
+    impact,type,viewport:{width:vw,height:vh}};
 }
 
 /** Frozen viewport CSS pixels. The foreground is sized from its registered area in the original scene. */
@@ -69,6 +93,7 @@ export function makePaperGuide(ctx:CanvasRenderingContext2D,card:GuideCard,g:Geo
   const source=placement.source??centered(cx,cy,nativeW,nativeW/aspect);
   source.left=clamp(source.left,0,vw-source.width);
   source.top=clamp(source.top,0,vh-source.height);
+  if(placement.tip && placement.detailWidth)return arrowGuide(ctx,card,g,source,placement.tip,placement.detailWidth);
   // Reserve page margins and paper borders only where the original subject leaves room.
   const edgeX=clamp(vw*.018,8,24);
   const edgeY=clamp((vh-nativeW/aspect)*.12,1,clamp(vh*.035,8,24));
@@ -82,8 +107,7 @@ export function makePaperGuide(ctx:CanvasRenderingContext2D,card:GuideCard,g:Geo
   const extraRatio=placement.rightSpace??0;
   const extra=desiredW/aspect*extraRatio;
   const requiredArtW=edition!=='legacy'&&vw<520?desiredW:nativeW;
-  const anchoredRowTooWide=placement.tip && placement.tip.x+desiredW+minimumPanel+padX>vw-edgeX;
-  const stacked=(edition==='legacy' && vw<520) || anchoredRowTooWide
+  const stacked=(edition==='legacy' && vw<520)
     || requiredArtW*(1+extraRatio/aspect)+2*padX+minimumPanel-seam>safeW;
   const panelW=stacked?Math.min(safeW,510):clamp(safeW-desiredW-extra-2*padX+seam,minimumPanel,clamp(vw*.29,258,445));
   const type=typography(ctx,card,panelW,vw,edition==='legacy');
@@ -91,8 +115,7 @@ export function makePaperGuide(ctx:CanvasRenderingContext2D,card:GuideCard,g:Geo
   const availableW=safeW-2*padX-(stacked?0:panelW-seam);
   const availableH=safeH-2*padY-(stacked?minPanelH-seam:0);
   const requestedW=stacked&&edition!=='legacy'&&vw<520?Math.max(desiredW,safeW*.78):desiredW;
-  const spaceRightOfTip=placement.tip?vw-edgeX-placement.tip.x:availableW;
-  const artW=Math.max(1,Math.min(requestedW,availableW/(1+extraRatio/aspect),spaceRightOfTip,availableH*aspect));
+  const artW=Math.max(1,Math.min(requestedW,availableW/(1+extraRatio/aspect),availableH*aspect));
   const artH=artW/aspect;
   const mountW=artW+artH*extraRatio+2*padX,mountH=artH+2*padY;
   const panelH=minPanelH;
@@ -102,12 +125,6 @@ export function makePaperGuide(ctx:CanvasRenderingContext2D,card:GuideCard,g:Geo
     left:clamp(cx-(stacked?totalW:mountW)/2,edgeX,vw-edgeX-totalW),
     top:clamp(cy-(stacked?mountH:totalH)/2,edgeY,vh-edgeY-totalH),width:totalW,height:totalH,
   };
-  if(placement.tip){
-    const artOffsetX=(stacked?(totalW-mountW)/2:0)+padX;
-    const artOffsetY=(stacked?0:(totalH-mountH)/2)+padY;
-    bounds.left=clamp(placement.tip.x-artOffsetX,edgeX,vw-edgeX-totalW);
-    bounds.top=clamp(placement.tip.y-artH/2-artOffsetY,edgeY,vh-edgeY-totalH);
-  }
   const backing={left:bounds.left+(stacked?(totalW-mountW)/2:0),top:bounds.top+(stacked?0:(totalH-mountH)/2),width:mountW,height:mountH};
   const art={left:backing.left+padX,top:backing.top+padY,width:artW,height:artH};
   const panel={left:stacked?bounds.left+(totalW-panelW)/2:backing.left+mountW-seam,top:stacked?backing.top+mountH-seam:bounds.top+(totalH-panelH)/2,width:panelW,height:panelH};
@@ -116,13 +133,12 @@ export function makePaperGuide(ctx:CanvasRenderingContext2D,card:GuideCard,g:Geo
 
   // A single field of pigment runs under both the art and the typesetting.
   // Wide groups overhang by less so the leftmost people keep their silhouette.
-  if(placement.tip)art.left=placement.tip.x;
-  else if(stacked)art.left=bounds.left;
+  if(stacked)art.left=bounds.left;
   const overhang=artW*(aspect>1.05?.065:aspect>.55?.18:.36);
   const left=stacked?Math.min(art.left+overhang,panel.left+type.pad*.65):art.left+overhang;
   const top=Math.min(art.top+artH*.07,panel.top);
   const bottom=Math.max(art.top+artH*.96,panel.top+panel.height);
-  return {...layout,style:'single-board',reveal:placement.tip?'after-shot':undefined,backing:{left,top,width:bounds.left+bounds.width-left,height:bottom-top}};
+  return {...layout,style:'single-board',backing:{left,top,width:bounds.left+bounds.width-left,height:bottom-top}};
 }
 
 const finite=(n:unknown):n is number=>typeof n==='number' && Number.isFinite(n);
@@ -136,7 +152,8 @@ export function validPaperGuideLayout(value:unknown):value is PaperGuideLayout{
   const l=value as PaperGuideLayout,t=l.type;
   const counts=(a:unknown)=>Array.isArray(a)&&a.length>0&&a.length<=200&&a.every(n=>Number.isInteger(n)&&n>0&&n<=2000);
   return (l.style===undefined||l.style==='single-board')
-    && (l.reveal===undefined||(l.style==='single-board'&&l.reveal==='after-shot')) && [l.source,l.art,l.backing,l.panel,l.bounds].every(rectValid) && !!l.viewport &&
+    && (l.reveal===undefined||(l.style==='single-board'&&l.reveal==='explain-then-shoot'&&
+        !!l.impact&&finite(l.impact.x)&&finite(l.impact.y))) && [l.source,l.art,l.backing,l.panel,l.bounds].every(rectValid) && !!l.viewport &&
     [l.viewport.width,l.viewport.height].every(n=>finite(n)&&n>0&&n<=32768) && !!t &&
     [t.pad,t.titleSize,t.bodySize].every(n=>finite(n)&&n>0&&n<=200) && counts(t.title)&&counts(t.body);
 }
@@ -150,17 +167,14 @@ export function paperFrame(l:PaperGuideLayout,elapsed:number,duration:number,red
   const speed=Math.min(1,duration/2700);
   const t=reduced?1800:elapsed/Math.max(speed,.001);
   const flight=ease(t,160,1130);
-  // Let the viewer see the archer's release. The single field unfolds from
-  // the impact point halfway through the flight; the text follows the arrow.
-  const shot=l.reveal==='after-shot';
-  const boardTime=reduced?3000:elapsed/Math.max(.001,shot?Math.min(1,duration/3400):speed);
-  const unfold=shot?ease(boardTime,1540,2350):ease(t,460,1350);
+  const unfold=ease(t,460,1350);
+  const boardAlpha=l.reveal==='explain-then-shoot'?archeryTiming(elapsed,duration,reduced).boardAlpha:1;
   const subject=interpolate(l.source,l.art,flight);
   let backing=interpolate(l.source,l.backing,flight);
   if(l.style==='single-board'){
     // Start the reveal on the registered subject. Its leading edge travels right
     // across the cutout and on to the text; there is only one physical rectangle.
-    const start=shot?l.backing.left:centerX(l.source);
+    const start=centerX(l.source);
     const left=mix(start,l.backing.left,flight);
     const right=mix(start,l.backing.left+l.backing.width,unfold);
     backing={...backing,left,width:Math.max(0,right-left)};
@@ -171,8 +185,8 @@ export function paperFrame(l:PaperGuideLayout,elapsed:number,duration:number,red
   const fadeOut=reduced&&l.style==='single-board'
     ?Number(elapsed<duration)
     :1-ease(elapsed,duration-(reduced?120:680)*speed,duration);
-  return {subject,backing,panel,alpha:fadeOut,backingAlpha:shot?ease(boardTime,1540,1950):ease(t,195,745),panelAlpha:shot?unfold:ease(t,460,890),
-    textAlpha:shot?ease(boardTime,2010,2510):ease(t,950,1520),light:1-ease(t,220,980),veil:ease(t,0,620),motionMs:reduced?0:Math.max(0,elapsed-1050*speed)};
+  return {subject,backing,panel,alpha:fadeOut,backingAlpha:boardAlpha*ease(t,195,745),panelAlpha:boardAlpha*ease(t,460,890),
+    textAlpha:boardAlpha*ease(t,950,1520),light:1-ease(t,220,980),veil:boardAlpha*ease(t,0,620),motionMs:reduced?0:Math.max(0,elapsed-1050*speed)};
 }
 
 function rgb(hex:string){return [1,3,5].map(i=>parseInt(hex.slice(i,i+2),16))}
@@ -230,7 +244,7 @@ export function drawPaperGuide(ctx:CanvasRenderingContext2D,card:GuideCard,image
   const single=l.style==='single-board';
   const board=single?art.board:tint(art.board,light?'#e1c79a':'#292d26',light?.24:.27);
   if(single){
-    if(f.backing.width>.5){
+    if(f.backing.width>.5 && f.backingAlpha>0){
       ctx.save();ctx.globalAlpha*=f.backingAlpha;
       ctx.fillStyle=board;
       ctx.fillRect(f.backing.left,f.backing.top,f.backing.width,f.backing.height);
@@ -281,6 +295,7 @@ export function drawPaperGuide(ctx:CanvasRenderingContext2D,card:GuideCard,image
   }else{
     ctx.shadowOffsetX=f.light>0?0:2;ctx.shadowOffsetY=f.light>0?0:3;
   }
+  if(l.reveal==='explain-then-shoot' && f.backingAlpha===0 && elapsed>duration/2)ctx.shadowColor='transparent';
   if(f.light>.01)ctx.filter='brightness('+(1+.22*f.light)+')';
   if(!single||!drawArcheryStory(ctx,card,image,l,s,elapsed,duration,reducedMotion)){
     drawCollageSubject(ctx,card,image,s,f.motionMs,reducedMotion,!single);

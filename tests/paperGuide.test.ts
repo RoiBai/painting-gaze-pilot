@@ -24,18 +24,29 @@ describe('paper illustration layout',()=>{
           if(c.id==='archery-figma-1-6'){
             expect(l.source.left).toBeCloseTo(g.left+4120*g.scale);
             expect(l.source.width).toBeCloseTo(156*g.scale);
-            expect(l.art.left).toBeCloseTo(g.left+1631*g.scale);
-            expect(l.art.top+l.art.height/2).toBeCloseTo(g.top+915*g.scale);
-            expect(paperFrame(l,1510,10000).backingAlpha).toBe(0);
-            expect(paperFrame(l,1950,10000).textAlpha).toBe(0);
-            expect(paperFrame(l,2700,10000).textAlpha).toBe(1);
+            expect(l.impact!.x).toBeCloseTo(g.left+1631*g.scale);
+            expect(l.impact!.y).toBeCloseTo(g.top+915*g.scale);
+            expect(Math.abs(l.art.left-l.source.left)).toBeLessThan(65);
+            expect(l.art.width).toBeGreaterThan(l.source.width);
+            expect(l.art.width).toBeLessThanOrEqual(Math.max(31,l.source.width*1.8));
+            expect(l.backing.top+l.backing.height).toBeLessThan(l.source.top-10);
+            expect(l.backing.width).toBeLessThanOrEqual(305);
+            expect(paperFrame(l,2500,10000).textAlpha).toBe(1);
+            expect(paperFrame(l,6400,10000).backingAlpha).toBe(1);
+            expect(paperFrame(l,6800,10000).textAlpha).toBeLessThan(1);
+            expect(paperFrame(l,7700,10000).backingAlpha).toBe(0);
+            expect(paperFrame(l,7700,10000).veil).toBe(0);
             expect(paperFrame(l,0,10000,true).backingAlpha).toBe(1);
+            expect(paperFrame(l,7700,10000,true).backingAlpha).toBe(0);
+            const x=l.backing.left+l.backing.width*.5, y=l.backing.top+l.backing.height*.5;
+            expect(hitPaperGuide(x,y,c,l,5000,10000)).toBe(true);
+            expect(hitPaperGuide(x,y,c,l,8300,10000)).toBe(false);
           }else{
             expect(l.source.width,c.title).toBeGreaterThanOrEqual(a.rect[2]*g.width-1e-5);
             expect(l.source.height,c.title).toBeGreaterThanOrEqual(a.rect[3]*g.height-1e-5);
+            expect(l.art.width,c.title).toBeGreaterThanOrEqual(a.rect[2]*g.width-1e-5);
+            expect(l.art.height,c.title).toBeGreaterThanOrEqual(a.rect[3]*g.height-1e-5);
           }
-          expect(l.art.width,c.title).toBeGreaterThanOrEqual(a.rect[2]*g.width-1e-5);
-          expect(l.art.height,c.title).toBeGreaterThanOrEqual(a.rect[3]*g.height-1e-5);
           expect(l.art.width/l.art.height).toBeCloseTo(c.art!.shape!.width/c.art!.shape!.height);
           for(const r of [l.source,l.art,l.backing,l.panel,l.bounds]){
             expect(r.left,c.title).toBeGreaterThanOrEqual(-.01);

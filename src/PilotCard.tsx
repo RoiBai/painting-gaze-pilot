@@ -31,15 +31,16 @@ function PaperCard({engine,card,painting}:Props){
       const exposure=engine.cardShown(layout.bounds,card.id,undefined,undefined,{layout,reducedMotion});
       if(!exposure?.paper)return;
       const {offsetMs,durationMs}=exposure.paper;
+      const advanceClock=!reducedMotion||layout.reveal==='explain-then-shoot';
       let previous=-1;
       function draw(){
-        const elapsed=paperTime(engine.exposureTime(exposure!)+offsetMs,durationMs);
+        const elapsed=paperTime(engine.exposureTime(exposure!)+offsetMs,durationMs,layout);
         if(elapsed!==previous){
           ctx!.clearRect(0,0,w,h);
           drawPaperGuide(ctx!,card,image,layout,elapsed,durationMs,reducedMotion);
           previous=elapsed;
         }
-        if(elapsed<durationMs&&!reducedMotion)frame=requestAnimationFrame(draw);
+        if(elapsed<durationMs&&advanceClock)frame=requestAnimationFrame(draw);
       }
       draw();
     }).catch(()=>{if(active)engine.interrupt('illustrated_card_load_failure')});

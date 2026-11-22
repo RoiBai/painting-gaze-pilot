@@ -41,7 +41,7 @@ export function drawSegment(canvas:HTMLCanvasElement,image:HTMLImageElement,pain
     if(card&&cutout&&paper){
       // Keep the card visible under the full trace. Playback follows its recorded fade-out.
       const elapsed=paper.offsetMs+(live?until-window.exposure.shownMs:(window.start+window.end)/2-window.exposure.shownMs);
-      drawPaperGuide(ctx,card,cutout,paper.layout,paperTime(elapsed,paper.durationMs),paper.durationMs,paper.reducedMotion);
+      drawPaperGuide(ctx,card,cutout,paper.layout,paperTime(elapsed,paper.durationMs,paper.layout),paper.durationMs,paper.reducedMotion);
     }else if(card?.art&&cutout){
       drawCutout(ctx,card,cutout,window.exposure.rect,until-window.exposure.shownMs,window.exposure.entranceMs??0,window.exposure.entranceRect);
     }else{

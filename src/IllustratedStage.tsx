@@ -54,7 +54,7 @@ export default function IllustratedStage({painting,card,elapsedMs,durationMs,cla
     return makePaperGuide(ctx,card,geom,area,legacy?'legacy':undefined);
   },[size,painting,card,legacy]);
   const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const frameTime=reduced?0:paperTime(elapsedMs,durationMs);
+  const frameTime=reduced&&layout?.reveal!=='explain-then-shoot'?0:paperTime(elapsedMs,durationMs,layout);
   useLayoutEffect(()=>{
     const el=canvas.current,ctx=el?.getContext('2d');
     if(!el||!ctx||!size.w||!size.h)return;
