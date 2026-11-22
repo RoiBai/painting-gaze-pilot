@@ -1,8 +1,9 @@
+import PilotMaterialPreview from './PilotMaterialPreview';
 import {useState} from 'react';
 import type {StudyConfig,BackgroundAnswers,PilotTrial,Condition} from './types';
 import {publicAssetUrl} from './assets';
 import PilotGroupRatings from './PilotGroupRatings';
-import {buildPilotPlan} from './pilotProtocol';
+import {buildPilotPlan,sceneDurationSeconds} from './pilotProtocol';
 import BackgroundFields,{emptyBackground,backgroundComplete} from './BackgroundFields';
 
 const pids=Array.from({length:36},(_,i)=>'P'+String(i+1).padStart(2,'0'));
@@ -26,23 +27,26 @@ export default function PilotLanding({config,initialId,onStart}:Props){
   const [condition,setCondition]=useState<Condition>('gaze');
   const [showAll,setShowAll]=useState(false);
   const practice=id==='P00';
+  const durations=config.paintings.map(p=>sceneDurationSeconds(p,config.durationSeconds));
+  const selectedDuration=durations[config.paintings.findIndex(p=>p.paintingId===scene)];
+  const timeSummary=durations.every(seconds=>seconds===durations[0])?`每景 ${durations[0]} 秒`:`共 ${durations.reduce((sum,s)=>sum+s,0)} 秒`;
   const changeId=(value:string)=>{setId(value);setBackground(emptyBackground());setConsent(false)};
   return <div className="site">
     <header className="masthead"><a href={publicAssetUrl('/')} className="brand"><span className="brandmark">观</span>观画研究</a>{researcherTools&&<button className="quiet" onClick={()=>setDesign(!design)}>{design?'返回开始页':'研究者设置'}</button>}</header>
     <main className="shell">
       {design?<section className="panel">
         <h1>三种讲解方式</h1>
-        <p>每人看三个不同场景，顺序、随机和眼动讲解各体验一次。每景 60 秒，分成三轮 3 秒看画、17 秒单卡讲解。三个条件都记录视线。</p>
+        <p>每人看三个不同场景，顺序、随机和眼动讲解各体验一次。每次显示一张卡。眼动条件在可选区域稳定停留约 1.1 秒即可提前出卡。三个条件都记录视线，同一场景的观看时长相同。</p>
         <div className="actions"><a href={link('P00')}>进入 P00 研究者试用</a><button onClick={()=>setShowAll(!showAll)}>{showAll?'只显示首轮六人':'查看全部 36 人排程'}</button></div>
         <div className="table-scroll"><table aria-label="三条件排程"><thead><tr><th>参与者链接</th><th>第一景</th><th>第二景</th><th>第三景</th></tr></thead><tbody>{pids.slice(0,showAll?36:6).map(pid=><tr key={pid}><th><a href={link(pid)}>{pid}</a></th>{buildPilotPlan(pid).map(item=><td key={item.paintingId}>{config.paintings.find(p=>p.paintingId===item.paintingId)?.title} · {pilotLabels[item.condition]}</td>)}</tr>)}</tbody></table></div>
-        <details><summary>查看三个场景和信息卡</summary>{config.paintings.map(p=><section className="material-list" key={p.paintingId}><h2>{p.title}</h2><img className="material-preview" src={publicAssetUrl(p.image)} alt={p.title} loading="lazy"/>{p.cards.map(card=><p key={card.id}><strong>{card.title}</strong>　{card.text}</p>)}</section>)}</details>
+        <details open={new URLSearchParams(location.search).get('materials')==='uci'||undefined}><summary>查看三个场景和信息卡</summary>{config.paintings.every(p=>p.cards.every(c=>c.art))&&<PilotMaterialPreview paintings={config.paintings}/>}{config.paintings.map(p=><section className="material-list" key={p.paintingId}><h2>{p.title}</h2><img className="material-preview" src={publicAssetUrl(p.image)} alt={p.title} loading="lazy"/>{p.cards.map(card=><p key={card.id}><strong>{card.title}</strong>　{card.text}</p>)}</section>)}</details>
         <details><summary>查看每景评分和最后访谈</summary><ol>{config.paintings[0].pre.map(q=><li key={q.id}>{q.prompt}{q.ratingScale&&`（${q.ratingScale.min}＝${q.ratingScale.lowLabel}，${q.ratingScale.max}＝${q.ratingScale.highLabel}）`}</li>)}</ol><h3>访谈</h3><ol>{config.paintings[0].interview.map(prompt=><li key={prompt}>{prompt}</li>)}</ol></details>
         <div className="actions"><a href="#session-review">导入 ZIP 回看视线</a><a href={publicAssetUrl('/')+'?review=blind'}>打开回忆题盲评</a></div>
         <PilotGroupRatings/>
         <p><a href={publicAssetUrl('/')+'?study=legacy'}>打开早期 N 编号试测</a></p>
       </section>:<>
         <h1>观看《明宣宗行乐图》</h1>
-        <p className="lede">{practice&&single?'你将观看自选的一个场景，共 60 秒。':'你将观看三个场景，每景 60 秒。'}请自然看画、阅读讲解，之后试着用自己的话介绍这个场景。</p>
+        <p className="lede">{practice&&single?`你将观看自选的一个场景，共 ${selectedDuration} 秒。`:`你将观看三个场景，${timeSummary}。`}请自然看画、阅读讲解，之后试着用自己的话介绍这个场景。</p>
         <section className="panel"><label>匿名参与者编号<select aria-label="匿名参与者编号" disabled={Boolean(initialId)} value={id} onChange={e=>changeId(e.target.value)}>
           {initialId?<option value={initialId}>{initialId==='P00'?'P00 · 研究者试用':initialId}</option>:<>
             <option value="">请选择分配给你的编号</option>

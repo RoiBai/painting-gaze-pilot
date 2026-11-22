@@ -13,6 +13,20 @@ export const SELECTION_RULES: PilotMetadata['selectionRules'] = {
   randomAlgorithm: 'fnv1a-context/mulberry32/fisher-yates-v1',
 };
 
+export function sceneDurationSeconds(painting:Painting,defaultSeconds:number):number {
+  return painting.cards.some(card=>card.art)?painting.cards.length*12:defaultSeconds;
+}
+
+export function responsiveSelectionRules(paintings:Painting[],defaultSeconds:number):PilotMetadata['selectionRules'] {
+  return {
+    minimumDwellMs:1100, minimumSamples:5, maximumGapMs:150, lookbackMs:1500, maximumAgeMs:250, maximumOffTargetMs:150,
+    maximumSelectionMs:2000, blankFraction:.4,
+    slotCountsByPainting:Object.fromEntries(paintings.map(p=>[p.paintingId,p.cards.length])),
+    durationMsByPainting:Object.fromEntries(paintings.map(p=>[p.paintingId,1000*sceneDurationSeconds(p,defaultSeconds)])),
+    randomAlgorithm:SELECTION_RULES.randomAlgorithm,
+  };
+}
+
 const SCENES=['ming-xingle-cuju','ming-xingle-polo','ming-xingle-archery'];
 const CONDITIONS:Condition[]=['sequential','random','gaze'];
 // The first three rows plus their reverses form the six-person block.
@@ -60,10 +74,24 @@ export function hitRect(x:number,y:number,rect:CardRect):boolean {
   return x>=rect.left && x<rect.left+rect.width && y>=rect.top && y<rect.top+rect.height;
 }
 
-export function singleAoi(x:number|null,y:number|null,aois:AOI[]):string|null {
+export function singleAoi(x:number|null,y:number|null,aois:AOI[],detailedTargets=false):string|null {
   if(x===null || y===null)return null;
-  const matches=aois.filter(({rect:[left,top,width,height]})=>hitRect(x,y,{left,top,width,height}));
-  return matches.length===1?matches[0].id:null;
+  let target:string|null=null;
+  let smallestArea=Infinity;
+  for(const aoi of aois){
+    const regions=detailedTargets && aoi.hitRects?.length?aoi.hitRects:[aoi.rect];
+    let area=Infinity;
+    for(const [left,top,width,height] of regions){
+      if(hitRect(x,y,{left,top,width,height}))area=Math.min(area,width*height);
+    }
+    if(!Number.isFinite(area))continue;
+    if(!detailedTargets && smallestArea<Infinity)return null;
+    // A cutout can contain several separated figures. Only its authored target
+    // pieces count, and a smaller detail wins when two different layers overlap.
+    if(area<smallestArea){smallestArea=area;target=aoi.id}
+    else if(area===smallestArea)target=null;
+  }
+  return target;
 }
 
 interface DecisionInput {
@@ -77,6 +105,7 @@ interface DecisionInput {
   now:number;
   windowStart:number;
   qualityOK:boolean;
+  rules?:PilotMetadata['selectionRules'];
 }
 
 export function selectCard(input:DecisionInput):CardDecision|null {
@@ -91,23 +120,34 @@ export function selectCard(input:DecisionInput):CardDecision|null {
   if(ids.length===1)return {...base,cardId:first,selectionSource:'remaining',selectionReason:'last-unshown-card'};
   if(!input.qualityOK)return {...base,cardId:randomId,selectionSource:'fallback',selectionReason:'quality-not-verified'};
 
-  const rule=SELECTION_RULES;
+  const rule=input.rules??SELECTION_RULES;
   const earliest=Math.max(input.windowStart,input.now-rule.lookbackMs);
   let aoi:string|null=null;
-  let newest=0,oldest=0,count=0;
-  // Require a current uninterrupted run on an eligible AOI. A null, a blink gap,
-  // a card, or a switch of AOI ends that run; do not borrow earlier stale looks.
+  let oldest=0,count=0,dwell=0,offTargetMs=0;
+  // Only adjacent matching callbacks contribute to dwell. New sessions allow
+  // short prediction noise, without counting those intervals or crossing
+  // a long gap, a different trial, a pause or an exposure.
+  let previousSample:GazeSample|undefined;
   for(let i=input.samples.length-1;i>=0;i--){
     const s=input.samples[i];
-    if(s.callbackTimeMs<earliest||s.trialId!==input.trialId||s.phase!=='free_view'||s.paused||s.cardExposureId||!s.predictionAvailable||!s.insideImage||!s.imageAoiId)break;
-    if(!count){
-      if(s.callbackTimeMs>input.now||input.now-s.callbackTimeMs>rule.maximumAgeMs)break;
-      aoi=s.imageAoiId;newest=s.callbackTimeMs;
-    }else if(s.imageAoiId!==aoi||oldest<s.callbackTimeMs||oldest-s.callbackTimeMs>rule.maximumGapMs)break;
-    oldest=s.callbackTimeMs;
-    count++;
+    if(s.callbackTimeMs<earliest||s.trialId!==input.trialId||s.phase!=='free_view'||s.paused||s.cardExposureId)break;
+    const target=s.predictionAvailable&&s.insideImage?s.imageAoiId:null;
+    if(!previousSample){
+      if(!target||s.callbackTimeMs>input.now||input.now-s.callbackTimeMs>rule.maximumAgeMs)break;
+      aoi=target;
+    }else{
+      const interval=previousSample.callbackTimeMs-s.callbackTimeMs;
+      if(interval<0||interval>rule.maximumGapMs || previousSample.calibrationVersion!==s.calibrationVersion || previousSample.geometryVersion!==s.geometryVersion)break;
+      if(target===aoi && previousSample.predictionAvailable && previousSample.insideImage && previousSample.imageAoiId===aoi)dwell+=interval;
+      else{
+        offTargetMs+=interval;
+        if(offTargetMs>(rule.maximumOffTargetMs??0) || oldest-s.callbackTimeMs>rule.maximumGapMs)break;
+      }
+    }
+    if(target===aoi){oldest=s.callbackTimeMs;count++}
+    previousSample=s;
   }
-  const duration=count?newest-oldest:0;
+  const duration=dwell;
   const cards=aoi?candidates.filter(card=>card.aoiIds.includes(aoi!)):[];
   const evidence={...base,validSelectionSamples:count,dwellMs:duration,selectionAoiId:aoi};
   if(cards.length===1 && count>=rule.minimumSamples && duration>=rule.minimumDwellMs){

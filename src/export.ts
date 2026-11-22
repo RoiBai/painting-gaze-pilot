@@ -12,7 +12,7 @@ const CONTEXT_COLUMNS=['participantId','sessionId','paintingId','trialId','perio
 export const PILOT_DATA_FILES = ['card_exposures.csv','card_attention.csv','pilot_ratings.csv'] as const;
 const PILOT_GAZE_COLUMNS = ['condition','cardExposureId','cardId','onCard','imageAoiId','trialActiveMs'] as const;
 const ATTENTION_COLUMNS = ['sessionId','participantId','quality','exposureId','trialId','paintingId','condition','cardId','slot','shownMs','hiddenMs','visibleMs','callbacks','validSamples','onCardSamples','observedMs','onCardMs','offCardMs','onCardShare','observationCoverage'] as const;
-const EXPOSURE_COLUMNS = ['sessionId','participantId','quality','exposureId','trialId','paintingId','condition','period','cardId','slot','cardTitle','cardBody','anchorAoiIds','selectionSource','selectionReason','selectionAoiId','validSelectionSamples','dwellMs','candidateCardIds','shownMs','hiddenMs','activeStartMs','viewportLeft','viewportTop','viewportWidth','viewportHeight','geometryVersion','calibrationVersion'] as const;
+const EXPOSURE_COLUMNS = ['sessionId','participantId','quality','exposureId','trialId','paintingId','condition','period','cardId','slot','cardTitle','cardBody','anchorAoiIds','selectionSource','selectionReason','selectionAoiId','validSelectionSamples','dwellMs','candidateCardIds','shownMs','hiddenMs','activeStartMs','entranceMs','entranceRect','viewportLeft','viewportTop','viewportWidth','viewportHeight','geometryVersion','calibrationVersion'] as const;
 const RATING_COLUMNS = ['sessionId','participantId','sessionStatus','quality','questionVersion','period','paintingId','condition','conditionLabel','trialIds','overall','mental','physical','temporal','performance','effort','frustration','tlxItemsAnswered','rawTLX'] as const;
 
 export function isPracticeSession(session:Session):boolean {
@@ -39,6 +39,7 @@ function pilotFiles(session:Session):Record<string,Uint8Array> {
       period:session.order.indexOf(exposure.paintingId)+1,
       cardTitle:card?.title??'',cardBody:card?.text??'',anchorAoiIds:JSON.stringify(card?.aoiIds??[]),
       candidateCardIds:JSON.stringify(exposure.candidateCardIds),
+      entranceRect:exposure.entranceRect?JSON.stringify(exposure.entranceRect):undefined,
       viewportLeft:exposure.rect.left,viewportTop:exposure.rect.top,
       viewportWidth:exposure.rect.width,viewportHeight:exposure.rect.height};
   });
@@ -155,7 +156,7 @@ export function buildTextExportFiles(session:Session):Record<string,Uint8Array> 
     ...(session.config.questionnaireVersion?{questionnaireAnalysis:{version:session.config.questionnaireVersion,roles:{spontaneous:'讲解前第1–3题：参与者自主陈述的理解、需求与疑问',prompted:'讲解前第4题：定向追问活动、关系及判断依据',classification:'讲解前第5题：困难分类，用于补充开放回答','card-feedback':'讲解后两题：疑问回应与解释变化'},interpretation:'讲解前后是同一人的两个阶段，不是control group与experimental group。定向追问后出现的关系解释不能计为自发发现；仅凭前后变化不能认定讲解有效。'}}:{}),
     ...(session.pilot ? {cardObservation:{
       version:'raw-card-overlap-v1', clock:'All shownMs, hiddenMs, callbackTimeMs and event timeMs use performance.now() in the original session.',
-      coordinates:'Raw viewport CSS pixels. The painted card border-box can extend outside the painting. Join gaze_samples.cardExposureId to card_exposures.exposureId.',
+      coordinates:'Raw viewport CSS pixels. Card geometry is the full-size viewport bounding box of the illustration and text. During entranceMs the rectangle interpolates from entranceRect to the full-size box with cubic ease-out. For illustrated cards onCard uses the color panel and foreground alpha mask stored in card.art.shape; transparent margins and glow are excluded. Join gaze_samples.cardExposureId to card_exposures.exposureId.',
       interpretation:'onCard=true/false is the valid raw prediction inside/outside a visible card rectangle. A blank onCard means no visible card or no usable prediction. Null predictions are retained.',
       maxIntervalMs:ATTENTION_MAX_GAP_MS,
       durationEstimate:'Count consecutive valid unpaused callback pairs in the same exposure, trial, geometry and calibration up to maxIntervalMs. Equal endpoints assign the whole interval to their area. Opposite endpoints assign half to each area. No estimate before the first or after the last callback. onCardShare=onCardMs/observedMs, observationCoverage=observedMs/visibleMs. Missing observation yields a blank dwell and share.',

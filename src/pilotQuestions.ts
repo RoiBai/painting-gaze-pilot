@@ -1,4 +1,4 @@
-import type {Question, RecallQuestion, WorkloadId} from './types';
+import type {PilotSurveyVersion, Question, RecallQuestion, WorkloadId} from './types';
 
 const rating = (id:string, prompt:string, lowLabel:string, highLabel:string, overall=false):Question => ({
   id, prompt, scoring:overall?'总体体验评分，越高越好。':'Raw NASA-TLX 中文试用表述，越高表示负荷越高。',
@@ -29,6 +29,10 @@ export const pilotInterviewQuestions:Question[] = [
 ];
 
 export const PILOT_SURVEY_VERSION = 'pilot2-recall-v1' as const;
+export const UCI_RECALL_VERSION = 'pilot2-uci-recall-v2' as const;
+export function knownPilotSurveyVersion(version:unknown):version is PilotSurveyVersion {
+  return version===PILOT_SURVEY_VERSION || version===UCI_RECALL_VERSION;
+}
 export const workloadLabels:Record<WorkloadId,string> = {
   mental:'脑力需求', physical:'体力需求', temporal:'时间压力',
   performance:'自评表现', effort:'努力程度', frustration:'挫败感',
@@ -53,5 +57,24 @@ export const recallQuestionsByScene = {
     recall('archery-target','箭靶附近竖着什么？'),
     recall('archery-pavilion','亭中坐着观看的人身后，摆着什么陈设？'),
     recall('archery-archers','亭前抬起双臂的那个人，穿着什么颜色的衣服？'),
+  ],
+} satisfies Record<string,RecallQuestion[]>;
+
+// Each immediate-recall item targets the named cutout in the frozen material set.
+export const uciRecallQuestionsByScene = {
+  cuju:[
+    recall('cuju-figma-1-5','从观看者坐的平台走向踢球的空地，会先经过什么？'),
+    recall('cuju-figma-0-8','球场边的松树下面，画着什么？'),
+    recall('cuju-figma-0-10','踢球者脚前的那只小球，是什么颜色的？'),
+  ],
+  archery:[
+    recall('archery-figma-0-6','箭靶附近竖着什么？'),
+    recall('archery-figma-3-5','亭中坐着观看的人身后，摆着什么陈设？'),
+    recall('archery-figma-1-2','亭前抬起双臂的那个人，穿着什么颜色的衣服？'),
+  ],
+  polo:[
+    recall('polo-figma-3-19','球门旁边的骑手，手里举着什么？'),
+    recall('polo-figma-3-27','坐着看球的人身后，围着什么布置？'),
+    recall('polo-figma-3-25','向前伸出的那根球杆，杆头是什么形状？'),
   ],
 } satisfies Record<string,RecallQuestion[]>;

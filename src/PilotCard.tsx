@@ -1,8 +1,54 @@
-import {useLayoutEffect,useRef} from 'react';
+import {useLayoutEffect,useRef,useState} from 'react';
 import type {StudyEngine} from './engine';
-import type {Painting} from './types';
+import type {Painting,CardRect} from './types';
+import {animatedRect,cardPosition,drawCutout,entranceDuration,entranceRect,loadCutout} from './cutoutCard';
 
-export function PilotCard({engine,card,painting}:{engine:StudyEngine;card:Painting['cards'][number];painting:Painting}){
+interface Props {engine:StudyEngine;card:Painting['cards'][number];painting:Painting}
+export function PilotCard(props:Props){
+  return props.card.art?<ArtCard {...props}/>:<TextCard {...props}/>;
+}
+function ArtCard({engine,card,painting}:Props){
+  const canvas=useRef<HTMLCanvasElement>(null);
+  const [rect,setRect]=useState<CardRect>();
+  const geometry=engine.geometry;
+  const aoi=painting.aois.find(a=>card.aoiIds.includes(a.id));
+  useLayoutEffect(()=>{
+    const ctx=canvas.current?.getContext('2d');
+    if(ctx&&geometry&&aoi)setRect(cardPosition(ctx,card,geometry,aoi));
+  },[card,geometry,aoi]);
+  useLayoutEffect(()=>{
+    const element=canvas.current;
+    if(!element||!rect||!card.art||!geometry||!aoi)return;
+    const from=entranceRect(rect,geometry,aoi);
+    const ctx=element.getContext('2d');
+    if(!ctx)return;
+    let active=true,frame=0;
+    void loadCutout(card.art).then(image=>{
+      if(!active)return;
+      const dpr=window.devicePixelRatio||1;
+      element.width=Math.round(rect.width*dpr);element.height=Math.round(rect.height*dpr);
+      ctx.setTransform(element.width/rect.width,0,0,element.height/rect.height,0,0);
+      const ms=matchMedia('(prefers-reduced-motion: reduce)').matches?0:entranceDuration;
+      const start=performance.now();
+      const draw=()=>{
+        const elapsed=performance.now()-start;
+        ctx.clearRect(0,0,rect.width,rect.height);
+        const shown=animatedRect(rect,elapsed,ms,from);
+        element.style.transform='translate('+(shown.left-rect.left)+'px,'+(shown.top-rect.top)+'px) scale('+shown.width/rect.width+')';
+        element.style.opacity=String(ms ? .42+.58*Math.min(1,elapsed/ms):1);
+        drawCutout(ctx,card,image,{...rect,left:0,top:0},0,0);
+        if(elapsed<ms)frame=requestAnimationFrame(draw);
+      };
+      draw();
+      engine.cardShown(rect,card.id,ms,from);
+    });
+    return ()=>{active=false;cancelAnimationFrame(frame);engine.cardHidden(card.id)};
+  },[engine,card,rect,geometry,aoi]);
+  return <article className="pilot-card cutout-card" data-card={card.id} style={rect}>
+    <canvas ref={canvas} aria-hidden="true"/><h2>{card.title}</h2><p>{card.text}</p>
+  </article>;
+}
+function TextCard({engine,card,painting}:Props){
   const ref=useRef<HTMLElement>(null);
   const geometry=engine.geometry;
   const aoi=painting.aois.find(region=>card.aoiIds.includes(region.id));

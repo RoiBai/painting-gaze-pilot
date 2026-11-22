@@ -123,7 +123,7 @@ test('interrupted P01 downloads all three scenes and pilot CSVs in one ZIP and r
 
 test('researcher links expose Pilot 2 review and an independent conditions-blind marking page',async({page})=>{
   await page.goto('./?preview=design');
-  await expect(page.getByText(/3 秒看画、17 秒单卡/)).toBeVisible();
+  await expect(page.getByText(/每次显示一张卡/)).toBeVisible();
   await page.getByRole('link',{name:'打开回忆题盲评'}).click();
   await expect(page.getByRole('heading',{name:'画面回忆盲评'})).toBeVisible();
   await expect(page.getByRole('table',{name:'三条件排程'})).toHaveCount(0);

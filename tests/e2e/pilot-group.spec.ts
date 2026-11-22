@@ -3,18 +3,27 @@ import {strToU8,zipSync} from 'fflate';
 import {freezeBackground} from '../../src/background';
 import {TLX_DIMENSIONS} from '../../src/cardMetrics';
 import {pilotConfig} from '../../src/pilotMaterials';
+import {PILOT_SURVEY_VERSION,UCI_RECALL_VERSION,recallQuestionsByScene} from '../../src/pilotQuestions';
 import {buildPilotPlan,PILOT_VERSION,SELECTION_RULES} from '../../src/pilotProtocol';
-import type {Condition} from '../../src/types';
+import type {Condition,PilotSurveyVersion} from '../../src/types';
 import {sessionFixture} from '../dataFixtures';
 
 const firstScores={sequential:[1,0],random:[3,50],gaze:[7,100]};
 const secondScores={sequential:[7,10],random:[1,60],gaze:[5,90]};
 
-function archive(id:'P00'|'P01'|'P02',sessionId:string) {
+function archive(id:'P00'|'P01'|'P02',sessionId:string,version:PilotSurveyVersion=UCI_RECALL_VERSION) {
   const s=sessionFixture(sessionId);
   const plan=buildPilotPlan(id);
   s.participantId=id;
   s.config=structuredClone(pilotConfig);
+  s.config.pilotSurveyVersion=version;
+  if(version===PILOT_SURVEY_VERSION){
+    for(const scene of s.config.paintings){
+      const key=scene.paintingId.replace('ming-xingle-','') as keyof typeof recallQuestionsByScene;
+      scene.recallQuestions=structuredClone(recallQuestionsByScene[key]);
+      scene.cards=scene.recallQuestions.map(({cardId},i)=>({...scene.cards[i],id:cardId}));
+    }
+  }
   s.order=plan.map(trial=>trial.paintingId);
   s.pilot={version:PILOT_VERSION,practice:id==='P00',plan,seed:42,selectionRules:{...SELECTION_RULES}};
   s.cardExposures=[];
@@ -58,6 +67,13 @@ test('compares multiple local P archives by condition, with paired complete rati
   await expect(personal.locator('tbody th')).toHaveText(['P02','P02']);
   await expect(means.locator('tbody tr').nth(0).locator('td')).toHaveText(['1','7.0','1.0','5.0']);
   await expect(means.locator('tbody tr').nth(1).locator('td')).toHaveText(['0','—','—','—']);
+  const legacy=archive('P01','previous-protocol',PILOT_SURVEY_VERSION);
+  await input.setInputFiles([legacy,b]);
+  const selector=page.getByLabel('比较的问卷版本');
+  await expect(selector).toHaveValue(UCI_RECALL_VERSION);
+  await expect(personal.locator('tbody th')).toHaveText(['P02','P02']);
+  await selector.selectOption(PILOT_SURVEY_VERSION);
+  await expect(personal.locator('tbody th')).toHaveText(['P01','P01']);
   await input.setInputFiles(practice);
   await expect(personal).toHaveCount(0);
   await expect(means).toHaveCount(0);

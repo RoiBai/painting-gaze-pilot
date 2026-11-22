@@ -1,3 +1,5 @@
+import {validCutout} from './cutoutCard';
+import {knownPilotSurveyVersion} from './pilotQuestions';
 import type { Painting, StudyConfig } from './types';
 import { sceneMaterials } from './sceneMaterials';
 import {commonQuestions,COMMON_QUESTIONNAIRE_VERSION} from './commonQuestionnaire';
@@ -71,7 +73,7 @@ export function validateConfig(input: unknown): string[] {
   const c = input;
   const threeConditions = c.pilotProtocol === 'three-condition-v1';
   if (c.pilotProtocol !== undefined && !threeConditions) errors.push('未知的三条件研究版本');
-  if (c.pilotSurveyVersion!==undefined && (!threeConditions || c.pilotSurveyVersion!=='pilot2-recall-v1')) errors.push('未知的三条件看后问卷版本');
+  if (c.pilotSurveyVersion!==undefined && (!threeConditions || !knownPilotSurveyVersion(c.pilotSurveyVersion))) errors.push('未知的三条件看后问卷版本');
   if (threeConditions && (c.participantPlan !== undefined || c.questionnaireVersion !== undefined)) {
     errors.push('三条件研究配置不能同时启用旧编号分组或旧问卷');
   }
@@ -134,7 +136,9 @@ export function validateConfig(input: unknown): string[] {
       requireText(aoi.id, `${label} AOI id`); requireText(aoi.label, `${label} AOI label`);
       if (typeof aoi.id === 'string') aoiIds.push(aoi.id);
       const r = aoi.rect;
-      if (!Array.isArray(r) || r.length !== 4 || !r.every(n => numeric(n, 0, 1)) || r[2] <= 0 || r[3] <= 0 || r[0] + r[2] > 1.000001 || r[1] + r[3] > 1.000001) errors.push(`${label} AOI rect 须为画内归一化 [x,y,width,height]`);
+      const validRect=(rect:unknown)=>Array.isArray(rect) && rect.length===4 && rect.every(n=>numeric(n,0,1)) && rect[2]>0 && rect[3]>0 && rect[0]+rect[2]<=1.000001 && rect[1]+rect[3]<=1.000001;
+      if (!validRect(r)) errors.push(`${label} AOI rect 须为画内归一化 [x,y,width,height]`);
+      if(aoi.hitRects!==undefined && (!Array.isArray(aoi.hitRects) || !aoi.hitRects.every(validRect)))errors.push(`${label} AOI hitRects 须为有效的画内子区域`);
     }
     if (!unique(aoiIds)) errors.push(`${label} AOI id 重复`);
     const checkAOIs = (ids: unknown, where: string) => { if (!Array.isArray(ids) || !ids.length || !ids.every(id => typeof id === 'string' && aoiIds.includes(id))) errors.push(`${where}须引用存在的 AOI id`); };
@@ -189,8 +193,8 @@ export function validateConfig(input: unknown): string[] {
       }
     }
     if (!unique(questionIds)) errors.push(`${label}问题 id 须在前后题中保持唯一`);
-    if (!Array.isArray(p.cards) || p.cards.length !== (threeConditions ? 3 : 2)) {
-      errors.push(threeConditions ? `${label}须有三张单区域解释卡` : `${label}须有固定顺序的两张解释卡`);
+    if (!Array.isArray(p.cards) || (threeConditions ? p.cards.length < 3 : p.cards.length !== 2)) {
+      errors.push(threeConditions ? `${label}须有至少三张单区域解释卡` : `${label}须有固定顺序的两张解释卡`);
     }
     if (Array.isArray(p.cards)) {
       const ids: unknown[] = [];
@@ -198,6 +202,7 @@ export function validateConfig(input: unknown): string[] {
       for (const card of p.cards) {
         if (!object(card)) { errors.push(`${label}解释卡须为对象`); continue; }
         for (const key of ['id', 'title', 'location', 'text', 'source']) requireText(card[key], `${label}解释卡 ${key}`);
+        if(card.art!==undefined&&!validCutout(card.art))errors.push(`${label}讲解卡抠图或颜色无效`);
         ids.push(card.id); checkAOIs(card.aoiIds, `${label}解释卡`);
         if (threeConditions && Array.isArray(card.aoiIds)) {
           if (card.aoiIds.length !== 1) errors.push(`${label}每张解释卡须对应一个独立区域`);

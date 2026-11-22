@@ -2,6 +2,8 @@ import {expect,test,type Page} from '@playwright/test';
 import {readFile} from 'node:fs/promises';
 import {strFromU8,unzipSync} from 'fflate';
 import {pilotConfig} from '../../src/pilotMaterials';
+import {hitGuide} from '../../src/cutoutCard';
+import {sceneDurationSeconds} from '../../src/pilotProtocol';
 import type {Session,StudyConfig} from '../../src/types';
 import {consentAndStart,csvRecords,storedSessions} from './helpers';
 
@@ -15,6 +17,7 @@ async function installCameraFixture(page:Page){
       return entry.name;
     };
     const {WebGazerAdapter}=await import(moduleUrl('webgazerAdapter'));
+    const {singleAoi}=await import(moduleUrl('pilotProtocol'));
     const {pilotConfig}:{pilotConfig:StudyConfig}=await import(moduleUrl('pilotMaterials'));
     Object.assign(pilotConfig,{durationSeconds:12,calibrationClicks:1});
     Object.assign(pilotConfig.validation,{targetDurationMs:300,settleMs:60,minSamplesPerTarget:3});
@@ -47,9 +50,12 @@ async function installCameraFixture(page:Page){
           if(region){
             const box=img.getBoundingClientRect(),scale=Math.min(box.width/img.naturalWidth,box.height/img.naturalHeight);
             const w=img.naturalWidth*scale,h=img.naturalHeight*scale;
-            const [left,top,width,height]=region.rect;
-            x=box.left+(box.width-w)/2+w*(left+width/2);
-            y=box.top+(box.height-h)/2+h*(top+height/2);
+            const fractions=[.5,.25,.75,.1,.9];
+            const targets=region.hitRects?.length?region.hitRects:[region.rect];
+            const points=targets.flatMap(([left,top,width,height])=>fractions.flatMap(fx=>fractions.map(fy=>[left+width*fx,top+height*fy])));
+            const [nx,ny]=points.find(([x,y])=>singleAoi(x,y,painting.aois,true)===region.id)??points[0];
+            x=box.left+(box.width-w)/2+w*nx;
+            y=box.top+(box.height-h)/2+h*ny;
           }
         }
         this.onSample({callbackTimeMs:time,libraryElapsedMs:time,x,y});
@@ -58,9 +64,11 @@ async function installCameraFixture(page:Page){
   });
 }
 
-async function observeTrial(page:Page){
+async function observeTrial(page:Page,index=0){
   // A mutation observer sees short blank periods even when the CI browser is busy.
-  const cards=await page.evaluate(()=>new Promise<{id:string|null;children:string[];title:string;body:string}[]>((done,fail)=>{
+  const scene=pilotConfig.paintings[index];
+  await expect(page.locator('.stimulus img')).toBeVisible();
+  const recording=page.evaluate(()=>new Promise<{id:string|null;children:string[];title:string;body:string}[]>((done,fail)=>{
     const seen:{id:string|null;children:string[];title:string;body:string}[]=[];
     let previous:Element|null=null;
     const observer=new MutationObserver(check);
@@ -80,10 +88,13 @@ async function observeTrial(page:Page){
     observer.observe(document.body,{subtree:true,childList:true,characterData:true});
     check();
   }));
-  expect(cards).toHaveLength(3);
-  expect(new Set(cards.map(card=>card.id)).size).toBe(3);
+  await page.clock.runFor(sceneDurationSeconds(scene,12)*1000+300);
+  const cards=await recording;
+  expect(cards).toHaveLength(scene.cards.length);
+  expect(new Set(cards.map(card=>card.id)).size).toBe(scene.cards.length);
   for(const card of cards){
-    expect(card.children).toEqual(['H2','P']);
+    const material=scene.cards.find(c=>c.id===card.id)!;
+    expect(card.children).toEqual(material.art?['CANVAS','H2','P']:['H2','P']);
     expect(card.title).toBeTruthy();
     expect(card.body).toBeTruthy();
   }
@@ -131,6 +142,7 @@ async function startCalibrated(page:Page){
   await page.goto('/?participant=P01');
   await expect(page.getByLabel('匿名参与者编号')).toHaveValue('P01');
   await installCameraFixture(page);
+  await page.clock.install();
   await consentAndStart(page);
   await page.getByRole('button',{name:'启用 / 重试摄像头'}).click();
   await page.getByRole('button',{name:'开始九点校准'}).click();
@@ -139,13 +151,13 @@ async function startCalibrated(page:Page){
 }
 
 test('P01 completes all three conditions and downloads their linked predictions, cards and ratings',async({page})=>{
-  test.setTimeout(150_000);
+  test.setTimeout(360_000);
   await startCalibrated(page);
   const accept=page.getByRole('button',{name:'继续',exact:true});
   const seen=[];
   for(let period=1;period<=3;period++){
     await accept.click();
-    seen.push(...await observeTrial(page));
+    seen.push(...await observeTrial(page,period-1));
     await answerTrial(page,period);
   }
   await expect(page.getByRole('heading',{name:'最后，聊聊这次体验'})).toBeVisible();
@@ -174,8 +186,8 @@ test('P01 completes all three conditions and downloads their linked predictions,
     {paintingId:'ming-xingle-archery',condition:'gaze'},
   ]);
   const exposures=csv('card_exposures.csv'),predictions=csv('gaze_samples.csv'),attention=csv('card_attention.csv');
-  expect(exposures).toHaveLength(9);
-  expect(attention).toHaveLength(9);
+  expect(exposures).toHaveLength(pilotConfig.paintings.reduce((sum,p)=>sum+p.cards.length,0));
+  expect(attention).toHaveLength(exposures.length);
   for(const [index,card] of exposures.entries()){
     expect(card.cardId).toBe(seen[index].id);
     expect(card.cardTitle).toBe(seen[index].title);
@@ -184,8 +196,8 @@ test('P01 completes all three conditions and downloads their linked predictions,
     expect(new Set(samples.map(s=>s.onCard))).toEqual(new Set(['true','false']));
     for(const sample of samples){
       const x=Number(sample.viewportX),y=Number(sample.viewportY),t=Number(sample.callbackTimeMs);
-      const left=Number(card.viewportLeft),top=Number(card.viewportTop);
-      const hit=x>=left&&y>=top&&x<left+Number(card.viewportWidth)&&y<top+Number(card.viewportHeight);
+      const material=session.config.paintings.find(p=>p.paintingId===card.paintingId)!.cards.find(c=>c.id===card.cardId)!;
+      const hit=hitGuide(x,y,{left:Number(card.viewportLeft),top:Number(card.viewportTop),width:Number(card.viewportWidth),height:Number(card.viewportHeight)},t-Number(card.shownMs),Number(card.entranceMs),material.art,card.entranceRect?JSON.parse(card.entranceRect):undefined);
       expect(sample.onCard).toBe(String(hit));
       expect(sample.condition).toBe(card.condition);
       expect(t>=Number(card.shownMs)&&t<=Number(card.hiddenMs)).toBe(true);
@@ -194,7 +206,9 @@ test('P01 completes all three conditions and downloads their linked predictions,
     expect(Number(summary.onCardMs)).toBeGreaterThan(0);
     expect(Number(summary.offCardMs)).toBeGreaterThan(0);
   }
-  expect(exposures.filter(row=>row.condition==='gaze').map(row=>row.selectionSource)).toEqual(['gaze','gaze','remaining']);
+  const gaze=exposures.filter(row=>row.condition==='gaze');
+  expect(gaze.slice(0,-1).every(row=>row.selectionSource==='gaze')).toBe(true);
+  expect(gaze.at(-1)?.selectionSource).toBe('remaining');
   expect(csv('pilot_ratings.csv').map(row=>[row.condition,row.overall,row.rawTLX])).toEqual([
     ['sequential','4','0'],['random','5','20'],['gaze','6','30'],
   ]);

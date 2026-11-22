@@ -1,7 +1,9 @@
+import {hitGuide} from './cutoutCard';
 import {unzipSync,strFromU8} from 'fflate';
 import type {Session} from './types';
-import {buildPilotPlan,hitRect,PILOT_VERSION} from './pilotProtocol';
+import {buildPilotPlan,PILOT_VERSION} from './pilotProtocol';
 import {validateConfig} from './study';
+import {knownPilotSurveyVersion} from './pilotQuestions';
 import {recallComplete,workloadComplete,workloadIds} from './pilotSurvey';
 import {surveyContext} from './pilotSurveyRecords';
 
@@ -35,7 +37,7 @@ function checkSurvey(session:Session):void {
     if(session.pilotSurveys!==undefined)throw Error('问卷记录缺少对应的问卷版本。');
     return;
   }
-  if(version!=='pilot2-recall-v1'||!session.pilot)throw Error('Pilot 2 问卷与会话版本不一致。');
+  if(!knownPilotSurveyVersion(version)||!session.pilot)throw Error('Pilot 2 问卷与会话版本不一致。');
   if(session.pilotSurveys!==undefined && (!object(session.pilotSurveys)||Object.keys(session.pilotSurveys).some(id=>!session.order.includes(id))))throw Error('问卷场景无效。');
   for(const painting of session.config.paintings){
     const questions=painting.recallQuestions;
@@ -98,16 +100,19 @@ function checkPilot(session:Session):void {
       || !session.timings.some(t=>t.paintingId===exposure.paintingId && t.trialId===exposure.trialId)
       || !session.geometries.some(g=>g.paintingId===exposure.paintingId && g.version===exposure.geometryVersion)
       || !pilot.plan.some(t=>t.paintingId===exposure.paintingId && t.condition===exposure.condition)
-      || !Number.isInteger(exposure.slot) || exposure.slot<1 || exposure.slot>3
+      || !Number.isInteger(exposure.slot) || exposure.slot<1 || exposure.slot>painting.cards.length
       || !sources.includes(exposure.selectionSource) || !Array.isArray(exposure.candidateCardIds)
       || !exposure.candidateCardIds.includes(exposure.cardId)
       || !Number.isFinite(exposure.shownMs) || exposure.shownMs<previousEnd
       || (exposure.hiddenMs!==null && (!Number.isFinite(exposure.hiddenMs)||exposure.hiddenMs<exposure.shownMs))
+      || (exposure.entranceRect!==undefined&&(!exposure.entranceRect||![exposure.entranceRect.left,exposure.entranceRect.top,exposure.entranceRect.width,exposure.entranceRect.height].every(Number.isFinite)||exposure.entranceRect.width<=0||exposure.entranceRect.height<=0))
+      || (exposure.entranceMs!==undefined && (!Number.isFinite(exposure.entranceMs)||exposure.entranceMs<0||exposure.entranceMs>2000))
       || !exposure.rect || ![exposure.rect.left,exposure.rect.top,exposure.rect.width,exposure.rect.height].every(Number.isFinite)
       || exposure.rect.width<=0 || exposure.rect.height<=0) throw Error('卡片曝光的试次、时段或显示边界无效。');
     previousEnd=exposure.hiddenMs??Infinity;
     byId.set(exposure.exposureId,exposure);
   }
+  const artByCard=new Map(session.config.paintings.flatMap(p=>p.cards.map(c=>[c.id,c.art] as const)));
   for (const sample of session.samples) {
     if (sample.phase!=='free_view') continue;
     const trial=pilot.plan.find(t=>t.paintingId===sample.paintingId);
@@ -124,7 +129,7 @@ function checkPilot(session:Session):void {
       throw Error('看画回调所关联的卡片曝光无效。');
     }
     const expectedHit=sample.paused||!sample.predictionAvailable||sample.viewportX===null||sample.viewportY===null
-      ?null:hitRect(sample.viewportX,sample.viewportY,exposure.rect);
+      ?null:hitGuide(sample.viewportX,sample.viewportY,exposure.rect,sample.callbackTimeMs-exposure.shownMs,exposure.entranceMs,artByCard.get(exposure.cardId),exposure.entranceRect);
     if (sample.onCard!==expectedHit) throw Error('卡片命中与原始坐标、显示边界不一致。');
   }
 }

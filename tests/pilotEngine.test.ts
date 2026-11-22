@@ -1,13 +1,18 @@
 import {beforeEach,afterEach,describe,expect,it,vi} from 'vitest';
 import {StudyEngine,type Adapter} from '../src/engine';
-import {buildPilotPlan,cardPermutation,selectCard} from '../src/pilotProtocol';
-import {pilotConfig} from '../src/pilotMaterials';
+import {buildPilotPlan,cardPermutation,responsiveSelectionRules,selectCard,singleAoi,SELECTION_RULES} from '../src/pilotProtocol';
+import {pilotConfig as materials} from '../src/pilotMaterials';
 import {containGeometry} from '../src/geometry';
 import {saveSession} from '../src/storage';
 import {readCheckpoint} from '../src/pilotResume';
 import {surveyForScene} from '../src/pilotSurvey';
 import {sampleFixture} from './dataFixtures';
 import type {Painting,PilotTrial,Session} from '../src/types';
+
+const pilotConfig=structuredClone(materials);
+for(const painting of pilotConfig.paintings){
+  painting.cards=painting.cards.slice(0,3).map(({art,...card})=>card);
+}
 
 vi.mock('../src/storage',()=>({saveSession:vi.fn().mockResolvedValue(undefined)}));
 
@@ -61,6 +66,18 @@ describe('P protocol and assignment',()=>{
     expect(selectCard({...args,condition:'random',priorIds:[deck[0]]})?.cardId).toBe(deck[1]);
     expect(selectCard({...args,condition:'sequential',priorIds:[ids[0]]})?.cardId).toBe(ids[1]);
   });
+  it('tolerates a brief noisy estimate but never credits its time towards the fast trigger',()=>{
+    const painting=pilotConfig.paintings[0];
+    const aoi=painting.cards[1].aoiIds[0];
+    const samples=Array.from({length:25},(_,i)=>sampleFixture({
+      trialId:'trial',callbackTimeMs:i*50,imageAoiId:i===15?null:aoi,
+    }));
+    const args={painting,trialId:'trial',condition:'gaze' as const,now:1200,windowStart:0,slot:1,deck:[],priorIds:[],samples,
+      qualityOK:true,rules:responsiveSelectionRules([painting],60)};
+    expect(selectCard(args)).toMatchObject({selectionSource:'gaze',dwellMs:1100,validSelectionSamples:24});
+    samples[16].imageAoiId=null;samples[17].imageAoiId=null;
+    expect(selectCard(args)?.selectionSource).toBe('fallback');
+  });
 });
 
 describe('physical exposure windows and camera recording',()=>{
@@ -88,11 +105,11 @@ describe('physical exposure windows and camera recording',()=>{
   function callback(x:number|null,y:number|null){
     engine.sample({x,y,callbackTimeMs:now,libraryElapsedMs:now});
   }
-  it('shows each Pilot 2 card three seconds into its slot, and stops collecting in the questionnaire',()=>{
+  it('shows scheduled cards at the two-second deadline and stops collecting in the questionnaire',()=>{
     const session=begin('P01');
     image(engine.painting!);
     for(let slot=0;slot<3;slot++){
-      now=slot*20000+2999;callback(500,400);engine.tick();
+      now=slot*20000+1999;callback(500,400);engine.tick();
       expect(engine.activeCard).toBeNull();
       now++;callback(500,400);engine.tick();
       expect(engine.activeCard).toBeDefined();
@@ -100,11 +117,71 @@ describe('physical exposure windows and camera recording',()=>{
       engine.cardShown({left:10,top:10,width:60,height:20});
       now=(slot+1)*20000;callback(500,400);engine.tick();engine.cardHidden();
     }
-    expect(session.cardExposures!.map(e=>[e.shownMs,e.hiddenMs])).toEqual([[3000,20000],[23000,40000],[43000,60000]]);
+    expect(session.cardExposures!.map(e=>[e.shownMs,e.hiddenMs])).toEqual([[2000,20000],[22000,40000],[42000,60000]]);
     expect(engine.phase).toBe('pre');
     const count=session.samples.length;
     now+=8000;callback(50,50);engine.tick();
     expect(session.samples).toHaveLength(count);
+  });
+  it('honors the saved three-second start in an existing fixed-slot session',()=>{
+    const session=begin('P01');
+    session.pilot!.selectionRules={...SELECTION_RULES,blankFraction:.15};
+    image(engine.painting!);
+    now=2999;callback(500,400);engine.tick();expect(engine.activeCard).toBeNull();
+    now=3000;callback(500,400);engine.tick();expect(engine.activeCard?.id).toBe(engine.painting!.cards[0].id);
+  });
+
+  it.each(['gaze','random','sequential'] as const)('gives four cutouts ten seconds each for %s, with a 1.1s eligible gaze trigger',condition=>{
+    const config=structuredClone(pilotConfig);
+    const painting=config.paintings[0];
+    // Four equal strips are easy to target in the contained long-scroll image.
+    painting.aois=Array.from({length:4},(_,i)=>({id:'target'+i,label:'target '+i,rect:[i/4,0,.25,1]}));
+    painting.cards=painting.aois.map((a,i)=>({
+      ...painting.cards[0],id:'card'+i,aoiIds:[a.id],art:{image:'/materials/uci/test.png',board:'#ddaa66',glow:'#ddbb77'},
+    }));
+    painting.relations.forEach(rel=>rel.aoiIds=[painting.aois[0].id]);
+    engine.begin(config,'P00','fixture',{paintingId:painting.paintingId,condition});
+    const session=engine.session!;
+    for(const kind of ['drift','validation'] as const)session.validationSummaries.push({
+      kind,status:'pass',targets:[],runId:kind,calibrationVersion:0,medianErrorPx:10,errorDiagonalRatio:.01,
+    });
+    image(painting);
+    let shown:string|undefined;
+    for(now=0;now<=48000;now+=50){
+      const target=[2,0,3,1][Math.min(3,Math.floor(now/12000))];
+      callback((target+.5)*250,400);
+      engine.tick();
+      const current=engine.activeCard?.id;
+      if(shown!==current){
+        if(shown)engine.cardHidden(shown);
+        if(current)engine.cardShown({left:0,top:0,width:30,height:20},current);
+        shown=current;
+      }
+    }
+    const cards=session.cardExposures!;
+    expect(new Set(cards.map(c=>c.cardId)).size).toBe(4);
+    expect(cards.map(c=>c.hiddenMs!-c.shownMs)).toEqual([10000,10000,10000,10000]);
+    expect(session.timings[0].activeMs).toBe(48000);
+    expect(cards.map(c=>c.shownMs)).toEqual(condition==='gaze'?[1100,13100,25100,38000]:[2000,14000,26000,38000]);
+    if(condition==='gaze'){
+      expect(cards.map(c=>c.cardId)).toEqual(['card2','card0','card3','card1']);
+      expect(cards.map(c=>c.selectionSource)).toEqual(['gaze','gaze','gaze','remaining']);
+    }
+  });
+
+  it('targets the smallest authored detail and excludes the empty space between group members',()=>{
+    const regions:Painting['aois']=[
+      {id:'scene',label:'scene',rect:[0,0,1,1]},
+      {id:'figure',label:'figure',rect:[.2,.2,.3,.3]},
+      {id:'tree',label:'tree',rect:[.4,.4,.2,.3]},
+    ];
+    expect(singleAoi(.3,.3,regions,true)).toBe('figure');
+    expect(singleAoi(.3,.3,regions)).toBeNull();
+    expect(singleAoi(.41,.41,regions,true)).toBe('tree');
+    const people:Painting['aois']=[{id:'figures',label:'figures',rect:[0,0,.8,.5],hitRects:[[0,0,.1,.5],[.7,0,.1,.5]]}];
+    expect(singleAoi(.4,.2,people,true)).toBeNull();
+    expect(singleAoi(.75,.2,people,true)).toBe('figures');
+    expect(singleAoi(.4,.2,people)).toBe('figures');
   });
   it('requires camera data for a recorded session, including drift checks',()=>{
     const session=begin('P01');

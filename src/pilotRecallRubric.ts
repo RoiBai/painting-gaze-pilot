@@ -1,3 +1,5 @@
+import {PILOT_SURVEY_VERSION,UCI_RECALL_VERSION} from './pilotQuestions';
+
 const examples:Record<string,readonly string[]>={
   'recall-polo-goal':['旗','旗子','小旗'],
   'recall-polo-audience':['帷幕','帘幕','围幔（无需记住颜色）'],
@@ -10,6 +12,20 @@ const examples:Record<string,readonly string[]>={
   'recall-archery-archers':['绿色','绿衣','青绿色'],
 };
 
+const uciExamples:Record<string,readonly string[]>={
+  'recall-cuju-figma-1-5':examples['recall-cuju-platform'],
+  'recall-cuju-figma-0-8':examples['recall-cuju-garden'],
+  'recall-cuju-figma-0-10':examples['recall-cuju-court'],
+  'recall-archery-figma-0-6':examples['recall-archery-target'],
+  'recall-archery-figma-3-5':examples['recall-archery-pavilion'],
+  'recall-archery-figma-1-2':examples['recall-archery-archers'],
+  'recall-polo-figma-3-19':examples['recall-polo-goal'],
+  'recall-polo-figma-3-27':examples['recall-polo-audience'],
+  'recall-polo-figma-3-25':['椭圆形','环形','圆圈','扁圆的圈或环'],
+};
+
 export function recallAnswerExamples(version:string,questionId:string):readonly string[]{
-  return version==='pilot2-recall-v1'?examples[questionId]??[]:[];
+  if(version===UCI_RECALL_VERSION)return uciExamples[questionId]??[];
+  if(version===PILOT_SURVEY_VERSION)return examples[questionId]??[];
+  return [];
 }

@@ -3,6 +3,9 @@ import {it,expect} from 'vitest';
 import {zipSync,strFromU8} from 'fflate';
 import {pilot2SurveyFixture} from './pilot2SurveyFixture';
 import {buildTextExportFiles} from '../src/export';
+import {pilotConfig} from '../src/pilotMaterials';
+import {PILOT_SURVEY_VERSION,UCI_RECALL_VERSION,recallQuestionsByScene} from '../src/pilotQuestions';
+import {recallAnswerExamples} from '../src/pilotRecallRubric';
 import {pilotRatings} from '../src/cardMetrics';
 import {readSessionArchive} from '../src/importSession';
 import {workloadRows,recallRows} from '../src/pilotSurveyRecords';
@@ -17,7 +20,7 @@ it('exports all nine recall questions in fixed within-scene order, joins actual 
     const q=painting.recallQuestions![row.questionIndex-1];
     const actual=s.cardExposures!.filter(e=>e.trialId===row.trialId&&e.paintingId===row.paintingId).map(e=>e.cardId);
     expect(row).toMatchObject({sessionId:s.sessionId,participantId:'P02',cardId:q.cardId,questionPrompt:q.prompt,questionId:q.id,
-      condition:s.pilot!.plan.find(p=>p.paintingId===row.paintingId)!.condition,questionVersion:'pilot2-recall-v1',
+      condition:s.pilot!.plan.find(p=>p.paintingId===row.paintingId)!.condition,questionVersion:UCI_RECALL_VERSION,
       cardPresentationOrder:actual.indexOf(q.cardId)+1,actualCardOrder:JSON.stringify(actual),manualScore:null,sceneRecallScore:null});
     expect(row.submittedUtc).toBe(new Date(s.timeOrigin+row.submittedMs!).toISOString());
   }
@@ -54,10 +57,31 @@ it('keeps incomplete drafts and manual judgments distinct from zero scores, incl
 it('does not impute a missing exposure or confuse its actual appearance with its planned slot',()=>{
   const s=pilot2SurveyFixture();
   const first=s.order[0];
-  const omitted=s.cardExposures!.shift()!;
-  s.pilotSurveys![first].submittedCardOrder.shift();
+  const initialRows=recallRows(s).filter(row=>row.paintingId===first).sort((a,b)=>a.cardPresentationOrder!-b.cardPresentationOrder!);
+  const omitted=initialRows[0];
+  const later=initialRows[1];
+  s.cardExposures=s.cardExposures!.filter(e=>e.paintingId!==first||e.cardId!==omitted.cardId);
+  s.pilotSurveys![first].submittedCardOrder=s.pilotSurveys![first].submittedCardOrder.filter(id=>id!==omitted.cardId);
   const restored=readSessionArchive(zipSync(buildTextExportFiles(s)),'missing.zip');
   const rows=recallRows(restored).filter(r=>r.paintingId===first);
   expect(rows.find(r=>r.cardId===omitted.cardId)).toMatchObject({cardSlot:null,cardPresentationOrder:null});
-  expect(rows.find(r=>r.cardSlot===2)!.cardPresentationOrder).toBe(1);
+  expect(rows.find(r=>r.cardId===later.cardId)).toMatchObject({cardSlot:later.cardSlot,cardPresentationOrder:later.cardPresentationOrder!-1});
+});
+
+it('reopens a v1 session with its frozen question IDs, responses and original marking rubric',()=>{
+  const legacy=structuredClone(pilotConfig);
+  legacy.pilotSurveyVersion=PILOT_SURVEY_VERSION;
+  for(const scene of legacy.paintings){
+    const key=scene.paintingId.replace('ming-xingle-','') as keyof typeof recallQuestionsByScene;
+    scene.recallQuestions=structuredClone(recallQuestionsByScene[key]);
+    scene.cards=scene.recallQuestions.map(({cardId},i)=>({...scene.cards[i],id:cardId}));
+  }
+  const archive=zipSync(buildTextExportFiles(pilot2SurveyFixture('P02',legacy)));
+  const restored=readSessionArchive(archive,'legacy.zip');
+  expect(recallRows(restored)).toHaveLength(9);
+  for(const row of recallRows(restored)){
+    expect(row.questionVersion).toBe(PILOT_SURVEY_VERSION);
+    expect(recallAnswerExamples(row.questionVersion!,row.questionId).length).toBeGreaterThan(0);
+    expect(recallAnswerExamples(UCI_RECALL_VERSION,row.questionId)).toEqual([]);
+  }
 });

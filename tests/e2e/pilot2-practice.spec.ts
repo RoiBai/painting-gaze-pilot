@@ -3,6 +3,8 @@ import type {StudyConfig} from '../../src/types';
 import {readFile} from 'node:fs/promises';
 import {readSessionArchive} from '../../src/importSession';
 import {beginFlowOnly,enterScene,skipQuestions} from './helpers';
+import {pilotConfig} from '../../src/pilotMaterials';
+import {sceneDurationSeconds} from '../../src/pilotProtocol';
 
 test('P00 retains a complete rehearsal, downloads its ZIP, inspects data rows and reopens from the practice archive',async({page},testInfo)=>{
   test.setTimeout(120_000);
@@ -15,10 +17,13 @@ test('P00 retains a complete rehearsal, downloads its ZIP, inspects data rows an
     Object.assign(pilotConfig,{durationSeconds:6,calibrationClicks:1});
     Object.assign(pilotConfig.validation,{targetDurationMs:200,settleMs:50});
   });
+  await page.clock.install();
   await expect(page.getByText(/蹴鞠（顺序讲解） → 马球（随机讲解） → 射箭（眼动讲解）/)).toBeVisible();
   await beginFlowOnly(page);
   for(let i=0;i<3;i++){
     await enterScene(page);
+    await expect(page.locator('.stimulus img')).toBeVisible();
+    await page.clock.runFor(sceneDurationSeconds(pilotConfig.paintings[i],6)*1000+300);
     await expect(page.getByRole('heading',{name:'观看感受'})).toBeVisible({timeout:20_000});
     await expect(page.getByRole('region',{name:'分时段视线回看'})).toHaveCount(0);
     for(const field of await page.getByRole('combobox').all())await field.selectOption('0');
@@ -43,7 +48,8 @@ test('P00 retains a complete rehearsal, downloads its ZIP, inspects data rows an
   }
   await page.getByText('查看本次试用的数据行',{exact:true}).click();
   const rows=page.getByRole('table',{name:'试用数据行'}).locator('tbody tr');
-  await expect(rows).toHaveCount(9);
+  const totalCards=pilotConfig.paintings.reduce((sum,s)=>sum+s.cards.length,0);
+  await expect(rows).toHaveCount(Math.min(9,totalCards));
   await page.getByLabel('预览的数据表').selectOption('pilot_recall.csv');
   await expect(rows).toHaveCount(9);
   await expect(rows.first()).toContainText('true');
@@ -56,7 +62,7 @@ test('P00 retains a complete rehearsal, downloads its ZIP, inspects data rows an
   const session=readSessionArchive(new Uint8Array(await readFile(path)),download.suggestedFilename());
   expect(session.pilot?.practice).toBe(true);
   expect(session.status).toBe('completed');expect(session.quality).toBe('flow_only');
-  expect(session.cardExposures).toHaveLength(9);
+  expect(session.cardExposures).toHaveLength(totalCards);
   expect(Object.keys(session.pilotSurveys!)).toHaveLength(3);
   await page.reload();
   const practice=page.getByRole('region',{name:'本机 P00 研究者试用'});

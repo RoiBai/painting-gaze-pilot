@@ -1,3 +1,4 @@
+import {UCI_RECALL_VERSION} from './pilotQuestions';
 import {useState} from 'react';
 import {CONDITION_LABELS, pilotRatings} from './cardMetrics';
 import {readSessionArchive} from './importSession';
@@ -48,7 +49,7 @@ export default function PilotGroupRatings(){
       }
       const collected=[...unique.values()].sort((a,b)=>a.id.localeCompare(b.id));
       setEntries(collected);
-      chooseVersion(collected.find(e=>e.version==='pilot2-recall-v1')?.version??collected[0]?.version??'');
+      chooseVersion(collected.find(e=>e.version===UCI_RECALL_VERSION)?.version??collected[0]?.version??'');
       setMessages(notices);
     }finally{setBusy(false)}
   }

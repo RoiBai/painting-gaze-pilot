@@ -1,3 +1,4 @@
+import {drawCutout} from './cutoutCard';
 import type {Painting} from './types';
 import type {GazeRegion,ReviewWindow,SegmentPoint} from './pilotSegments';
 
@@ -19,7 +20,7 @@ function wrapText(context:CanvasRenderingContext2D,text:string,x:number,y:number
 }
 
 /** All inputs are the original viewport CSS coordinates; apply one uniform transform to the entire frame. */
-export function drawSegment(canvas:HTMLCanvasElement,image:HTMLImageElement,painting:Painting,window:ReviewWindow,points:SegmentPoint[],until:number,live=false){
+export function drawSegment(canvas:HTMLCanvasElement,image:HTMLImageElement,painting:Painting,window:ReviewWindow,points:SegmentPoint[],until:number,live=false,cutout:HTMLImageElement|null=null){
   const g=window.geometry;
   if(!g)return;
   const scale=Math.min(1,1600/g.viewportWidth,1200/g.viewportHeight);
@@ -34,6 +35,9 @@ export function drawSegment(canvas:HTMLCanvasElement,image:HTMLImageElement,pain
   if(window.exposure){
     const {left,top,width:cardWidth,height:cardHeight}=window.exposure.rect;
     const card=painting.cards.find(c=>c.id===window.exposure!.cardId);
+    if(card?.art&&cutout){
+      drawCutout(ctx,card,cutout,window.exposure.rect,until-window.exposure.shownMs,window.exposure.entranceMs??0,window.exposure.entranceRect);
+    }else{
     ctx.save();
     ctx.beginPath();ctx.roundRect(left,top,cardWidth,cardHeight,6);
     ctx.fillStyle='#fffdf6';ctx.fill();ctx.strokeStyle='#8a786a';ctx.lineWidth=1.5;ctx.stroke();ctx.clip();
@@ -44,6 +48,7 @@ export function drawSegment(canvas:HTMLCanvasElement,image:HTMLImageElement,pain
       wrapText(ctx,card.text,left+20,bodyY,cardWidth-40,25.6);
     }
     ctx.restore();
+    }
   }
   let last:SegmentPoint|undefined;
   for(const point of points){

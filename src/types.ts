@@ -1,5 +1,5 @@
 export type Phase = 'consent'|'camera'|'calibration'|'validation'|'quality'|'drift'|'drift_result'|'loading_image'|'free_view'|'familiarity'|'pre'|'cards'|'post'|'interview'|'completed'|'interrupted';
-export interface AOI {id:string;label:string;rect:[number,number,number,number]}
+export interface AOI {id:string;label:string;rect:[number,number,number,number];hitRects?:AOI['rect'][]}
 export interface Question {ratingScale?:{min:number;max:number;step:number;lowLabel:string;highLabel:string};id:string;prompt:string;scoring:string;type?:'text'|'multi-select';description?:string;optional?:boolean;options?:{id:string;label:string;exclusive?:boolean}[];otherOptionId?:string;analysisRole?:'spontaneous'|'prompted'|'classification'|'card-feedback';confidence?:boolean;allowUnknown?:boolean}
 export type ParticipantPlanVersion = 'crossed-four-v1'|'common-four-v2';
 export type QuestionVariant = 'alpha'|'beta'|'common';
@@ -7,8 +7,10 @@ export interface BackgroundAnswers {studyField:string;artEducation:'none'|'short
 export interface BackgroundQuestion {id:keyof BackgroundAnswers;prompt:string;options?:{id:string;label:string}[];scale?:{min:number;max:number;minLabel:string;maxLabel:string}}
 export interface ParticipantBackground {version:string;answers:BackgroundAnswers;questions:BackgroundQuestion[]}
 export interface ParticipantAssignment {planVersion:ParticipantPlanVersion;participantId:string;order:'AB'|'BA';questionVariant:QuestionVariant;questionVersion:string;paintingOrder:string[]}
-export interface Painting {recallQuestions?:RecallQuestion[];crop?:{sourceImage:string;sourceWidth:number;sourceHeight:number;rect:[number,number,number,number];sourceSha256:string};paintingId:string;image:string;width:number;height:number;title:string;source:string;materialVersion:string;verified:boolean;placeholder:boolean;aois:AOI[];relations:{id:string;text:string;aoiIds:string[];source:string}[];pre:Question[];post:Question[];cards:{id:string;title:string;location:string;text:string;source:string;aoiIds:string[]}[];interview:string[]}
-export interface StudyConfig {pilotSurveyVersion?:'pilot2-recall-v1';pilotProtocol?:'three-condition-v1';version:string;mode:'preview'|'research';durationSeconds:number;order:'alternate'|'AB'|'BA';participantPlan?:ParticipantPlanVersion;questionnaireVersion?:'common-viewing-v1';regression:'ridge'|'weightedRidge';kalman:boolean;displayMode:'window'|'fullscreen';validation:{maxTargetMedianErrorPx?:number|null;maxMedianErrorPx:number|null;maxErrorDiagonalRatio:number|null;minSamplesPerTarget:number;targetDurationMs:number;settleMs:number};nullPauseMs:number;calibrationClicks:number;paintings:Painting[];copy:{intro:string;consent:string;freeView:string;interview:string}}
+export interface CutoutArt { image:string; board:string; glow:string; shape?:{width:number;height:number;cols:number;rows:number;bits:string} }
+export interface Painting {recallQuestions?:RecallQuestion[];crop?:{sourceImage:string;sourceWidth:number;sourceHeight:number;rect:[number,number,number,number];sourceSha256:string};paintingId:string;image:string;width:number;height:number;title:string;source:string;materialVersion:string;verified:boolean;placeholder:boolean;aois:AOI[];relations:{id:string;text:string;aoiIds:string[];source:string}[];pre:Question[];post:Question[];cards:{id:string;title:string;location:string;text:string;source:string;aoiIds:string[];art?:CutoutArt}[];interview:string[]}
+export type PilotSurveyVersion = 'pilot2-recall-v1' | 'pilot2-uci-recall-v2';
+export interface StudyConfig {pilotSurveyVersion?:PilotSurveyVersion;pilotProtocol?:'three-condition-v1';version:string;mode:'preview'|'research';durationSeconds:number;order:'alternate'|'AB'|'BA';participantPlan?:ParticipantPlanVersion;questionnaireVersion?:'common-viewing-v1';regression:'ridge'|'weightedRidge';kalman:boolean;displayMode:'window'|'fullscreen';validation:{maxTargetMedianErrorPx?:number|null;maxMedianErrorPx:number|null;maxErrorDiagonalRatio:number|null;minSamplesPerTarget:number;targetDurationMs:number;settleMs:number};nullPauseMs:number;calibrationClicks:number;paintings:Painting[];copy:{intro:string;consent:string;freeView:string;interview:string}}
 export interface Geometry {version:number;paintingId:string;timeMs:number;viewportWidth:number;viewportHeight:number;dpr:number;naturalWidth:number;naturalHeight:number;left:number;top:number;width:number;height:number;scale:number}
 export interface GazeSample {condition?:Condition;cardExposureId?:string|null;cardId?:string|null;onCard?:boolean|null;imageAoiId?:string|null;trialActiveMs?:number|null;sessionId:string;participantId:string;paintingId:string|null;trialId:string|null;phase:Phase;sampleIndex:number;callbackTimeMs:number;libraryElapsedMs:number|null;viewportX:number|null;viewportY:number|null;imageX:number|null;imageY:number|null;imageNormX:number|null;imageNormY:number|null;predictionAvailable:boolean;insideImage:boolean;geometryVersion:number|null;calibrationVersion:number;paused:boolean;confidence:null}
 export interface PhaseEvent {sessionId:string;participantId:string;timeMs:number;type:string;phase:Phase;paintingId:string|null;detail:string}
@@ -34,7 +36,11 @@ export interface PilotMetadata {
     maximumGapMs:number;
     lookbackMs:number;
     maximumAgeMs:number;
-    slots:number;
+    maximumOffTargetMs?:number;
+    slots?:number;
+    slotCountsByPainting?:Record<string,number>;
+    durationMsByPainting?:Record<string,number>;
+    maximumSelectionMs?:number;
     blankFraction:number;
     randomAlgorithm:string;
   };
@@ -51,6 +57,8 @@ export interface CardDecision {
   candidateCardIds:string[];
 }
 export interface CardExposure extends CardDecision {
+  entranceMs?:number;
+  entranceRect?:CardRect;
   exposureId:string;
   trialId:string;
   paintingId:string;
@@ -66,7 +74,7 @@ export interface CardExposure extends CardDecision {
 export type WorkloadId = 'mental'|'physical'|'temporal'|'performance'|'effort'|'frustration';
 export interface RecallQuestion {id:string;cardId:string;prompt:string}
 export interface PilotSceneSurvey {
-  version:'pilot2-recall-v1';
+  version:PilotSurveyVersion;
   trialId:string|null;
   submittedCardOrder:string[];
   workload:Partial<Record<WorkloadId,number>>;

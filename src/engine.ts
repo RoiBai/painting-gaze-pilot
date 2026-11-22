@@ -1,3 +1,4 @@
+import {hitGuide} from './cutoutCard';
 import type {Session,StudyConfig,Phase,Geometry,ResponseRow,ValidationRow,BackgroundAnswers, ParticipantAssignment, CardDecision, CardExposure, CardRect, PilotMetadata, PilotTrial} from './types';
 import {WebGazerAdapter} from './webgazerAdapter';
 import {saveSession} from './storage';
@@ -11,7 +12,7 @@ import {validationExplanation} from './quality';
 import {resolveParticipantConfig} from './assignment';
 import {freezeBackground} from './background';
 import {COMMON_QUESTIONNAIRE_VERSION} from './commonQuestionnaire';
-import {buildPilotPlan,cardPermutation,hitRect,PILOT_VERSION,SELECTION_RULES,selectCard,singleAoi} from './pilotProtocol';
+import {buildPilotPlan,cardPermutation,PILOT_VERSION,responsiveSelectionRules,SELECTION_RULES,selectCard,singleAoi} from './pilotProtocol';
 
 export const CALIBRATION_TARGETS = [[.12,.15],[.5,.15],[.88,.15],[.12,.5],[.5,.5],[.88,.5],[.12,.85],[.5,.85],[.88,.85]];
 export const VALIDATION_TARGETS = [[.25,.28],[.75,.28],[.5,.5],[.25,.72],[.75,.72]];
@@ -25,6 +26,7 @@ export class StudyEngine {
  revision=0; listeners=new Set<()=>void>(); adapter:Adapter; geometry:Geometry|null=null; lastPredictionAt=0; lastCallbackAt=0;
  private slotChoices=new Map<number,CardDecision>();
  private visibleDecision:CardDecision|null=null;
+ private visibleUntilActiveMs=0;
  private openExposure:CardExposure|null=null;
  private windowResetMs=0;
  private deck:string[]=[];
@@ -44,6 +46,10 @@ export class StudyEngine {
  get targets(){return this.phase==='calibration'?CALIBRATION_TARGETS:this.phase==='validation'?VALIDATION_TARGETS:DRIFT_TARGETS}
  get target(){const t=this.targets[this.targetIndex]??[.5,.5];return {x:t[0]*window.innerWidth,y:t[1]*window.innerHeight}}
  get currentTiming(){return this.session?.timings.findLast(t=>t.paintingId===this.painting?.paintingId)}
+ private get sceneDurationMs(){
+   const session=this.session!;
+   return session.pilot?.selectionRules.durationMsByPainting?.[session.order[this.trialIndex]]??session.config.durationSeconds*1000;
+ }
  event(type:string,detail:unknown={}){if(!this.session)return;this.session.events.push({sessionId:this.session.sessionId,participantId:this.session.participantId,timeMs:this.clock(),type,phase:this.phase,paintingId:this.painting?.paintingId??null,detail:JSON.stringify(detail)})}
  saveSurvey(submitted=false){
    if(!this.session)return;
@@ -64,7 +70,7 @@ export class StudyEngine {
     copy=structuredClone(config);
     if(!plan.every(({paintingId})=>copy.paintings.some(p=>p.paintingId===paintingId)))throw Error('缺少本轮指定的蹴鞠、马球或射箭材料');
     const seed=crypto.getRandomValues(new Uint32Array(1))[0];
-    pilot={version:PILOT_VERSION,practice:id==='P00',...(previewTrial?{rehearsalMode:'single-scene' as const}:{}),seed,plan,selectionRules:{...SELECTION_RULES,blankFraction:config.pilotSurveyVersion?0.15:SELECTION_RULES.blankFraction}};
+    pilot={version:PILOT_VERSION,practice:id==='P00',...(previewTrial?{rehearsalMode:'single-scene' as const}:{}),seed,plan,selectionRules:config.pilotSurveyVersion?responsiveSelectionRules(copy.paintings,copy.durationSeconds):{...SELECTION_RULES}};
   }else{
     if(previewTrial!==undefined)throw Error('仅三条件研究中的 P00 可自选场景和讲解方式');
     if(!/^N0[1-6]$/.test(id))throw Error('匿名编号须为 N01–N06');
@@ -73,7 +79,7 @@ export class StudyEngine {
   const errors=validateConfig(copy);if(errors.length)throw Error(errors.join('\n'));
   const backgroundSnapshot=typeof background==='string'?undefined:freezeBackground(background);
   const sessionId=`${id}-${new Date().toISOString().replace(/[:.]/g,'-')}-${crypto.randomUUID().slice(0,8)}`;
-  this.session={schemaVersion:1,sessionId,participantId:id,startedUtc:new Date().toISOString(),endedUtc:null,timeOrigin:performance.timeOrigin,status:'active',phase:'consent',mode:copy.mode,dataSource:'webgazer-camera',config:copy,order:pilot?pilot.plan.map(trial=>trial.paintingId):orderForParticipant(id,copy),...(pilot?{pilot,cardExposures:[]}:{}),...(assignment?{assignment}:{}),artBackground:typeof background==='string'?background:'',...(backgroundSnapshot?{background:backgroundSnapshot}:{}),calibrationVersion:0,quality:'pending',qualityNotes:[],dependencies:{webgazer:'3.5.3',react:'18.3.1',app:copy.pilotSurveyVersion?'2.1.1':pilot?'2.0.0':'1.5.0',browser:navigator.userAgent},geometries:[],timings:[],validationSummaries:[],heatmap:{width:1000,kernelPx:30,opacity:.65,weight:'one-per-sample',normalization:'per-image-max',colorScale:'blue-cyan-yellow-red-v1'},scanpath:{...defaultScanpath},samples:[],events:[],responses:[],validation:[]};
+  this.session={schemaVersion:1,sessionId,participantId:id,startedUtc:new Date().toISOString(),endedUtc:null,timeOrigin:performance.timeOrigin,status:'active',phase:'consent',mode:copy.mode,dataSource:'webgazer-camera',config:copy,order:pilot?pilot.plan.map(trial=>trial.paintingId):orderForParticipant(id,copy),...(pilot?{pilot,cardExposures:[]}:{}),...(assignment?{assignment}:{}),artBackground:typeof background==='string'?background:'',...(backgroundSnapshot?{background:backgroundSnapshot}:{}),calibrationVersion:0,quality:'pending',qualityNotes:[],dependencies:{webgazer:'3.5.3',react:'18.3.1',app:copy.pilotSurveyVersion==='pilot2-uci-recall-v2'?'3.0.0':copy.pilotSurveyVersion?'2.1.1':pilot?'2.0.0':'1.5.0',browser:navigator.userAgent},geometries:[],timings:[],validationSummaries:[],heatmap:{width:1000,kernelPx:30,opacity:.65,weight:'one-per-sample',normalization:'per-image-max',colorScale:'blue-cyan-yellow-red-v1'},scanpath:{...defaultScanpath},samples:[],events:[],responses:[],validation:[]};
   this.phase='consent';this.trialIndex=0;this.geometry=null;this.paused=false;this.requireCalibration=false;this.cardIndex=0;
   this.resetCardState();
   if(pilot)this.event('pilot_plan_assigned',{...pilot});
@@ -150,7 +156,7 @@ export class StudyEngine {
     if(timing){
       timing.wallMs=now-timing.startedMs;
       if(!this.paused)timing.activeMs+=dt;
-      if(timing.activeMs>=this.session.config.durationSeconds*1000 && !this.paused){
+      if(timing.activeMs>=this.sceneDurationMs && !this.paused){
         this.cardHidden();
         this.visibleDecision=null;
         timing.endedMs=now;timing.status='completed';this.geometry=null;
@@ -197,6 +203,7 @@ export class StudyEngine {
   this.cardHidden();
   this.slotChoices.clear();
   this.visibleDecision=null;
+  this.visibleUntilActiveMs=0;
   this.deck=[];
   this.windowResetMs=this.clock();
  }
@@ -205,28 +212,36 @@ export class StudyEngine {
   const timing=this.currentTiming!;
   const painting=this.painting!;
   const condition=this.trialCondition!;
-  const slotLength=session.config.durationSeconds*1000/session.pilot!.selectionRules.slots;
+  const rules=session.pilot!.selectionRules;
+  const count=rules.slotCountsByPainting?.[painting.paintingId]??rules.slots??painting.cards.length;
+  const slotLength=this.sceneDurationMs/count;
   const index=Math.floor(timing.activeMs/slotLength);
   const withinSlot=timing.activeMs-index*slotLength;
-  if(withinSlot<slotLength*session.pilot!.selectionRules.blankFraction){
-    this.visibleDecision=null;return;
-  }
   const slot=index+1;
-  let decision=this.slotChoices.get(slot);
-  if(!decision){
-    const validation=session.validationSummaries.findLast(s=>s.kind==='validation'&&s.calibrationVersion===session.calibrationVersion);
-    const drift=session.validationSummaries.findLast(s=>s.kind==='drift'&&s.calibrationVersion===session.calibrationVersion);
-    const qualityOK=session.quality!=='flow_only' && validation?.status==='pass' && drift?.status==='pass';
-    const choice=selectCard({condition,painting,slot,deck:this.deck,priorIds:[...this.slotChoices.values()].map(d=>d.cardId),
-      samples:session.samples,trialId:timing.trialId,now,windowStart:Math.max(this.windowResetMs,now-withinSlot),qualityOK});
-    if(!choice)return;
-    decision=choice;this.slotChoices.set(slot,choice);
-    this.event('card_selected',{...choice,condition,trialId:timing.trialId,activeMs:timing.activeMs});
+  const selected=this.slotChoices.get(slot);
+  if(selected){
+    this.visibleDecision=timing.activeMs<this.visibleUntilActiveMs?selected:null;
+    return;
   }
-  this.visibleDecision=decision;
+  this.visibleDecision=null;
+  const deadline=Math.min(slotLength*rules.blankFraction,rules.maximumSelectionMs??Infinity);
+  const beforeDeadline=withinSlot<deadline;
+  if(beforeDeadline && (!rules.maximumSelectionMs || condition!=='gaze' || slot===count || withinSlot<rules.minimumDwellMs))return;
+  const validation=session.validationSummaries.findLast(s=>s.kind==='validation'&&s.calibrationVersion===session.calibrationVersion);
+  const drift=session.validationSummaries.findLast(s=>s.kind==='drift'&&s.calibrationVersion===session.calibrationVersion);
+  const qualityOK=session.quality!=='flow_only' && validation?.status==='pass' && drift?.status==='pass';
+  const choice=selectCard({condition,painting,slot,deck:this.deck,priorIds:[...this.slotChoices.values()].map(d=>d.cardId),
+    samples:session.samples,trialId:timing.trialId,now,windowStart:Math.max(this.windowResetMs,now-withinSlot),qualityOK,rules});
+  if(!choice || (beforeDeadline && choice.selectionSource!=='gaze'))return;
+  this.slotChoices.set(slot,choice);
+  // Advance the end along with the onset so an early gaze trigger never buys
+  // extra reading time. The remaining blank time is carried at the slot's end.
+  this.visibleUntilActiveMs=(index+1)*slotLength-Math.max(0,deadline-withinSlot);
+  this.visibleDecision=choice;
+  this.event('card_selected',{...choice,condition,trialId:timing.trialId,activeMs:timing.activeMs,plannedEndActiveMs:this.visibleUntilActiveMs});
  }
  /** Called in a layout effect after the card has a measurable viewport rectangle. */
- cardShown(rect:CardRect,cardId?:string){
+ cardShown(rect:CardRect,cardId?:string,entranceMs?:number,entranceRect?:CardRect){
   const session=this.session;
   const card=this.activeCard;
   if(!session?.pilot||!this.geometry||!card||!this.visibleDecision||(cardId&&cardId!==card.id))return;
@@ -235,7 +250,7 @@ export class StudyEngine {
   if(old && old.cardId===card.id && old.rect.left===rect.left && old.rect.top===rect.top && old.rect.width===rect.width && old.rect.height===rect.height)return;
   this.cardHidden();
   const now=this.clock();
-  const exposure:CardExposure={...structuredClone(this.visibleDecision),exposureId:crypto.randomUUID(),trialId:this.currentTiming!.trialId,
+  const exposure:CardExposure={...structuredClone(this.visibleDecision),...(entranceMs===undefined?{}:{entranceMs,entranceRect}),exposureId:crypto.randomUUID(),trialId:this.currentTiming!.trialId,
     paintingId:this.painting!.paintingId,condition:this.trialCondition!,geometryVersion:this.geometry.version,calibrationVersion:session.calibrationVersion,
     activeStartMs:this.currentTiming!.activeMs+Math.max(0,now-this.lastTick),shownMs:now,hiddenMs:null,
     rect:{left:rect.left,top:rect.top,width:rect.width,height:rect.height}};
@@ -261,8 +276,8 @@ export class StudyEngine {
   const exposure=this.openExposure;
   const pilotFields=this.session.pilot && this.phase==='free_view'?{
     condition:this.trialCondition,cardExposureId:exposure?.exposureId??null,cardId:exposure?.cardId??null,
-    onCard:!this.paused&&exposure&&predictionAvailable?hitRect(input.x!,input.y!,exposure.rect):null,
-    imageAoiId:!this.paused&&point.insideImage?singleAoi(point.imageNormX,point.imageNormY,this.painting!.aois):null,
+    onCard:!this.paused&&exposure&&predictionAvailable?hitGuide(input.x!,input.y!,exposure.rect,input.callbackTimeMs-exposure.shownMs,exposure.entranceMs,this.activeCard?.art,exposure.entranceRect):null,
+    imageAoiId:!this.paused&&point.insideImage?singleAoi(point.imageNormX,point.imageNormY,this.painting!.aois,!!this.session.pilot!.selectionRules.maximumSelectionMs):null,
     trialActiveMs:this.currentTiming!.activeMs+(!this.paused?Math.max(0,input.callbackTimeMs-this.lastTick):0),
   }:{};
   this.session.samples.push({sessionId:this.session.sessionId,participantId:this.session.participantId,paintingId:this.painting?.paintingId??null,trialId:this.currentTiming?.trialId??null,phase:this.phase,sampleIndex:this.session.samples.length,callbackTimeMs:input.callbackTimeMs,libraryElapsedMs:input.libraryElapsedMs,viewportX:input.x,viewportY:input.y,...point,...pilotFields,predictionAvailable,geometryVersion:geometry?.version??null,calibrationVersion:this.session.calibrationVersion,paused:this.paused,confidence:null});

@@ -1,0 +1,801 @@
+{
+  "tab": "HCI-Rsrch的文字",
+  "document": "https://docs.google.com/document/d/1nmLVQhTI-FBsTaoQ1fTbFi7D-af4369ZklsrKXgG6pI?tab=t.ajn42a3ymxv0",
+  "figma": "https://www.figma.com/design/GNDr3uSWe4p1gTUT1JAvO2/Untitled",
+  "cards": [
+    {
+      "scene": "cuju",
+      "node": "0:9",
+      "title": "明宣宗朱瞻基",
+      "text": "朱瞻基（1399—1435），年号宣德，在位十年。他自幼深得祖父永乐帝的喜爱，被立为皇太孙。",
+      "ranges": [
+        [
+          123,
+          169
+        ]
+      ],
+      "image": "/materials/uci/figma-0-9.webp",
+      "board": "#513a2b",
+      "glow": "#a58e6a",
+      "rect": [
+        0.61071,
+        0.29122,
+        0.055,
+        0.21627
+      ],
+      "hitRects": [],
+      "shape": {
+        "width": 679,
+        "height": 896,
+        "cols": 73,
+        "rows": 96,
+        "bits": "AAAAAMAAAAAAAAAAAIABAAAAAAAAAAADAAAAAAAAAAAGAAAAAAAAAAAfAAAAAAAAAAB/AAAAAAAAAAD/AQAAAAAAAAD+AwAAAAAAAAD+DwAAAAAAAAD8HwAAAAAAAAD+/wAAAAAAAAD+/wEAAAAAAAD4/wMAAAAAAADw/wMAAAAAAADg/wcAAAAAAACA/w8AAAAAAAAA/x8AAAAAAAAA/j8AAAAAAAAA/n8AAAAAAAAA/P8AAAAAAAAA+P8BAAAAAAAA8P8HAAAAAAAA4P8fAAAAAAAAwP//AAAAAAAA4P//BwAAAAAA8P//PwAAAAAA8P///wAAAAAA+P///wMAAAAA+P///w8AAAAA8P///x8AAAAA8P///38AAAAA8P////8AAAAA4P////8DAAAA4P////8HAAAA4P////8fAAAAwP////8/AAAAwP//////AAAAgP//////AQAAgP//////BwAAgP//////DwAAAP//////PwAAAP7/////fwAAAP7//////wAAAPz//////wEAAPz//////wcAAPj//////wcAAPD//////x8AAOD//////z8AAID//////38AAAD///////8AAAD+//////8AAAD8//////8BAAD4//////8BAADg//////8BAADA//////8BAACA//////8DAAAA//////8PAAAA//////8/AAAA////////AAAA////////AQAA////////BwAA////////HwAA////////PwAA/v///////wAA/v///////wEA/v///////wMA/P///////w8A/P///////x8A+P///////38A+P////////8A8P////////8B4P////////8H4P////////8PwP////////8fwP////////9/gP//////////gP//////////Af//////////B/7/////////D/7/////////H/z/////////f/j///////////j///////////H//////////+f//////////+/////////////////////////////////////8///////////x//////////8A/////////z8A8P///////wMAAP//////HwAAAP+Hnz/8AQAAAPwAAAD4AwAAAAAAAADAAwAA"
+      }
+    },
+    {
+      "scene": "cuju",
+      "node": "1:5",
+      "title": "观赛的敞轩",
+      "text": "宣宗则移步到了一处更宽阔的长方形敞轩（亭轩）中。这里设有栏杆和舒适的宝座，亭外还陈设着香炉等器物。",
+      "ranges": [
+        [
+          1014,
+          1063
+        ]
+      ],
+      "image": "/materials/uci/figma-1-5.webp",
+      "board": "#cb9b4b",
+      "glow": "#e4c07b",
+      "rect": [
+        0.53357,
+        0.07923,
+        0.24143,
+        0.53319
+      ],
+      "hitRects": [
+        [
+          0.53857,
+          0.08137,
+          0.22857,
+          0.16488
+        ],
+        [
+          0.53571,
+          0.49036,
+          0.23571,
+          0.11777
+        ],
+        [
+          0.53857,
+          0.22698,
+          0.07071,
+          0.26124
+        ],
+        [
+          0.67286,
+          0.24625,
+          0.09286,
+          0.24197
+        ]
+      ],
+      "shape": {
+        "width": 768,
+        "height": 572,
+        "cols": 96,
+        "rows": 72,
+        "bits": "AOD/////////BwAAAPD///////////8/APj///////////8/APz///////////8/APz///////////8/AP7///////////8/AP////////////8/gP////////////8/wP////////////8/4P////////////8f8P////////////8f8P////////////8f+P////////////8f/P////////////8d/v////////////8c/v///////////38c/v///////////z8c/v///////////x8c/v///////////w8c/v///////////w8c/v///////////wsc/P///////////wkcGAQH/v////8HYAgcGAQH/v////8HYAgcGAQH/v////8HYAgcGAQH/v////8HYAgcGAQH/v////8HYAgcGAQH/v////8HYAgcGAQH/v////8HYAgcGAQH/v////8HYAgcGAQH/v////8HYAgcGA4H//////8PYBwcGA8H//////8PYD4cGB8H//////8PYD4cGA8H//////8PYD4cGA/H//////8PYD4cGA3n//////8PYCgcGATn//////8fYAgcGATn//////8fYAgcGAT3//////8fYAgcGAT/////////////GID/////////////GID/////////////GMD/////////////GOD/////////////GPD/////////////GPD///////////9/GPj///////////9/GPz///////////8/GPz///////////8fGP7///////////8PGP////////////8PmP////////////8HmP////////////8D2P////////////8D+P////////////8B+P////////////8A+P///////////38A+P///////////38A/P///////////z8A/P///////////x8A/v///////////w8A/////////////w8A/////////////wcA/////////////wMA/////////////wEA/////////////wEA/////////////wAAAADA/////wEAAAAAAADA/////wAAAAAAAADg////PwAAAAAAAADg////HwAAAAAA"
+      }
+    },
+    {
+      "scene": "cuju",
+      "node": "3:17",
+      "title": "围踢蹴鞠的内侍",
+      "text": "内侍们分为两队，在庭院中互相攻守、颠球传踢。",
+      "ranges": [
+        [
+          703,
+          725
+        ]
+      ],
+      "image": "/materials/uci/figma-3-17.webp",
+      "board": "#505452",
+      "glow": "#a49c7f",
+      "rect": [
+        0.45214,
+        0.32548,
+        0.35286,
+        0.57816
+      ],
+      "hitRects": [
+        [
+          0.45429,
+          0.32548,
+          0.06286,
+          0.22484
+        ],
+        [
+          0.75857,
+          0.43469,
+          0.04786,
+          0.26767
+        ],
+        [
+          0.45357,
+          0.60385,
+          0.08714,
+          0.29336
+        ],
+        [
+          0.605,
+          0.67452,
+          0.03429,
+          0.20557
+        ],
+        [
+          0.67143,
+          0.6424,
+          0.05429,
+          0.23983
+        ]
+      ],
+      "shape": {
+        "width": 768,
+        "height": 522,
+        "cols": 96,
+        "rows": 65,
+        "bits": "AAAHAAAAAAAAAAAAAAAHAAAAAAAAAAAAAAYHAAAAAAAAAAAAAA4HAAAAAAAAAAAAAA4HAAAAAAAAAAAAGJ4fAAAAAAAAAAACOI4fAAAAAAAAAAAHON4/AAAAAAAAAIAHeP8/AAAAAAAAAIAD+P9/AAAAAAAAAIAH/P8/AAAAAAAAAMAH/P8/AAAAAAAAAOAP/v8/AAAAAAAAAPAf/v8/AAAAAAAAAPAf/v8/AAAAAAAAAPAf/v9/AAAAAAAAAPAf/P9/AAAAAAAAAPg/+P9/AAAAAAAAAPw//P9/AAAAAAAAAPw//P//AAAAAAAAAPw//v//AAAAAAAAAPw//v8fAAAAAAAAAP8//v8/AAAAAAAAgP8f//8DAAAAAAAAwP8//z8AAAAAAAAAgP8//38AAAAAAAAAAP9//w8AAAAAAAAAAP9/2AEAAAAAAAAAgP9/OAEAAAAAAAAAgL//MAAAAAAAAAAAgP//ADAAAAAAAAAAgP//AHAAAAAAAAAAgP//AHAAAAAAAAAAgP9/AHAAAAAAAAAAwH8cAHgAAAAAAAAAwP8GcHwAAAAAAAAAgP8A8P4AAAAAAAAAOB4A8P4BAAAAAAAAHAcA8P4BAAAAAAAAHAAA8P4DAwAAAAAAHAAA+P4DBwAAAABgPgAA+P8DBwAAAABwfwAA/P8BBwAAAAD4fwAA/P+BBwAAAAC8fwAA/P/BBwAAAAD4fwAA/P/jDwAAAAD4PwAA+P/jDwAAAID/PwAA+P/jHwAAAIB/PwAA8P/3HwAAAMD/PwAA+P/3PwAAAMC/fwAA/P/3PwAAAIC/fwAA/P/nPwAAAAD+/wAA/P/hPwAAAAD//wAA/N/xHwAAAAD//wAA/h/wPwAAAID//wEA/h/wPwAAAID//wEA/j/4PwAAAID//wEA/h/4fwAAAID/PgAA/Af4fwAAAMD/PwAA8Af8fwAAAMD/GQAAYAb4fwAAAMD/AQAA4ADgHwAAAID/AAAAAACADwAAAAAeAAAAAACAHwAAAAAHAAAAAAAAAwAAAAAAAAAA"
+      }
+    },
+    {
+      "scene": "cuju",
+      "node": "1:4",
+      "title": "充当球员和对手的内侍",
+      "text": "在蹴鞠时，他们排成阵列充当球员和对手。",
+      "ranges": [
+        [
+          490,
+          508
+        ]
+      ],
+      "image": "/materials/uci/figma-1-4.webp",
+      "board": "#4d4c48",
+      "glow": "#a29779",
+      "rect": [
+        0.53857,
+        0.61242,
+        0.03643,
+        0.197
+      ],
+      "hitRects": [],
+      "shape": {
+        "width": 480,
+        "height": 896,
+        "cols": 51,
+        "rows": 96,
+        "bits": "AADwAwAAAADgHwAAAAAA/wEAAAAA+B8AAAAAwP8AAAAAAP4PAAAAAPB/AAAAAID/AwAAAAD8HwAAAADg/wEAAAAA/w8AAAAA+H8AAAAA4P8DAAAAAP4fAAAAAPD/AAAAAID/BwAAAAD+PwAAAAD//wEAAAD+/wcAAAD4/z8AAADg//8HAAAA//8/AAAA/P//AwAA4P//HwAAgP///wEAAPz//w8AAPD//38AAID///8DAAD8//8/AADw////AQCA////DwAA/P//fwAA8P///wMAgP///x8AAP7///8AAPD///8HAID///8/AAD+////AADw////BwDA////PwAA/v///wEA8P///wcAgP///z8AAPz///8BAMD///8HAAD+//8/AADw////AACA////DwAA+P///wAAwP///w8AAP7///8AAPD///8HAID///9/AAD8////BwDg////PwAA/////wMA/P///x8A4P////8BAP////8PAPj/////AMD/////BwD/////fwD4/////wPA/////z8A//////8B+P////8PwP//////AOT/////BwD/////fwD4/////wPA/////x8A/v////8B+P////8PwP//////AP7/////A/D/////H4D/////fwD8/////8Pz//////+f/////////P//////4////x//D////z/wD/j//z+AD4D//z8AOACg/z8AAAAAGPwBAAAAAOAPAAAAAAB/AAAAAAD4AwAAAACAPwAAAAAA/AMAAAAAwB8AAAAAAPwBAAAAAOAPAAAAAAA8AAAA"
+      }
+    },
+    {
+      "scene": "cuju",
+      "node": "0:10",
+      "title": "脚下的鞠球",
+      "text": "蹴鞠类似今日的足球。宣宗非常喜爱这项运动，不仅在亭中观赏，据记载，他还曾亲自带领内侍练习。",
+      "ranges": [
+        [
+          693,
+          703
+        ],
+        [
+          725,
+          759
+        ]
+      ],
+      "image": "/materials/uci/figma-0-10.webp",
+      "board": "#b59675",
+      "glow": "#d9be91",
+      "rect": [
+        0.57429,
+        0.73448,
+        0.01357,
+        0.03854
+      ],
+      "hitRects": [],
+      "shape": {
+        "width": 768,
+        "height": 784,
+        "cols": 94,
+        "rows": 96,
+        "bits": "AAAAAAD4AQAAAAAAAAAAAPj/HwAAAAAAAAAAwP//fwAAAAAAAAAA/v///wMAAAAAAADg/////wMAAAAAAAD8/////wMAAAAAAMD//////wcAAAAAAPj//////wMAAAAAgP///////wEAAAAA+P///////wAAAACA////////fwAAAADw////////PwAAAAD+////////HwAAAID/////////DwAAAPD/////////BwAAAP//////////AwAA4P//////////AQAA+P//////////AAAA//////////9/AADg//////////8/AAD4//////////8PAAD///////////8DAOD///////////8BAPz///////////8AgP///////////z8A4P///////////x8A/P///////////w8A/////////////wPg/////////////wH4////////////fwD/////////////P8D/////////////D/D/////////////A/7/////////////wf////////////9/8P////////////8f/P////////////+H///////////////j///////////////4/////////////z/+/////////////9////////////////f///////////////3/////////////f///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////7///////////////+f////////////8//v////////////+P///////////////j///////////////w/////////////x/8/////////////w///////////////8P/////////////f+D/////////////H/j/////////////B/z/////////////AP7///////////8fgP////////////8HwP////////////8A8P///////////x8A+P///////////wcA/P///////////wAA////////////PwCA////////////BwDg////////////AADw//////////8fAADw//////////8DAAD4/////////z8AAAD8/////////w8AAAD+/////////wEAAAD+////////PwAAAAD/////////BwAAAID/////////AAAAAMD///////8fAAAAAMD///////8BAAAAAOD//////x8AAAAAAPD//////wEAAAAAAPD/////DwAAAAAAAPD/////AQAAAAAAAOD///8fAAAAAAAAAMD//38AAAAAAAAAAAD+PwAAAAAA"
+      }
+    },
+    {
+      "scene": "cuju",
+      "node": "0:8",
+      "title": "宣宗诗里的树荫",
+      "text": "宣宗非常喜爱这项运动，不仅在亭中观赏，据记载，他还曾亲自带领内侍练习，并写诗赞颂：“密密清阴皆贝宫，锦衣花帽蹴东风。”",
+      "ranges": [
+        [
+          725,
+          784
+        ]
+      ],
+      "image": "/materials/uci/figma-0-8.webp",
+      "board": "#514830",
+      "glow": "#a5956d",
+      "rect": [
+        0.12571,
+        0.02784,
+        0.34429,
+        0.97216
+      ],
+      "hitRects": [],
+      "shape": {
+        "width": 768,
+        "height": 669,
+        "cols": 96,
+        "rows": 84,
+        "bits": "AAAAAAAAwAEAAAAAAAAAAAAA4AcAAAAAAAAAAAAA4A8BAAAAAAAAAAAA/P8DAAAAAAAAAAB8/v8HAAAAAAAAAID///8HAAAAAAAAAID///8HAAAAAAAAAID///cPAAAAAAAAAID/+/MfwAAAAAAAAMD///8f5wEAAAAAAMD///6P/w8AAAAAANmfN/z3/x8AAAAAvD/2s/n3/x8AAAAA/D/4+/v3/w8AAAAA/j/4/3Pj/wcAAABg/9/4/zPi/x8AAADw//////vnP38AAAD+/7////nHP/8AAAD//x///7/n//8IAAD//x///7/H/v8fAAD//x/8/5/v/P8fAAD+9x/g/5//+P8/AAD+/w/A/+N//P//AAD//wf4//t//P//AAD//wf8//3//f//AAD/8wP+//3/Afz/AAD88B/+////A/x/AAAc+D//////B/wfAAAY+Pz7////B9AOAAAA/vn/////BwAEAOAA//+fv///AQAAAPCg///////nAQAAAPjxg///v//vAQAAAPjxwP//v/8fAAAAAP95wP////8PAAAAgP87g/////sOAAAAgP+fF/z///sAAAAAAP//v8H//38AAAAAgP///8P//3cAAAAAgP/7/+O//3cAAAAAgH/7/8e//38AAAAAgP/z/8c//38AAAAAgJfz//ef//8AAAAAwOfz//P///8HAAAA8P/h//D8//8HAAAA/P/h//D6//8fAAAA/D/A/+73//8/AAAA+D/A////n98/AAAA/n+ADf7//58fAAAA/n8AAP///w8HAAAA/n8AgP///w8AAAAA/D8AgP+//gcAAAAA/h8AAP8//g8AAAAA/h8AgP8//w8AAAAA/g8AwP9//w8AAAAA/w8AwP/9/w8AAAAA/wcA8N///w8AAAAAHwAA+P9//wYAAAAAAAAA+P9//AAAAAAAAACA/797fAAAAAAAAACA/999fAAAAAAAAACA/98/fAAAAAAAAAAA/88/fgAAAAAAAACA/4cfPgAAAAAAAACA/4MfPwAAAAAAAACA/wMfHwAAAAAAAADg/4MfHwAAAAAAAADg/4EfHwAAAAAAAADgf4AfHwAAAAAAAAAAEwAfHwAAAAAAAAAAAAA/HwAAAAAAAAAAAAB/HwAAAAAAAAAAAAB+HwAAAAAAAAAAAAB+HwAAAAAAAAAAAAB8PwAAAAAAAAAAAAB8fgAAAAAAAAAAAAA8/AAAAAAAAAAAAAB8/AMAAAAAAAAAAAB+/gcAAAAAAAAAAAB+/wcAAAAAAAAAAAB+/w8AAAAAAAAAAAD8/x8AAAAAAAAAAAD8YAAAAAAAAAAAAAD4AAAAAAAA"
+      }
+    },
+    {
+      "scene": "polo",
+      "node": "0:7",
+      "title": "马球场边的宣宗",
+      "text": "宣宗并未置身于固定的亭台，而是坐在场边临时搭建的幄次（黄幄）中。",
+      "ranges": [
+        [
+          1116,
+          1148
+        ]
+      ],
+      "image": "/materials/uci/figma-0-7.webp",
+      "board": "#2c2318",
+      "glow": "#918260",
+      "rect": [
+        0.585,
+        0.24747,
+        0.04214,
+        0.2298
+      ],
+      "hitRects": [],
+      "shape": {
+        "width": 598,
+        "height": 896,
+        "cols": 64,
+        "rows": 96,
+        "bits": "AAAAMAAAAAAAAAAwAAAAAAAAADAAAAAAAAAAeAAAAAAAAAD8AQAAAAAAAP4BAAAAAAAA/wMAAAAAAAD/AwAAAAAAgP8HAAAAAACA/w8AAAAAAOD/HwAAAAAA4P8fAAAAAADA/w8AAAAAAMD/DwAAAAAAgP8PAAAAAACA/w8AAAAAAID/DwAAAAAAgP8HAAAAAACA/wcAAAAAAMD/DwAAAAAAwP8fAAAAAADw//8AAAAAAP7//wMAAAAA////BwAAAID///8PAAAAwP///x8AAADg////HwAAAOD///8/AAAA8P///38AAAD4/////wAAAPj/////AAAA/P////8BAAD+/////wMAAP7/////AwAA//////8HAAD//////wcAAP//////DwCA//////8PAID//////x8AwP//////HwDA//////8/AMD//////z8AwP//////PwDA//////8/AMD//////z8A4P//////PwDg//////8/AOD//////z8A4P//////HwDg//////8PAMD//////w8AgP//////DwCA//////8PAID//////wcAAP//////DwAA/P////8fAAD8/////x8AAPz/////PwAA/P////9/AAD+//////8AAP///////wAA////////AYD///////8BgP///////wGA////////A4D///////8DgP///////weA////////B8D///////8PwP///////w/A////////D+D///////8P4P///////x/g////////H/D///////8f8P///////x/w////////P/j///////8/+P///////z/8////////P/z///////9//P///////3/+////////f/7//////////v/////////////////////////////////////////w////////B/D//////38A8P//////DwDg//////8PAACA////+x8AAMA/AADgHwAAwB8AAIAPAADABwAAAAAA"
+      }
+    },
+    {
+      "scene": "polo",
+      "node": "3:27",
+      "title": "场边的幄次",
+      "text": "背后有象征皇权的黄色幕布围合，脚下铺设着精美的地毯（地衣），身下则是轻便的交杌（马扎）。",
+      "ranges": [
+        [
+          1148,
+          1192
+        ]
+      ],
+      "image": "/materials/uci/figma-3-27.webp",
+      "board": "#cea66b",
+      "glow": "#e6c68c",
+      "rect": [
+        0.51929,
+        0.08838,
+        0.19857,
+        0.42929
+      ],
+      "hitRects": [
+        [
+          0.54429,
+          0.09091,
+          0.11214,
+          0.15657
+        ],
+        [
+          0.51929,
+          0.24747,
+          0.06429,
+          0.24242
+        ],
+        [
+          0.64357,
+          0.23232,
+          0.07286,
+          0.25505
+        ],
+        [
+          0.575,
+          0.46717,
+          0.07143,
+          0.04545
+        ]
+      ],
+      "shape": {
+        "width": 768,
+        "height": 474,
+        "cols": 96,
+        "rows": 59,
+        "bits": "AAAAAPz/HwAAAAAAAAAA4P///wAAAAAAAAAA/v///wcAAAAAAACA/////x8AAAAAAADw/////38AAAAAAAD4//////8BAAAAAAD+//////8DAAAAAAD///////8HAAAAAID///////8HAAAAAMD///////8HAAAAAOD///////8HAAAAAOD///////8HAAAAAOD///////8HAAAAAOD///////8HAAAAAOD///////8HAAAAAOD///////8HAAAAAOD///////8HAAAAAOD///////8HAAAAAOD///////8HAAAAAOD///////8HAAAAAOD///////8HYAAAAOD///////8H8AAAAPj///////8H8AAAAPj///////8H8AAAAPz///////8H8AAAYPz///////8H8BAA4Pz///////8P+DkA4Pz///////8P/D8A4P7///////9v/j8A4P7//////////j8I8P///////////z8c+P///////////38e/P///////////v8e/P///////////f8e/v////////////8e/v////////////8f/P////////////8//P////////////9//P////////////9/+P////////////9//P////////////9//P////////////8//P////////////8//v////////////8f/v////////////8//v////////////8//v///////+P/9/8//////////4f/7/9//////////4f/7/9//////////w/+7///fP///////x/4wf//cP5//////x/cgfv/QP7/+P///z/AAPx/APAP8P///38AAMAfAOAO8P///38AAMAdAMAB4P////8AAAAOAAAA4P////8BAAAGAAAAwP////8BAAAAAAAAwP//DwAAAAAA"
+      }
+    },
+    {
+      "scene": "polo",
+      "node": "3:26",
+      "title": "参与马球的内侍",
+      "text": "围绕在宣宗身边的随从主要是宫廷内侍（宦官）。在马球赛场上，他们骑马挥杖激烈拼抢。",
+      "ranges": [
+        [
+          403,
+          425
+        ],
+        [
+          509,
+          527
+        ]
+      ],
+      "image": "/materials/uci/figma-3-26.webp",
+      "board": "#274a2a",
+      "glow": "#8f966a",
+      "rect": [
+        0.19571,
+        0.40404,
+        0.11071,
+        0.38889
+      ],
+      "hitRects": [],
+      "shape": {
+        "width": 768,
+        "height": 718,
+        "cols": 96,
+        "rows": 90,
+        "bits": "AAAAAAAcAAAAAAAAAAAAAAA+AAAAAAAAAAAAAAB+AAAAAAAAAAAAAAD+AAAAAAAAAAAAAAD+AAAAAAAAAAAAAAD+AQAAAAAAAAAAAAD8AQAAAAAAAAAAAAD8AQAAAAAAAAAAAAD8AQAAAAAAAAAAAAD8AeADAAAAAAAAAAD/A+ADAAAAAAAAAID/B/ADAAAAAAAAA8D/D/ADAAAAAACAD+D/f/ADAAAAAACAD+D/f/ADAAAAAADAD/D/f/AHAAAAAADAD/D/f/ADAAAAAADgD/D/f/A/AAAAAADgD/D//+D/AAAAAADgD/D///D/AwAAAAD8D/j///z/BwAAAAD/D/j///z/DwAAAID/H/j///7/DwAAAMD/P/D/f/7/HwAAAMD/f/D///7/PwAAAOD/f+D/////PwAAAPD//8j/////fwAAAPj//9//////fwAAAPj//8//////fwAAAPz/////////f/A/APz/////////f/x/APz/////////P/9/APz/////////n///APz/////////x///APz/////////7///APj/////////////AP//////////////4P//////////////8P//////////////+P///////////////P////////////9//P////////////9+/v///////////3/+/v///////////398//////////////9///////////////////////////////97//////////////97//////////////8B/////////////38A/////////////38A/////////////38A/////////////38A/v///////////38A/v///////////z8Avv///////////z8AvP///////////z8AvP////////////8AvP8///////////8BvO+f//////////8D/Pef//////////8D/vPP///////5+cED/vPO//////8B8IAD3vPe//////8B8IAD3uPc//////8B8IAD3OPd//////8AcIADzMO9//////8AcMADjMG///////8AeOADjIP7//////8AeOABhIN///////8AcOABgIN///////8AcOAAwAMP/7///+8AMEAAgAef/7/t8c8BMAAAgA/f35/v8M8DOAAAAA/gjx/n8M8DOAAAgB/ghw9w8IcHeAAAAA/ghwfw8IcPeAAAAADwwwfw8IcP+AAAAADwwwfw8AcA8AEAAADwgwP48AcA8AEAAADwgwf4cAMA8AEAAADwAwf48AMAAAAAAACgAwcA8AMAAAAAAACAAwcA8AMAAAAAAACABw8A8AcAAAAAAACADw8A8AcAAAAAAAAADz8A8A8AAAAAAACAH3wA8B8AAAAAAAAADnwA4B8AAAAAAAAAAHwAAAwAAAAA"
+      }
+    },
+    {
+      "scene": "polo",
+      "node": "3:23",
+      "title": "挥杆的骑手",
+      "text": "这是一项极具挑战性的运动，明代皇帝借此来锻炼骑术和体魄，体现了“寓习武于娱乐”的宗旨。",
+      "ranges": [
+        [
+          845,
+          888
+        ]
+      ],
+      "image": "/materials/uci/figma-3-23.webp",
+      "board": "#284d31",
+      "glow": "#8f986d",
+      "rect": [
+        0.36857,
+        0.53283,
+        0.08714,
+        0.21465
+      ],
+      "hitRects": [
+        [
+          0.36857,
+          0.5404,
+          0.06143,
+          0.20707
+        ],
+        [
+          0.42786,
+          0.61111,
+          0.01929,
+          0.12121
+        ]
+      ],
+      "shape": {
+        "width": 768,
+        "height": 524,
+        "cols": 96,
+        "rows": 66,
+        "bits": "AAAAAAAAgA8AAAAAAAAAAAAAgA8AAAAAAAAAAAAAgB8AAAAAAAAAAAAAwB8AAAAAAAAAAAAAwD8AAAAAAAAAAAAAwD8AAAAAAAAAAAAAwD8AAAAAAAAAAAAAwD8AAAAAAAAAAAAAwD8AAAAAAAAAAAAA8D8AAAAAAAAAAAAA/D8AAAAAAAAAAAAA/j8AAABwAAAAAAAA/z8AAAD8AAAAAAAA/38AAAD+AAAAAACA//8AAAD/AAAAAADA//8PAPg/AAAAAADA////Px8AAAAAAADg/////wEAAAAAAADg////PwAAAAAAAADw////DwAAAAAAAADw////AAAAAAAAAAD4//8DEAAAAAAAAAD4/3+AfwAAAAAAAAD8/3/w/wAAAAAAAAD8/z/4/wEAAAAAAAD+/z///wMAAAAAAAD+/3///wcAAAAAAAD//////w8AAAAAAID//////x8AAAAAAID//////38AAAAAAMD///////8BAAAAAMD///////8BAAAAAMD///////8DAAAO4P////////8DAMB/+P//////j/0DAOD//v////////8D4PD//////////88B+P//////////nwAA8P//////////wwAA/P//////////YwAAzv+f////////MwAAAf/P////////GwAAAPDH////////HwAAAADg////////DwAAAADg////////BwAAAADg////////AwAAAADg////////4QAAAADw/////////wMAAMD//////////wcAAOD//////////w8AAOD/////////Hz4AAPD///////9/B3wAAPD/////////B/gAALj/n/v/////D/gBALz/AwD/////D+ABAN8HAAD4//8fHuADgM8DAAAA/gQAOMADgO8BAAAAAAAAeAAD4OcAAAAAAAAA8AAA8HMAAAAAAAAA8AAA8HwAAAAAAAAA8AAAcH4AAAAAAAAA8AEAAD8AAAAAAAAA4AEAAB8AAAAAAAAA4AEAAAcAAAAAAAAAwAEAAAMAAAAAAAAAgAEA"
+      }
+    },
+    {
+      "scene": "polo",
+      "node": "3:25",
+      "title": "骑马击球的球杖",
+      "text": "马球，一种骑在马上持棍打球的激烈运动。",
+      "ranges": [
+        [
+          792,
+          811
+        ]
+      ],
+      "image": "/materials/uci/figma-3-25.webp",
+      "board": "#d7b788",
+      "glow": "#eacf9b",
+      "rect": [
+        0.41571,
+        0.57323,
+        0.03857,
+        0.04293
+      ],
+      "hitRects": [],
+      "shape": {
+        "width": 768,
+        "height": 232,
+        "cols": 96,
+        "rows": 29,
+        "bits": "AAAAAAAAAAAAAMA/AAAAAAAAAAAAAPj/AAAAAAAAAAAAAP7/AAAAAAAAAAAAgP//AAAAAAAAAAAAwP//AAAAAAAAAAAA4P//AAAAAAAAAAAA8P9/AAAAAAAAAAAA+P8/AAAAAAAAAAAA/v8fAAAAAAAAAADA//8PAAAAAAAAAAD8//8DAAAAAAAAAMD/wH8AAAAAAAAAAPwHAAAAAAAAAAAAwH8AAAAAAAAAAAAA/AcAAAAAAAAAAADAfwAAAAAAAAAAAAD4BwAAAAAAAAAAAIA/AAAAAAAAAAAAAPgDAAAAAAAAAAAAgD8AAAAAAAAAAAAA+AMAAAAAAAAAAACAPwAAAAAAAAAAAAD4AwAAAAAAAAAAAAA/AAAAAAAAAAAAAPADAAAAAAAAAAAAAH8AAAAAAAAAAAAA8AcAAAAAAAAAAAAAfgAAAAAAAAAAAAAADwAAAAAAAAAAAAAA"
+      }
+    },
+    {
+      "scene": "polo",
+      "node": "0:3",
+      "title": "屏风式球门",
+      "text": "它被称为“球窝”。比赛时，只要有一方将球击入球窝，即可得分。",
+      "ranges": [
+        [
+          1290,
+          1298
+        ],
+        [
+          1341,
+          1361
+        ]
+      ],
+      "image": "/materials/uci/figma-0-3.webp",
+      "board": "#ae874d",
+      "glow": "#d5b67c",
+      "rect": [
+        0.73143,
+        0.13131,
+        0.07857,
+        0.58838
+      ],
+      "hitRects": [],
+      "shape": {
+        "width": 411,
+        "height": 896,
+        "cols": 44,
+        "rows": 96,
+        "bits": "AAAAADAAAAAAAAMAAAAAcAAAAAAAfwAAAADwAwAAAAAOAAAAACAAAAAAAAIAAEAAcAAAAA6ADwAA8AH/AAgAP/AfgAH4A/8BGIB/8A+AB/gHfAD4gT/wB4AP+P9/AAgA//8HgAD4/38AiMD//weAHfz/fwD84f//B8A///9/APzx//8HwM///38A/////wfw/f//fwD4////B4D///9/APz///8HwP///38A/P///wfA////fwD8////B8D///9/APz///8HwP///38A/P///wfA////fwD8////B8D///9/APz///8HwP///38A/P///wfA////fwD8////B8D///9/APz///8HwP///38A/P///wfA////fwD8////B8D///9/APz///8HwP///38A/P///wfA////fwD8////B8D///9/APz///8HwP///38A/P///wfA////fwD8////B8D///9/APz///8PwP////8A/P///w/A/////wD8////H8D/////Afz///8/wP////8D/P///3/A/////wP8////P8D/////A/7///9/4P////8H/v/////w///f/w///38AAOD//wEAAP//BwAA8P8fAACA/38AAAD4/wEAAMD/BwAAAPw/AAAAwP8AAAAA/A8AAADA/wAAAAD+HwAAAOD/AQAAAP8/AAAA8P8DAAAA"
+      }
+    },
+    {
+      "scene": "polo",
+      "node": "3:19",
+      "title": "举旗的骑手",
+      "text": "在这个球窝旁边，还立有一面彩旗。旁边的彩旗和裁判的动作会立刻向全场宣告得分。",
+      "ranges": [
+        [
+          1325,
+          1341
+        ],
+        [
+          1362,
+          1384
+        ]
+      ],
+      "image": "/materials/uci/figma-3-19.webp",
+      "board": "#274451",
+      "glow": "#8f937e",
+      "rect": [
+        0.81143,
+        0.5404,
+        0.075,
+        0.29798
+      ],
+      "hitRects": [],
+      "shape": {
+        "width": 768,
+        "height": 894,
+        "cols": 82,
+        "rows": 96,
+        "bits": "AAAAAAAwAAAAAAAAAAAA4AAAAAAAAAAAAAAHAAAAAAAAAAAAPAAAAAAAAAAAAPAAAAAAAAAAAADAAwAAAAAAAAAAAAwAAAAAAAAAAABwAAAAAAAAAAAA4AMAAAAAAAAAAIAfAAAAAAAAAAAAfwAAAAAAAAAAAP4DAAAAAAAAAAD4HwAAAAAAAAAA8H8AAAAAAAAAAPD/AwAAAAAAAADg/x8AAAAAAAAAwP//AAAAAAAAAMD//wMAAAAAAADA//8fAAAAAAAAwP//wQAAAAAAAMD/PwAGAAAAAADgHwAAGAAAAAAA4AAAAMAAAAAAAAAAAAAABgAAAAAAAAAAABgAAAAAAAAAAADAAAAAAAAAAAAAAAcAAAAAAAAAAAA4AAAAAAAAAAAA4AEAAAAAAAAA/IcPAAAAAAAAAPgfPgAAAAAAAADgf/wAAAAAAAAAwP/wAwAAAAAAAAD/4xsAAAAAAAAA/IfPAAAAAAAAAPAPPwMAAAAAAADIP/wZAAAAAAAA/H/4ZwAAAAAAAPj/8Q8AAAAAAADw//8/AAAAAAAA4P///wAAAAAAAMD///8BAAAAAAAA////BwAAAAAAAP7//x8AAAAAAAD8//8/AAAAAAAA8P//fwAAAAAAAOD//38AAAAAAACA//8DAAAAAAAAAP7/D4AHAAAAAAD4/z/wPwAAAAAAwP//8P8DAAAAAAD//+P/DwAAAAAA/P/f/38AAAAAAOD/////AwAAAADA/////z8AAAAAAP+/////AQAAAAD+//7//x8AAAAA/P//////AAAAAPj//////wMAAADg//////8fAOADwP//////fwDAP+D/////z/8Aj//z/////z/ZA///////////PwL4/////////xsA8P////////9/AOD//////////wGA//////////8DAOBh/v//////BwAAAPz//////x8AAADw////////AAAA4P///////wcAAID///////8PAAAA/v//////HwAAAPj//////38gAID//////////wMA/v////////8PAPz/////////fwD4//////////8D+AD///////8HHvAA+P//////P/DwAf//w/////+B5wP8/wP4//+fD/4P8P8HgP//Dzx4H8D/AwBAAADwwA+ABwAAAAAA4AEPAA4AAAAAAIAHPAA8AAAAAAAADvAAeAAAAAAAABiAA/AAAAAAAAAAAAzgAwAAAAAAAAAAwAcAAAAAAAAAAIAfAAAAAAAAAAAAPgAAAAAAAAAAAHwAAAAAAAAAAABwAAAAAAAAAAAA"
+      }
+    },
+    {
+      "scene": "archery",
+      "node": "3:16",
+      "title": "亭中观射的宣宗",
+      "text": "宣宗端坐亭中观赏，这不仅是游戏，更带有明代“射礼”中观德、习武的意味。",
+      "ranges": [
+        [
+          654,
+          689
+        ]
+      ],
+      "image": "/materials/uci/figma-3-16.webp",
+      "board": "#d08f3c",
+      "glow": "#e7ba73",
+      "rect": [
+        0.76929,
+        0.3,
+        0.04429,
+        0.215
+      ],
+      "hitRects": [],
+      "shape": {
+        "width": 612,
+        "height": 896,
+        "cols": 66,
+        "rows": 96,
+        "bits": "AAAAAAgAAAAAAAAAYAAAAAAAAADgAwAAAAAAAMAfAAAAAAAAgH8AAAAAAAAA/wMAAAAAAAD8DwAAAAAAAPh/AAAAAAAA+P8HAAAAAADg/x8AAAAAAAD/PwAAAAAAAPz/AAAAAAAA8P8DAAAAAADg/x8AAAAAAID/PwAAAAAAAP7/AAAAAAAA+P8DAAAAAADg/wcAAAAAAID/PwAAAAAAAP7/AQAAAAAA+P8fAAAAAAD4//8BAAAAAPj//x8AAAAA8P///wAAAADg////BwAAAMD///8fAAAAgP////8AAAAA/////wcAAAD+////PwAAAPz/////AAAA8P////8DAADg/////x8AAMD//////wAAAP//////AwAA/v////8PAAD8/////38AAPD//////wEA4P//////DwDA//////8/AAD///////8AAPz//////wcA4P//////HwCA//////9/AAD+//////8BAPj//////wcA8P//////HwDA//////9/AAD///////8BAPz//////wMA4P//////BwCA//////8fAAD8/////z8AAOD//////wAAgP//////AQAA//////8PAAD//////38AAP7//////wMA/P//////DwD4//////9/APD///////8D4P///////w+A////////PwD+////////APz///////8H8P///////x/g////////f4D/////////Af7///////8P+P///////z/w/////////8D/////////A/////////8P/P///////3/w/////////8H/////////B/////////8f/v///////3/4/////////+H/////////j/////////8//v/////////4/////////+P/////////n/////////9////////////9//////////f/////////3//////////////////////j/////////w/4////////PwD///////8fAPwP/v9/AAAA/D8AAP4BAADwPwAA4A8AAIAfAAAAPgAA"
+      }
+    },
+    {
+      "scene": "archery",
+      "node": "3:5",
+      "title": "攒尖亭里的观赛席",
+      "text": "宣宗坐于一座攒尖亭内。这种亭子四面通透，视野开阔，皇帝坐在里面的宝座上，可以毫无遮挡地直视前方的靶场和旗帜。",
+      "ranges": [
+        [
+          951,
+          1005
+        ]
+      ],
+      "image": "/materials/uci/figma-3-5.webp",
+      "board": "#49543b",
+      "glow": "#a09c73",
+      "rect": [
+        0.67786,
+        0.0,
+        0.205,
+        0.64
+      ],
+      "hitRects": [
+        [
+          0.67857,
+          0.0,
+          0.19929,
+          0.2475
+        ],
+        [
+          0.69429,
+          0.5125,
+          0.17929,
+          0.115
+        ],
+        [
+          0.70143,
+          0.2475,
+          0.06143,
+          0.26
+        ],
+        [
+          0.815,
+          0.2475,
+          0.04714,
+          0.27
+        ]
+      ],
+      "shape": {
+        "width": 768,
+        "height": 684,
+        "cols": 96,
+        "rows": 86,
+        "bits": "AAAAAACAAwAAAAAAAAAAAADAAwAAAAAAAAAAAACAAwAAAAAAAAAAAADABwAAAAAAAAAAAADABwAAAAAAAAAAAADgHwAAAAAAAAAAAAD8/wEAAAAAAAAAAAD//wMAAAAAAAAAAID//wcAAAAAAAAAAID//wcAAAAAAAAAAMD//w8AAAAAAAAAAOD//x8AAAAAAAAAAPD//z8AAAAAAAAAAPj//38AAAAAAAAAAPz///8BAAAAAAAAAP////8DAAAAAAAAgP////8HAAAAAAAAwP////8fAAAAAAAA4P////8/AAAAAAAA+P//////AAAAAAAA/P//////AQAAAAAA/v//////BwAAAACA////////HwAAAADg////////fwAAAADw/////////wEAAAD8/////////0cAAIj///////////8AAPz/////////////QP////////////////////////////////////////////9///////////////8//v////////////8f/P////////////8H+P////////////8DwP///////////38AAPr//////////x8AAPj/////////fx4AAPD/////////DxwAAOAB/P////+PBxwAAOAB/P////+PBxwAAOAB/P////+PBxwAAOAB/P////+PBxwAAOAB/P////+PBxwAAOAB/P////+PBxwAAOAB/P////+PBxwAAOAB/P////+PBxwAAOAB/P////+PBxwAAOAB/P////+PBxwAAOAB/P////+PBxwAAOAB/P////+PBxwAAOAB/P////+fBxwAAOAB/P////+fBxwAAOAB/P////+fBxwAAOAB/P////+fBx4AAOAB/P////+/BxwAAOAB/v////////8DAOAB//////////8DAOCB//////////8DAODB//////////8DAODB//////////8DAODh//////////8DAODx//////////8DAOD5//////////8DAOD5//////////8DAOD9//////////8BAOD///////////8AAOD///////////8AAOD//////////38AAOD//////////38AAOD//////////z8AAOD//////////x8AAPD//////////x8AAPj//////////w8AAPz//////////wcAAPz//////////wcAAP7//////////wMAAP///////////wEAAP///////////wEAAP///////////wAAAP//////////fwAAAP//////////fwAAAP//////////PwAAAAAA/////w8AAAAAAACA/////wMAAAAAAACA/////wAAAAAA"
+      }
+    },
+    {
+      "scene": "archery",
+      "node": "3:6",
+      "title": "陪伴宣宗的内侍",
+      "text": "他们既是皇帝游玩时的“气氛组”和陪练，也彰显着皇家的仪仗与威仪。",
+      "ranges": [
+        [
+          527,
+          559
+        ]
+      ],
+      "image": "/materials/uci/figma-3-6.webp",
+      "board": "#524c2c",
+      "glow": "#a5976b",
+      "rect": [
+        0.63143,
+        0.24,
+        0.06786,
+        0.2425
+      ],
+      "hitRects": [],
+      "shape": {
+        "width": 768,
+        "height": 856,
+        "cols": 86,
+        "rows": 96,
+        "bits": "AAAAAAAAgB8AAAAAAAAAAADwBwAAAAAAAAAAAPwBAAAAAAAAAACAfwAAAADADwAAAPAfAAAAAPAHAAAA/AcAAAAA/gAAAID/AQAAAIA/AAAA4H8AAAAA4A8AAAD4DwAAAAD8AwAAAP4DAAAAAP8AAACA/wAAAADgPwAAHvA/AAAAAPgPAMAP+A8AAAAA/gcA8Af+BwAAAID/AQD8gf8BAAAA4D8AAP/AfwAAAAD4DwDAP/x/AAAAAP4DAPCP/z8AAAAA/wEA/vP/H38AAPD/AQD//v/HHwAA//8B4P////MHAOD//wD4/////gEA/P8/AP7///9/AAD//w+A/////x8A4P//A/D/////BwD8//8B/v////8BAP//P+D/////fwDg//8P/P////8fAPz//8P//////wMA////8f//////AOD//3/+/////z8A+P//3///////HwD////z//////8PwP////7//////w/w///f////////B/j///////////8D/v///////////wD///////////9/AP///////////x+A////////////B/D///////////8D/P///////////wD///////////8/wP///////////w/w////////////B/z///////////+B////////////f+D///////////8f+P///////////wf/////////////4f///////////3/8////////////H//////////////D//////////////D///////////8f/P///////////wP///////////8/wP///////////w/w////////////A/j///////////8B/P//////////fwD///////////8/wP///////////w/w////////////A/z///////////+B////////////f+D///////////8f+P///////////wf+////////////g//////////////h////////////f/j///////////8/8P9//////////w/A/9//////////B/Dz9/////////8B/Pz9/////////4A/Pv////////8/8I/f/////////w//4ef///////+/wQ/88P///////w/wAR/4///j////AwDAB8D/D/j///8BAPAA8PsD/v//fwAAAAD+/ID///8fAAAAwD8/4P///wcAAAD8hw/4////AQAAAD/gB/7//z8AAADAB/gB/v//BwAAAAAA/AD+/xcAAAAAAAA+APj7AQAAAAAAAAcA/3wAAAAAAAAAAPAfHwAAAAAAAAAA/sAPAAAAAAAAAIAf4AcAAAAAAAAA4ADwAQAAAAAAAAAAAHgA"
+      }
+    },
+    {
+      "scene": "archery",
+      "node": "0:5",
+      "title": "随侍的装束",
+      "text": "他们头戴青纱小帽，身穿红、绿等各色窄袖袍服。",
+      "ranges": [
+        [
+          425,
+          447
+        ]
+      ],
+      "image": "/materials/uci/figma-0-5.webp",
+      "board": "#4f4e2e",
+      "glow": "#a3986c",
+      "rect": [
+        0.80857,
+        0.6275,
+        0.05214,
+        0.2975
+      ],
+      "hitRects": [],
+      "shape": {
+        "width": 574,
+        "height": 896,
+        "cols": 62,
+        "rows": 96,
+        "bits": "AAAAAA4AAAAAAADADwAAAAAAAPgDAAAAAAAAfwAAAAAAAOAfAAAAAAAA/AcAAAAAAAD/AAAAAAAA4D8AAAAAAAD4DwAAAAAAAP4DAAAAAACAfwAAAAAAAOAfAAAAAAAA+A8AAAAAAAD/BwAAAAAA8P97AAAAAAD+/x8AAAAAwP//DwAAAAD4//8DAAAAAP7//wAAAADg//8fAAAAAPj//wMAAAAA////AAAAAOD//z8AAAAA/P//BwAAAAD///8AwAEAwP//fwD8AADw//8/wH8AAPz//z/4HwAA/v//H/8DAAD+///H/wAAgP////kfAADg/////gcAAMj/////AAAA+////x8AAED/////BwAA+P////8AAAD+//+/fwAAwP///88/AAD8////+x8AAPv//3//BwAA/v////8DAMD//////wAA4P////8/AADw/////w8AAPz/////AwCA/////38AAPD/////HwAA/v////8HAID//////wAA8P////8/AAD+/////x8A8P//////HwD+//////8HgP///////3Hw//////8/MPz//////wcs////////AeL//////z+A8P//////D2D8//////8DMP///////wG4//////9/APz//////x8A+P//////DwD8//////8DAP///////wDA//////8/APj//////x8A/v//////B4D///////8B4P///////wD4//////8/AP///////w/A///z8///A/D///z+//8A/P//v///fwD///////8fwP//P/j//wfw//8D/v//Afz//4D///+A//8/4P//P+D//w/4//8P+P//A/7//wP+//+B//8/gP//f+D//wHg//8fwB8eAPj//wfAhw8A/v//Afj5AYD//z+Afx8A4P9/APDPAQAA/x8AfAAAAAD/DwAEAAAAwP8BAAAAAAD8AwAAAAAAgD8AAAAAAADAAwAAAAAA"
+      }
+    },
+    {
+      "scene": "archery",
+      "node": "0:4",
+      "title": "带箭的随侍",
+      "text": "围绕在宣宗身边的随从主要是宫廷内侍（宦官）。在射箭时，他们负责抱持弓箭、在靶子两侧捧壶拾箭。",
+      "ranges": [
+        [
+          403,
+          425
+        ],
+        [
+          466,
+          489
+        ]
+      ],
+      "image": "/materials/uci/figma-0-4.webp",
+      "board": "#675744",
+      "glow": "#b09d77",
+      "rect": [
+        0.72214,
+        0.55,
+        0.03786,
+        0.2
+      ],
+      "hitRects": [],
+      "shape": {
+        "width": 492,
+        "height": 896,
+        "cols": 53,
+        "rows": 96,
+        "bits": "AADgAAAAAAAA/gcAAAAA4P8DAAAAAPz/AAAAAID//wAAAADw/z8AAAAA/v8fAAAAgP//BwAAAPD//wAAAAD8/z8AAAAA/v8HAAAAgP//AAAAAMD/HwAAAADw/wMAAAAA/j8AAAAA8P8BAAAAAP8PAAAAAPj/DwAAAMD//wMAAAD8//8AAADA//8/AAAA+P//BwAAgP///wEAAPD//38AAAD///8PAADg////AQAA/P//fwAAgP///w8AAPj///8BAAD///9/AADg////DwAA/P///wMAgP///38AYPD///8fAD/+////A/jv///3/wD+/////h/w////z/8D/P////l/4P///z//B/j////j/wD+//9//g+A////7/8B4P////0fAPj/////AQD8////DwAA/////wEA4P///x8AAP7///8BAMD/////AAD4////fwAA/////x8A4P////8DAP7/////AMD/////HwD4/////wcA//////8A4P////8fAPz/////B8D//////wD8/////z+A//////8H+P//////Af//////P/D//////w/////////x//////8//////////////////////////9/P///////5+P////8fjP//////APD/////DwD+////fwDg/////w8A/P/////5wP//////H/j//3/4/wf///8D/3/g//8P4P8H/P9/APwDAPz/AQAPAID/AAAAAAD4DwAAAAAA/wAAAAAA8B8AAAAAAP4DAAAAAMB/AAAAAADwHwAAAAAA/AcAAAAAAP8BAAAAAOB/AAAAAAD4DwAAAAAA/AEAAAAAAB4AAAAA"
+      }
+    },
+    {
+      "scene": "archery",
+      "node": "1:2",
+      "title": "举弓瞄靶",
+      "text": "“侯”即箭靶。画面中，一人正拉满弓弦瞄准远处的靶子，其余人散立两侧。",
+      "ranges": [
+        [
+          591,
+          625
+        ]
+      ],
+      "image": "/materials/uci/figma-1-2.webp",
+      "board": "#73683b",
+      "glow": "#b6a673",
+      "rect": [
+        0.59786,
+        0.51,
+        0.04571,
+        0.195
+      ],
+      "hitRects": [
+        [
+          0.60214,
+          0.57,
+          0.04071,
+          0.1325
+        ],
+        [
+          0.61286,
+          0.5125,
+          0.02357,
+          0.0325
+        ]
+      ],
+      "shape": {
+        "width": 728,
+        "height": 896,
+        "cols": 78,
+        "rows": 96,
+        "bits": "AAAAgAAAAAAAAAAAADAAAAAAAAAAAPwPAAAAAAAAAPj/AQAAAAAAAIA/AAAAAAAAAAD4AAAAAAAAAAAADwAAAB8AAAAA8AAAAOA/AAAAABwAAAD/DwAAAIADAADw/wMAAABwAAAA/n8AAAAADgAAwP8PAAAAgAMAAPj/AwAAAGAAAAD/fwAAAAAcAADg/w/AAQAABwAA/v/j/wAAwAEAgP9//v8AAHAAAOD///9/AAAcAAD4////HwAABwAA/v///wcAwAEAgP////8BwP/nJ+D///9/APB/AAD4////DwDA/////////wEA8P///////z8AAPz///////9/AAD+////////fgCA////////3z8A4P////////M/APD//////3/8DwCM//////8f/wOAA///////z38A4AD+//////sfADgA+P//////BwAOAOD//////wCAAwAA8P///x8A4AAAAPz///8HADgAAAD+////AAAMAACA////PwAABwAAwP///w8AgAMAAOD///8BAOAAAAD4//9/AABwAAAA/P//DwAAeAAAAP///wcAADwAAID///8DAAA+AADA////AAAAPgAA4P//fwAAAD4AAPD//x8AAAB+AAD+//8PAAAAfACA////AwAAABgA4P///wEAAAAMAPj//38AAAAAAwD///8/AAAAAADA////DwAAAAAA8P///wMAAAAAAP7///8BAAAAAMD///9/AAAAAAD8////HwAAAAAA/////w8AAAAA4P////8DAAAAAOD/////AAAAAAD8////fwAAAAAA/////x8AAAAA4P////8HAAAAAPj/////AwAAAAD//////wAAAADA/////z8AAAAA8P////8fAAAAAP7/////BwAAAID//////wEAAADw/////38AAAAA/P////8/AAAAAP//////DwAAAOD//////wMAAAD4//////8BAAAA/v////9/AAAAgP//////HwAAAPD//////w8AAAD8//////8DAAAA////////AAAAgP//////DwAAAAD//////wAAAAAA/////w8AAAAAwP////8AAAAAAPD///8/AAAAAAD8DwD8DwAAAAAA/wEA/gMAAAAAwH8AgP8BAAAAAPAfAP5/AAAAAAD+B4D/HwAAAADA/wHg/wcAAAAA/D8A4P8BAAAAwP8BAAA4AAAAAPAfAAAAAAAAAAD8AQAAAAAAAAAAHwAAAAAA"
+      }
+    },
+    {
+      "scene": "archery",
+      "node": "1:6",
+      "title": "弓上的羽箭",
+      "text": "靶子两侧各有一名侍从准备捡箭。",
+      "ranges": [
+        [
+          639,
+          654
+        ]
+      ],
+      "image": "/materials/uci/figma-1-6.webp",
+      "board": "#6d4e30",
+      "glow": "#b3986d",
+      "rect": [
+        0.59357,
+        0.545,
+        0.03,
+        0.0275
+      ],
+      "hitRects": [],
+      "shape": {
+        "width": 768,
+        "height": 32,
+        "cols": 96,
+        "rows": 4,
+        "bits": "AAAAAAAAAAAAAAB//v////////////9/////////////////AAAAAAAAAAAAAAB/"
+      }
+    },
+    {
+      "scene": "archery",
+      "node": "0:6",
+      "title": "旗间的箭靶",
+      "text": "“侯”即箭靶。远处的靶子立在两面旗帜中间。",
+      "ranges": [
+        [
+          591,
+          598
+        ],
+        [
+          625,
+          638
+        ]
+      ],
+      "image": "/materials/uci/figma-0-6.webp",
+      "board": "#99330f",
+      "glow": "#ca8a5c",
+      "rect": [
+        0.22286,
+        0.325,
+        0.02429,
+        0.325
+      ],
+      "hitRects": [],
+      "shape": {
+        "width": 172,
+        "height": 896,
+        "cols": 18,
+        "rows": 96,
+        "bits": "ABAAQAAAAQAMADAAwAAAAwAMADgA4ACAAwAOAHwA8AHABwAeADAA4ADAA4APAD8A/gD+A/wP/D/8/4APAwAMADAAwAAAAwAMADAAwAAAAwA/AP4B/A/4P+D/gP8D/g/4P8B/AP4B8AOAAwAOADgA4ACAAwAOADgA4ACAAwAOADgA4ACAAwAOADgA4ACAAwAOADgA4ACAAwAOADgA4ACAAwAOADgA4ACAAwAOADgA4ACAAwAOADgA4ACAAwAOADgA4ACAAwAOADgA4ACAAwAOADgA4ACAAwAM"
+      }
+    },
+    {
+      "scene": "archery",
+      "node": "1:3",
+      "title": "鞍马与随侍",
+      "text": "史载他“智识明睿”，永乐帝曾特意挑选良家子弟陪他习武，并多次带他随同出征。这种成长经历，塑造了他英武、重视射猎的性格。",
+      "ranges": [
+        [
+          169,
+          228
+        ]
+      ],
+      "image": "/materials/uci/figma-1-3.webp",
+      "board": "#d0b393",
+      "glow": "#e7cda0",
+      "rect": [
+        0.875,
+        0.475,
+        0.06929,
+        0.28
+      ],
+      "hitRects": [],
+      "shape": {
+        "width": 623,
+        "height": 896,
+        "cols": 67,
+        "rows": 96,
+        "bits": "AAAAADAAAAAAAAAAgAEAAAAAAAAADAAAAAAAAABgAAAAAAAAAAADAAAAAAAAABgAAAAAAAAA4AEAAAAAAACAHwAAAAAAAAD8AAAAAAAAAOAPAAAAAAAAAD8AAAAAAAAA+AMAAAAAAADgHwAAAAAAAAD/AAAAAAAAAPgHAAAAAAAAwD8AAAAAAAAA/gEAAAAAAADwDwAAAAAAAIB/AAAAAAAAAPwDAAAAAAAA4B8AAAAAAAAA/wAAAAAAAAf4BwAAAAAAfOB/8AEAAADwA/zADwAAAMAfwIN/AAAAAP8AHvwBAAAA+Qfw8Q8AAADIH8CPPwAAAMD+AH7+AQAAAP4H8PcPAAAA8D/AP/8AAACA/wNw8AcAAAD8PwCBfwAAAPD/Bxz+BwAAxP9/4Pg/AAB8//8Dz/8BAPD//x/w/w8AgP///4H/fwAA/P//9/3/AQDg////7/8PAAD///9//38AAPz////7/wEA4P///+//DwCA////f/4/AAD+////s/8BAPj///+f/R8AwP/////v/wEAf/7/////DwD49///////AMD///////8/ALz///////8PAPj///////8DwP///////z8A/v///////wPw////////HwD/////////Afj///////8PwP////////8A/P///////wfg////////PwD/////////Afj///////8PwP///////38A/v///////wP4////////H8D/////////AP7///////8D8P///////x+A/////////wD8////////B/D///////8fAP3///////0AAP7///f/7wMA8P//P59/HwCA////8/lzAAD+//8fj58HAPj9///4+D0A8OP//8fH7wOAB///fxx8HwAA+P//4+DzAQDA//8fB54PAAD+//84cHwAAPD//8+B4wcAwP//fw4cPgAA/v//c+DwAQDw//+fg4cPAID///8ePPgAAPz///fgwQcA4P//gAcPPAAA/88HPnzAAQB8fz748AMAAOD+88HDDwAAAPMHDwQ+AAAAAAP4APgAAAAAAIAHAAAA"
+      }
+    }
+  ]
+}

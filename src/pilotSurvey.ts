@@ -12,7 +12,7 @@ export function surveyForScene(session:Session, painting:Painting):PilotSceneSur
     .filter(e=>e.paintingId===painting.paintingId && e.trialId===trial?.trialId)
     .sort((a,b)=>a.shownMs-b.shownMs);
   const survey:PilotSceneSurvey = {
-    version:PILOT_SURVEY_VERSION,trialId:trial?.trialId??null,
+    version:session.config.pilotSurveyVersion??PILOT_SURVEY_VERSION,trialId:trial?.trialId??null,
     submittedCardOrder:[...new Set(exposures.map(e=>e.cardId))],
     workload:{},workloadSubmittedMs:null,recall:{},recallSubmittedMs:null,
     supplemental:{},supplementalSubmittedMs:null,

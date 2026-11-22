@@ -1,25 +1,32 @@
 import {describe,expect,it} from 'vitest';
 import {sessionFixture} from './dataFixtures';
 import {pilotConfig} from '../src/pilotMaterials';
+import {PILOT_SURVEY_VERSION,UCI_RECALL_VERSION,recallQuestionsByScene} from '../src/pilotQuestions';
+import {recallAnswerExamples} from '../src/pilotRecallRubric';
 import {recallComplete,submitSurveyPage,surveyForScene,workloadComplete,workloadIds} from '../src/pilotSurvey';
 
 const paintings=pilotConfig.paintings;
-const orderedIds=[
-  ['cuju-platform','cuju-garden','cuju-court'],
-  ['polo-goal','polo-audience','polo-riders'],
-  ['archery-target','archery-pavilion','archery-archers'],
-];
-
 describe('Pilot 2 immediate scene questionnaires',()=>{
   it('freezes exactly the three requested questions per scene against real card IDs in the fixed recall order',()=>{
-    expect(pilotConfig.pilotSurveyVersion).toBe('pilot2-recall-v1');
-    paintings.forEach((painting,index)=>{
+    expect(pilotConfig.pilotSurveyVersion).toBe(UCI_RECALL_VERSION);
+    paintings.forEach(painting=>{
       const recall=painting.recallQuestions!;
-      expect(recall.map(q=>q.cardId)).toEqual(orderedIds[index]);
-      expect(new Set(recall.map(q=>q.cardId))).toEqual(new Set(painting.cards.map(card=>card.id)));
-      expect(recall.map(q=>q.id)).toEqual(orderedIds[index].map(id=>'recall-'+id));
+      const sceneKey=painting.paintingId.replace('ming-xingle-','') as keyof typeof recallQuestionsByScene;
+      expect(recall.map(q=>q.prompt)).toEqual(recallQuestionsByScene[sceneKey].map(q=>q.prompt));
+      expect(recall).toHaveLength(3);
+      expect(new Set(recall.map(q=>q.cardId)).size).toBe(3);
+      for(const q of recall){
+        expect(painting.cards.some(card=>card.id===q.cardId)).toBe(true);
+        expect(q.id).toBe('recall-'+q.cardId);
+        expect(recallAnswerExamples(UCI_RECALL_VERSION,q.id).length).toBeGreaterThan(0);
+      }
       expect(recall.every(q=>Object.keys(q).sort().join(',')==='cardId,id,prompt')).toBe(true);
     });
+  });
+
+  it('scores the visible polo stick head using the rubric for that material version',()=>{
+    expect(recallAnswerExamples(UCI_RECALL_VERSION,'recall-polo-figma-3-25')).toContain('椭圆形');
+    expect(recallAnswerExamples(PILOT_SURVEY_VERSION,'recall-polo-riders')).toContain('弯的');
   });
 
   it('preserves partial workload drafts including zero without treating an unanswered item as zero',()=>{

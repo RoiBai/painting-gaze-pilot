@@ -4,6 +4,8 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { pilotConfig } from '../src/pilotMaterials';
 import { pilotInterviewQuestions, pilotSceneQuestions } from '../src/pilotQuestions';
+import {singleAoi,sceneDurationSeconds} from '../src/pilotProtocol';
+import {hitGuide,validCutout} from '../src/cutoutCard';
 import { validateConfig } from '../src/study';
 
 type Manifest = {
@@ -29,21 +31,35 @@ describe('three-condition painting materials', () => {
     }
   });
 
-  it('assigns one distinct nonoverlapping area to each card and the same questionnaire to each scene', () => {
+  it('makes every registered detail reachable, including figures inside larger settings', () => {
     for (const scene of pilotConfig.paintings) {
       expect(scene.cards.map(card => card.aoiIds)).toEqual(scene.aois.map(aoi => [aoi.id]));
-      for (const [i, first] of scene.aois.entries()) {
-        const [x, y, w, h] = first.rect;
-        for (const second of scene.aois.slice(i + 1)) {
-          const [otherX, otherY, otherW, otherH] = second.rect;
-          expect(x + w < otherX || otherX + otherW < x || y + h < otherY || otherY + otherH < y).toBe(true);
-        }
+      for(const [index,area] of scene.aois.entries()){
+        const card=scene.cards[index];
+        expect(validCutout(card.art)).toBe(true);
+        expect(readFileSync(join('public',card.art!.image)).subarray(8,12).toString()).toBe('WEBP');
+        // A pavilion includes the emperor. Check that each can actually be chosen from its own area.
+        const reachable=(area.hitRects??[area.rect]).some(([x,y,w,h])=>
+          [0.15,0.5,0.85].some(u=>[0.15,0.5,0.85].some(v=>singleAoi(x+u*w,y+v*h,scene.aois,true)===area.id)));
+        expect(reachable,card.title).toBe(true);
       }
+      expect(scene.recallQuestions!.every(q=>scene.cards.some(c=>c.id===q.cardId))).toBe(true);
       expect(scene.pre).toEqual(pilotSceneQuestions);
       expect(scene.pre).not.toBe(pilotSceneQuestions);
       expect(scene.post).toEqual([]);
       expect(scene.interview).toEqual(pilotInterviewQuestions.map(question => question.prompt));
     }
+  });
+
+  it('displays every supplied detail and excludes transparent margins from attention',()=>{
+    expect(pilotConfig.paintings.map(p=>p.cards.length)).toEqual([6,7,9]);
+    expect(pilotConfig.paintings.map(p=>sceneDurationSeconds(p,60))).toEqual([72,84,108]);
+    const art=pilotConfig.paintings[1].cards.find(c=>c.title==='屏风式球门')!.art;
+    const rect={left:0,top:0,width:600,height:300};
+    expect(hitGuide(1,1,rect,600,520,art)).toBe(false);
+    expect(hitGuide(500,150,rect,0,520,art)).toBe(true);
+    expect(hitGuide(599,170,rect,0,520,art)).toBe(false);
+    expect(hitGuide(599,170,rect,520,520,art)).toBe(true);
   });
 
   it('detects missing scenes, ambiguous card mappings, and broken scale definitions in imports', () => {
