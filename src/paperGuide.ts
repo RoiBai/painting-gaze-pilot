@@ -1,15 +1,19 @@
 import type {AOI,CardRect,Geometry} from './types';
 import type {GuideCard} from './cutoutCard';
-import {archeryPlacement, archeryTargetPoint, archeryTiming, drawArcheryImpact, drawArcheryStory, hitArcheryStory} from './archeryNarrative';
+import {archerGuide,archeryPlacement,archeryTargetPoint,archeryTiming,drawArcheryImpact,drawArcheryStory,focusedArrowLength,hitArcheryStory} from './archeryNarrative';
 import {drawCollageSubject,hitCollageSubject} from './cutoutMotion';
 import {drawPaintedPose,hitPaintedPose,hasPaintedPoses} from './paintedPoses';
 import {archerArrowPose} from './archerDetail';
 import catalogue from './uciCatalogue.json' with {type:'json'};
 
+export type PaperEdition='legacy'|'v3'|'v4';
+
 export interface PaperGuideLayout {
   /** Absent from the archived two-sheet presentation. */
   style?:'single-board';
-  reveal?:'explain-then-shoot'|'archer-release'|'arrow-detail'|'polo-swing'|'stepped-poses'|'landed-arrow';
+  reveal?:'explain-then-shoot'|'archer-release'|'arrow-detail'|'polo-swing'|'stepped-poses'|'landed-arrow'|'archer-draw'|'arrow-release';
+  /** The enlarged bow on the preceding demonstration. Stored for faithful replay. */
+  bowBox?:CardRect;
   landedArrowLength?:number;
   impact?:{x:number;y:number};
   source:CardRect;
@@ -65,7 +69,7 @@ function textHeight(t:PaperGuideLayout['type']){
 /** The arrow is a small detail of the bow. Place the reading board just above
  * the release hand, leaving the archer's head, hands and body visible. */
 function arrowGuide(ctx:CanvasRenderingContext2D,card:GuideCard,g:Geometry,source:CardRect,
-  width:number,v3Impact?:{x:number;y:number}):PaperGuideLayout{
+  width:number,impact?:{x:number;y:number},bowBox?:CardRect):PaperGuideLayout{
   const vw=g.viewportWidth,vh=g.viewportHeight;
   const edge=clamp(vw*.015,8,18);
   const panelWidth=Math.min(vw-edge*2,clamp(vw*.22,228,305));
@@ -74,25 +78,36 @@ function arrowGuide(ctx:CanvasRenderingContext2D,card:GuideCard,g:Geometry,sourc
   const artH=width*source.height/source.width;
   const lift=clamp(g.height*.076,18,40)+9;
   const art=centered(centerX(source)-clamp(width*.3,9,20), centerY(source)-lift, width, artH);
+  if(bowBox){
+    // Keep the nock beside the drawing hand as the point grows out to the left.
+    art.left=clamp(source.left+source.width-width,edge,vw-edge-width);
+    art.top=clamp(centerY(source)-artH/2,edge,vh-edge-artH);
+  }
   const left=clamp(art.left+width*.19,edge,vw-edge-panelWidth);
-  const top=clamp(centerY(art)+12-panelHeight,edge,vh-edge-panelHeight);
+  const top=clamp((bowBox?art.top-8:centerY(art)+12)-panelHeight,edge,vh-edge-panelHeight);
   const panel={left,top,width:panelWidth,height:panelHeight};
-  const minX=Math.min(art.left,left),minY=Math.min(art.top,top);
-  const bounds={left:minX,top:minY,width:Math.max(left+panelWidth,art.left+width)-minX,
-    height:Math.max(top+panelHeight,art.top+artH)-minY};
-  return {style:'single-board',source,art,panel,backing:panel,bounds,type,viewport:{width:vw,height:vh},
-    ...(v3Impact?{reveal:'explain-then-shoot',impact:v3Impact}:{reveal:'arrow-detail'})};
+  const backing={...panel};
+  if(bowBox){
+    // Lay the shaft across the foot of the same panel as the caption. Its
+    // point overhangs to the left, as it does in the other paper illustrations.
+    backing.left=Math.min(left,art.left+width*.16);
+    backing.width=Math.min(vw-edge,Math.max(left+panelWidth,art.left+width+10))-backing.left;
+    backing.height=Math.min(vh-edge,Math.max(top+panelHeight,art.top+artH+12))-top;
+  }
+  const minX=Math.min(art.left,backing.left),minY=Math.min(art.top,top);
+  const bounds={left:minX,top:minY,width:Math.max(backing.left+backing.width,art.left+width)-minX,
+    height:Math.max(top+backing.height,art.top+artH)-minY};
+  return {style:'single-board',source,art,panel,backing,bounds,type,viewport:{width:vw,height:vh},
+    ...(bowBox?{reveal:'arrow-release',impact,bowBox}:impact?{reveal:'explain-then-shoot',impact}:{reveal:'arrow-detail'})};
 }
 
 // The target-only presentation (random order or a direct P00 link) still needs
 // the exact displayed shaft length from the archer's card on this viewport.
 const archerEntry=catalogue.cards.find(c=>c.scene==='archery'&&c.node==='1:2')!;
-const archerCard:GuideCard={id:'archery-figma-1-2',title:archerEntry.title,text:archerEntry.text,art:archerEntry,
-  location:archerEntry.title,aoiIds:['figma-1-2'],source:archerEntry.image};
 const archerArea:AOI={id:'figma-1-2',label:archerEntry.title,rect:archerEntry.rect as AOI['rect']};
 
 /** Frozen viewport CSS pixels. The foreground is sized from its registered area in the original scene. */
-export function makePaperGuide(ctx:CanvasRenderingContext2D,card:GuideCard,g:Geometry,aoi:AOI,edition?:'legacy'|'v3'):PaperGuideLayout{
+export function makePaperGuide(ctx:CanvasRenderingContext2D,card:GuideCard,g:Geometry,aoi:AOI,edition?:PaperEdition):PaperGuideLayout{
   const vw=g.viewportWidth,vh=g.viewportHeight;
   const [x,y,w,h]=aoi.rect;
   const area={left:g.left+x*g.width,top:g.top+y*g.height,width:w*g.width,height:h*g.height};
@@ -104,7 +119,13 @@ export function makePaperGuide(ctx:CanvasRenderingContext2D,card:GuideCard,g:Geo
   const source=placement.source??centered(cx,cy,nativeW,nativeW/aspect);
   source.left=clamp(source.left,0,vw-source.width);
   source.top=clamp(source.top,0,vh-source.height);
-  if(placement.tip && placement.detailWidth)return arrowGuide(ctx,card,g,source,placement.detailWidth,edition==='v3'?placement.tip:undefined);
+  if(placement.tip && placement.detailWidth){
+    if(edition)return arrowGuide(ctx,card,g,source,placement.detailWidth,edition==='v3'?placement.tip:undefined);
+    const bowBox=makePaperGuide(ctx,archerGuide,g,archerArea).art;
+    const tip=archerArrowPose(bowBox),height=tip.length/aspect;
+    const held={left:tip.x,top:tip.y-height/2,width:tip.length,height};
+    return arrowGuide(ctx,card,g,held,focusedArrowLength(tip.length,vw),placement.tip,bowBox);
+  }
   // Reserve page margins and paper borders only where the original subject leaves room.
   const edgeX=clamp(vw*.018,8,24);
   const edgeY=clamp((vh-nativeW/aspect)*.12,1,clamp(vh*.035,8,24));
@@ -112,14 +133,26 @@ export function makePaperGuide(ctx:CanvasRenderingContext2D,card:GuideCard,g:Geo
   const padY=clamp((vh-2*edgeY-nativeW/aspect)*.13,1,clamp(vh*.022,9,20));
   const safeW=vw-2*edgeX,safeH=vh-2*edgeY;
   const targetSize=clamp(Math.min(vw*.24,vh*.32),110,260);
-  const archer=!edition&&card.id==='archery-figma-1-2';
-  const poloClub=!edition&&card.id==='polo-figma-3-25';
+  const paintedEdition=edition!=='legacy'&&edition!=='v3';
+  const archer=paintedEdition&&card.id==='archery-figma-1-2';
+  const poloClub=paintedEdition&&card.id==='polo-figma-3-25';
   // This cutout is the club visible inside the rider's larger cutout.
   const desiredW=Math.max(nativeW*1.30,Math.min(1,aspect)*targetSize*(poloClub?.44:1));
   const seam=Math.min(25,padX+2);
   const minimumPanel=Math.min(224,safeW);
-  const target=!edition&&card.id==='archery-figma-0-6';
-  const landedArrowLength=target?archerArrowPose(makePaperGuide(ctx,archerCard,g,archerArea).art).length:0;
+  const target=paintedEdition&&card.id==='archery-figma-0-6';
+  let landedArrowLength=0;
+  if(target){
+    const archerText=edition?{...archerGuide,text:archerEntry.text}:archerGuide;
+    const handLength=archerArrowPose(makePaperGuide(ctx,archerText,g,archerArea,edition).art).length;
+    landedArrowLength=edition?handLength:focusedArrowLength(handLength,vw);
+    if(!edition){
+      // Register the small target's disk to the impact at this exact viewport.
+      const point=archeryTargetPoint(g);
+      source.left=point.x-source.width*121/172;
+      source.top=point.y-source.height*378/896;
+    }
+  }
   const extraRatio=target?0:placement.rightSpace??0;
   // The shaft projects to the right of the bullseye. Leave at least its full
   // CSS-pixel length before the text column, including when the flag shrinks.
@@ -163,10 +196,10 @@ export function makePaperGuide(ctx:CanvasRenderingContext2D,card:GuideCard,g:Geo
   const top=Math.min(art.top+artH*.07,panel.top);
   const bottom=Math.max(art.top+artH*.96,panel.top+panel.height);
   return {...layout,style:'single-board',backing:{left,top,width:bounds.left+bounds.width-left,height:bottom-top},
-    ...(target?{reveal:'landed-arrow',landedArrowLength}:impact?{reveal:'archer-release',impact}:{reveal:!edition?poseReveal(card.id):undefined})};
+    ...(target?{reveal:'landed-arrow',landedArrowLength}:impact?{reveal:edition?'archer-release':'archer-draw',impact}:{reveal:paintedEdition?poseReveal(card.id,edition):undefined})};
 }
-function poseReveal(id:string):'polo-swing'|'stepped-poses'|undefined{
-  if(id==='polo-figma-3-23')return 'polo-swing';
+function poseReveal(id:string,edition?:PaperEdition):'polo-swing'|'stepped-poses'|undefined{
+  if(edition==='v4'&&id==='polo-figma-3-23')return 'polo-swing';
   if(hasPaintedPoses(id))return 'stepped-poses';
 }
 
@@ -182,7 +215,8 @@ export function validPaperGuideLayout(value:unknown):value is PaperGuideLayout{
   const counts=(a:unknown)=>Array.isArray(a)&&a.length>0&&a.length<=200&&a.every(n=>Number.isInteger(n)&&n>0&&n<=2000);
   const plainReveal=l.reveal==='arrow-detail'||l.reveal==='polo-swing'||l.reveal==='stepped-poses'
     || (l.reveal==='landed-arrow'&&finite(l.landedArrowLength)&&l.landedArrowLength>0&&l.landedArrowLength<=32768);
-  const hasTarget=(l.reveal==='archer-release'||l.reveal==='explain-then-shoot') && !!l.impact&&finite(l.impact.x)&&finite(l.impact.y);
+  const hasTarget=(l.reveal==='archer-release'||l.reveal==='explain-then-shoot'||l.reveal==='archer-draw'
+    ||(l.reveal==='arrow-release'&&rectValid(l.bowBox))) && !!l.impact&&finite(l.impact.x)&&finite(l.impact.y);
   return (l.style===undefined||l.style==='single-board') && (l.reveal===undefined||l.style==='single-board'&&(plainReveal||hasTarget))
     && [l.source,l.art,l.backing,l.panel,l.bounds].every(rectValid) && !!l.viewport &&
     [l.viewport.width,l.viewport.height].every(n=>finite(n)&&n>0&&n<=32768) && !!t &&
@@ -199,8 +233,9 @@ export function paperFrame(l:PaperGuideLayout,elapsed:number,duration:number,red
   const t=reduced?1800:elapsed/Math.max(speed,.001);
   const flight=ease(t,160,1130);
   const unfold=ease(t,460,1350);
-  const dropsBoard=l.reveal==='archer-release'||l.reveal==='polo-swing';
-  const boardAlpha=dropsBoard||l.reveal==='explain-then-shoot'?archeryTiming(elapsed,duration,reduced).boardAlpha:1;
+  const dropsBoard=l.reveal==='archer-release'||l.reveal==='polo-swing'||l.reveal==='arrow-release';
+  const boardAlpha=l.reveal==='archer-draw'?1-ease(elapsed,duration*.90,duration*.99):
+    dropsBoard||l.reveal==='explain-then-shoot'?archeryTiming(elapsed,duration,reduced).boardAlpha:1;
   const boardDrop=dropsBoard&&!reduced?(1-boardAlpha)*clamp(l.backing.height*.16,18,42):0;
   const subject=interpolate(l.source,l.art,flight);
   let backing=interpolate(l.source,l.backing,flight);
@@ -216,11 +251,12 @@ export function paperFrame(l:PaperGuideLayout,elapsed:number,duration:number,red
   const top=clamp(mix(centerY(l.source)-l.panel.height/2,l.panel.top,flight),0,l.viewport.height-l.panel.height);
   backing.top+=boardDrop;
   const panel={left,top:top+boardDrop,width:l.panel.width*unfold,height:l.panel.height};
-  const fadeOut=reduced&&l.style==='single-board'
+  const keepSubject=l.reveal==='archer-draw'||l.reveal==='arrow-release';
+  const fadeOut=keepSubject||reduced&&l.style==='single-board'
     ?Number(elapsed<duration)
     :1-ease(elapsed,duration-(reduced?120:680)*speed,duration);
   return {subject,backing,panel,boardDrop,alpha:fadeOut,backingAlpha:boardAlpha*ease(t,195,745),panelAlpha:boardAlpha*ease(t,460,890),
-    textAlpha:boardAlpha*ease(t,950,1520),light:1-ease(t,220,980),veil:boardAlpha*ease(t,0,620),motionMs:reduced?0:Math.max(0,elapsed-1050*speed)};
+    textAlpha:boardAlpha*ease(t,950,1520),light:l.reveal==='arrow-release'?0:1-ease(t,220,980),veil:boardAlpha*ease(t,0,620),motionMs:reduced?0:Math.max(0,elapsed-1050*speed)};
 }
 
 function rgb(hex:string){return [1,3,5].map(i=>parseInt(hex.slice(i,i+2),16))}
@@ -332,7 +368,7 @@ export function drawPaperGuide(ctx:CanvasRenderingContext2D,card:GuideCard,image
   if(l.reveal==='explain-then-shoot' && f.backingAlpha===0 && elapsed>duration/2)ctx.shadowColor='transparent';
   if(f.light>.01)ctx.filter='brightness('+(1+.22*f.light)+')';
   if(l.reveal==='polo-swing'||l.reveal==='stepped-poses'){
-    drawPaintedPose(ctx,card,image,s,elapsed,duration,reducedMotion);
+    drawPaintedPose(ctx,card,image,s,elapsed,duration,reducedMotion,l.reveal==='polo-swing');
   }else if(!single||!drawArcheryStory(ctx,card,image,l,s,elapsed,duration,reducedMotion)){
     drawCollageSubject(ctx,card,image,s,f.motionMs,reducedMotion,!single);
     if(single)drawArcheryImpact(ctx,card,s,l);
@@ -345,7 +381,7 @@ export function hitPaperGuide(x:number,y:number,card:GuideCard,l:PaperGuideLayou
   if(f.alpha<=.015)return false;
   if(f.backingAlpha>.025&&contains(f.backing,x,y))return true;
   if(!l.style&&f.panelAlpha>.025&&contains(f.panel,x,y))return true;
-  if(l.reveal==='polo-swing'||l.reveal==='stepped-poses')return hitPaintedPose(card,f.subject,x,y,elapsed,duration,reducedMotion);
+  if(l.reveal==='polo-swing'||l.reveal==='stepped-poses')return hitPaintedPose(card,f.subject,x,y,elapsed,duration,reducedMotion,l.reveal==='polo-swing');
   const storyHit=l.style?hitArcheryStory(card,l,f.subject,x,y,elapsed,duration,reducedMotion):undefined;
   return storyHit??hitCollageSubject(card,f.subject,x,y,f.motionMs,reducedMotion,!l.style);
 }

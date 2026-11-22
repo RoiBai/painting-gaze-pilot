@@ -1,4 +1,4 @@
-import {cardHitAt,PAPER_MATERIAL,PRIOR_PAPER_MATERIAL} from './cardPresentation';
+import {cardHitAt,paperAppVersion} from './cardPresentation';
 import type {PaperGuideLayout} from './paperGuide';
 import type {Session,StudyConfig,Phase,Geometry,ResponseRow,ValidationRow,BackgroundAnswers, ParticipantAssignment, CardDecision, CardExposure, CardRect, PilotMetadata, PilotTrial} from './types';
 import {WebGazerAdapter} from './webgazerAdapter';
@@ -13,7 +13,7 @@ import {validationExplanation} from './quality';
 import {resolveParticipantConfig} from './assignment';
 import {freezeBackground} from './background';
 import {COMMON_QUESTIONNAIRE_VERSION} from './commonQuestionnaire';
-import {buildPilotPlan,cardPermutation,PILOT_VERSION,responsiveSelectionRules,SELECTION_RULES,selectCard,singleAoi} from './pilotProtocol';
+import {buildPilotPlan,cardPermutation,cardWindows,type CardWindow,PILOT_VERSION,responsiveSelectionRules,SELECTION_RULES,selectCard,singleAoi} from './pilotProtocol';
 
 export const CALIBRATION_TARGETS = [[.12,.15],[.5,.15],[.88,.15],[.12,.5],[.5,.5],[.88,.5],[.12,.85],[.5,.85],[.88,.85]];
 export const VALIDATION_TARGETS = [[.25,.28],[.75,.28],[.5,.5],[.25,.72],[.75,.72]];
@@ -26,6 +26,7 @@ export class StudyEngine {
  paused=false; pauseReason=''; requireCalibration=false; camera:CameraState={status:'idle',message:'尚未启用摄像头'}; storageError='';
  revision=0; listeners=new Set<()=>void>(); adapter:Adapter; geometry:Geometry|null=null; lastPredictionAt=0; lastCallbackAt=0;
  private slotChoices=new Map<number,CardDecision>();
+ private windows:CardWindow[]=[];
  private visibleDecision:CardDecision|null=null;
  private visibleUntilActiveMs=0;
  private visibleSinceActiveMs=0;
@@ -81,7 +82,7 @@ export class StudyEngine {
   const errors=validateConfig(copy);if(errors.length)throw Error(errors.join('\n'));
   const backgroundSnapshot=typeof background==='string'?undefined:freezeBackground(background);
   const sessionId=`${id}-${new Date().toISOString().replace(/[:.]/g,'-')}-${crypto.randomUUID().slice(0,8)}`;
-  this.session={schemaVersion:1,sessionId,participantId:id,startedUtc:new Date().toISOString(),endedUtc:null,timeOrigin:performance.timeOrigin,status:'active',phase:'consent',mode:copy.mode,dataSource:'webgazer-camera',config:copy,order:pilot?pilot.plan.map(trial=>trial.paintingId):orderForParticipant(id,copy),...(pilot?{pilot,cardExposures:[]}:{}),...(assignment?{assignment}:{}),artBackground:typeof background==='string'?background:'',...(backgroundSnapshot?{background:backgroundSnapshot}:{}),calibrationVersion:0,quality:'pending',qualityNotes:[],dependencies:{webgazer:'3.5.3',react:'18.3.1',app:copy.paintings[0].materialVersion===PAPER_MATERIAL?'3.3.0':copy.paintings[0].materialVersion===PRIOR_PAPER_MATERIAL?'3.2.0':copy.pilotSurveyVersion==='pilot2-uci-recall-v2'?'3.1.0':copy.pilotSurveyVersion?'2.1.1':pilot?'2.0.0':'1.5.0',browser:navigator.userAgent},geometries:[],timings:[],validationSummaries:[],heatmap:{width:1000,kernelPx:30,opacity:.65,weight:'one-per-sample',normalization:'per-image-max',colorScale:'blue-cyan-yellow-red-v1'},scanpath:{...defaultScanpath},samples:[],events:[],responses:[],validation:[]};
+  this.session={schemaVersion:1,sessionId,participantId:id,startedUtc:new Date().toISOString(),endedUtc:null,timeOrigin:performance.timeOrigin,status:'active',phase:'consent',mode:copy.mode,dataSource:'webgazer-camera',config:copy,order:pilot?pilot.plan.map(trial=>trial.paintingId):orderForParticipant(id,copy),...(pilot?{pilot,cardExposures:[]}:{}),...(assignment?{assignment}:{}),artBackground:typeof background==='string'?background:'',...(backgroundSnapshot?{background:backgroundSnapshot}:{}),calibrationVersion:0,quality:'pending',qualityNotes:[],dependencies:{webgazer:'3.5.3',react:'18.3.1',app:paperAppVersion(copy.paintings[0].materialVersion)??(copy.pilotSurveyVersion==='pilot2-uci-recall-v2'?'3.1.0':copy.pilotSurveyVersion?'2.1.1':pilot?'2.0.0':'1.5.0'),browser:navigator.userAgent},geometries:[],timings:[],validationSummaries:[],heatmap:{width:1000,kernelPx:30,opacity:.65,weight:'one-per-sample',normalization:'per-image-max',colorScale:'blue-cyan-yellow-red-v1'},scanpath:{...defaultScanpath},samples:[],events:[],responses:[],validation:[]};
   this.phase='consent';this.trialIndex=0;this.geometry=null;this.paused=false;this.requireCalibration=false;this.cardIndex=0;
   this.resetCardState();
   if(pilot)this.event('pilot_plan_assigned',{...pilot});
@@ -215,10 +216,11 @@ export class StudyEngine {
   const painting=this.painting!;
   const condition=this.trialCondition!;
   const rules=session.pilot!.selectionRules;
-  const count=rules.slotCountsByPainting?.[painting.paintingId]??rules.slots??painting.cards.length;
-  const slotLength=this.sceneDurationMs/count;
-  const index=Math.floor(timing.activeMs/slotLength);
-  const withinSlot=timing.activeMs-index*slotLength;
+  const count=this.windows.length;
+  const index=this.windows.findIndex(window=>timing.activeMs<window.end);
+  if(index<0){this.visibleDecision=null;return}
+  const window=this.windows[index];
+  const withinSlot=timing.activeMs-window.start;
   const slot=index+1;
   const selected=this.slotChoices.get(slot);
   if(selected){
@@ -226,7 +228,7 @@ export class StudyEngine {
     return;
   }
   this.visibleDecision=null;
-  const deadline=Math.min(slotLength*rules.blankFraction,rules.maximumSelectionMs??Infinity);
+  const deadline=window.reveal-window.start;
   const beforeDeadline=withinSlot<deadline;
   if(beforeDeadline && (!rules.maximumSelectionMs || condition!=='gaze' || slot===count || withinSlot<rules.minimumDwellMs))return;
   const validation=session.validationSummaries.findLast(s=>s.kind==='validation'&&s.calibrationVersion===session.calibrationVersion);
@@ -239,7 +241,7 @@ export class StudyEngine {
   this.visibleSinceActiveMs=timing.activeMs;
   // Advance the end along with the onset so an early gaze trigger never buys
   // extra reading time. The remaining blank time is carried at the slot's end.
-  this.visibleUntilActiveMs=(index+1)*slotLength-Math.max(0,deadline-withinSlot);
+  this.visibleUntilActiveMs=window.end-Math.max(0,deadline-withinSlot);
   this.visibleDecision=choice;
   this.event('card_selected',{...choice,condition,trialId:timing.trialId,activeMs:timing.activeMs,plannedEndActiveMs:this.visibleUntilActiveMs});
  }
@@ -275,7 +277,10 @@ export class StudyEngine {
  imageReady(geometry:Geometry){if(this.phase!=='loading_image'||!this.session)return;
   this.resetCardState();
   if(this.pageTimeOffset)geometry={...geometry,timeMs:geometry.timeMs+this.pageTimeOffset};
-  if(this.session.pilot)this.deck=cardPermutation(this.painting!.cards.map(card=>card.id),this.session.pilot.seed,this.painting!.paintingId);
+  if(this.session.pilot){
+    this.deck=cardPermutation(this.painting!.cards.map(card=>card.id),this.session.pilot.seed,this.painting!.paintingId);
+    this.windows=cardWindows(this.painting!,this.trialCondition!,this.session.pilot.selectionRules,this.sceneDurationMs);
+  }
   this.geometry=geometry;this.session.geometries.push(geometry);this.event('image_decoded_and_presented',{geometry,browserFrameEvent:'requestAnimationFrame after decode; not hardware onset'});const now=this.clock();this.session.timings.push({trialId:`${this.session.sessionId}-${this.trialIndex+1}-a${this.session.timings.filter(t=>t.paintingId===this.painting!.paintingId).length+1}`,paintingId:this.painting!.paintingId,startedMs:now,endedMs:null,wallMs:0,activeMs:0,status:'active'});this.lastTick=now;this.lastPredictionAt=now;this.paused=false;this.move('free_view');if(document.hidden||!document.hasFocus())this.pause('not_focused_at_presentation',false)}
  sample(input:InputSample){if(!this.session||this.session.status!=='active'||this.inPilotQuestions)return;
   if(this.pageTimeOffset)input={...input,callbackTimeMs:input.callbackTimeMs+this.pageTimeOffset};this.lastCallbackAt=input.callbackTimeMs;const predictionAvailable=Number.isFinite(input.x)&&Number.isFinite(input.y);if(predictionAvailable)this.lastPredictionAt=input.callbackTimeMs;

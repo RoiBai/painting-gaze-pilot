@@ -1,6 +1,7 @@
 import {hitCollageSubject} from './cutoutMotion';
 import type {GuideCard} from './cutoutCard';
 import type {CardRect} from './types';
+import {arrowAtDraw,bowDrawIndex,bowDrawSlack,bowSample,drawingPoses} from './bowDraw';
 
 export interface ArrowPose {x:number;y:number;length:number;angle:number}
 
@@ -12,6 +13,8 @@ const inkAngle=Math.atan2(tailY-tipY,tailX-tipX);
 const shaftWidth=294,shaftHeight=26;
 const originX=3,originY=13;
 let layers:{image:HTMLImageElement;figure:HTMLCanvasElement;shaft:HTMLCanvasElement}|undefined;
+let drawingFrames:HTMLCanvasElement[]|undefined;
+let readingRim:HTMLCanvasElement|undefined;
 
 export function archerArrowPose(box:CardRect):ArrowPose{
   const dx=(tailX-tipX)*box.width/728,dy=(tailY-tipY)*box.height/896;
@@ -59,6 +62,27 @@ export function prepareArcherDetail(image:HTMLImageElement):void{
   sc.translate(originX,originY);sc.rotate(-inkAngle);
   sc.drawImage(strip,-tipX,stripY-tipY);
   layers={image,figure,shaft};
+  drawingFrames=undefined;
+  readingRim=undefined;
+}
+
+export function prepareBowDraw(image:HTMLImageElement){
+  prepareArcherDetail(image);
+  if(!drawingFrames)drawingFrames=drawingPoses(layers!.figure);
+}
+
+export function drawBowArcher(ctx:CanvasRenderingContext2D,box:CardRect,elapsed:number,duration:number,reduced:boolean){
+  if(!layers||!drawingFrames)throw Error('弓手动作帧尚未载入。');
+  const index=bowDrawIndex(elapsed,duration,reduced);
+  drawReleasedArrow(ctx,arrowAtDraw(archerArrowPose(box),box,index));
+  ctx.drawImage(drawingFrames[index]??layers.figure,box.left,box.top,box.width,box.height);
+}
+
+export function hitDrawingArcher(card:GuideCard,box:CardRect,x:number,y:number,elapsed:number,duration:number,reduced:boolean){
+  const index=bowDrawIndex(elapsed,duration,reduced);
+  if(hitReleasedArrow(arrowAtDraw(archerArrowPose(box),box,index),x,y))return true;
+  const src=bowSample((x-box.left)*728/box.width,(y-box.top)*896/box.height,bowDrawSlack(index));
+  return hitReleasedArcher(card,box,box.left+src.x*box.width/728,box.top+src.y*box.height/896);
 }
 
 export function drawReleasedArcher(ctx:CanvasRenderingContext2D,box:CardRect):void{
@@ -72,6 +96,29 @@ export function drawReleasedArrow(ctx:CanvasRenderingContext2D,pose:ArrowPose):v
   ctx.save();ctx.translate(pose.x,pose.y);ctx.rotate(pose.angle);
   ctx.drawImage(layers.shaft,-originX*scale,-originY*scale,shaftWidth*scale,shaftHeight*scale);
   ctx.restore();
+}
+
+// A paper-colored hairline separates the dark painted shaft from the color
+// field while reading. Its center and scale match the ink in every frame.
+const rimOffsets=[[-.65,0],[.65,0],[0,-.65],[0,.65]] as const;
+export function drawArrowRim(ctx:CanvasRenderingContext2D,pose:ArrowPose,opacity:number){
+  if(!layers||opacity<=0)return;
+  if(!readingRim){
+    readingRim=layer(shaftWidth,shaftHeight);
+    const tint=readingRim.getContext('2d')!;
+    tint.drawImage(layers.shaft,0,0);
+    tint.globalCompositeOperation='source-in';tint.fillStyle='#fff0bf';tint.fillRect(0,0,shaftWidth,shaftHeight);
+  }
+  const scale=pose.length/inkLength;
+  ctx.save();ctx.globalAlpha*=opacity*.83;
+  ctx.shadowColor='transparent';ctx.translate(pose.x,pose.y);ctx.rotate(pose.angle);
+  for(const [dx,dy] of rimOffsets){
+    ctx.drawImage(readingRim,-originX*scale+dx,-originY*scale+dy,shaftWidth*scale,shaftHeight*scale);
+  }
+  ctx.restore();
+}
+export function hitArrowRim(pose:ArrowPose,x:number,y:number){
+  return rimOffsets.some(([dx,dy])=>hitReleasedArrow(pose,x-dx,y-dy));
 }
 
 export function hitReleasedArcher(card:GuideCard,box:CardRect,x:number,y:number):boolean{

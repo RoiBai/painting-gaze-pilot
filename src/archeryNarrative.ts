@@ -1,5 +1,5 @@
 import {loadCutout,type GuideCard} from './cutoutCard';
-import {prepareArcherDetail,archerArrowPose,drawReleasedArcher,drawReleasedArrow,hitReleasedArcher,hitReleasedArrow,type ArrowPose} from './archerDetail';
+import {prepareArcherDetail,prepareBowDraw,archerArrowPose,drawArrowRim,drawBowArcher,drawReleasedArcher,drawReleasedArrow,hitArrowRim,hitDrawingArcher,hitReleasedArcher,hitReleasedArrow,type ArrowPose} from './archerDetail';
 import type {PaperGuideLayout} from './paperGuide';
 import {hitCollageSubject} from './cutoutMotion';
 import catalogue from './uciCatalogue.json' with {type:'json'};
@@ -8,12 +8,23 @@ import type {CardRect,Geometry} from './types';
 const arrowId='archery-figma-1-6';
 const targetId='archery-figma-0-6';
 const archer=catalogue.cards.find(c=>c.scene==='archery'&&c.node==='1:2')!;
+// Reserve the document's definition of 侯 for the target card.
+export const archerGuide:GuideCard={id:'archery-figma-1-2',title:archer.title,text:archer.text.replace(/^“侯”即箭靶。/,''),art:archer,
+  location:archer.title,aoiIds:['figma-1-2'],source:archer.image};
 const arrow=catalogue.cards.find(c=>c.scene==='archery'&&c.node==='1:6')!;
 const arrowCard:GuideCard={id:arrowId,aoiIds:['figma-1-6'],location:arrow.title,title:arrow.title,text:arrow.text,source:arrow.image,art:arrow};
 let arrowImage:HTMLImageElement|undefined;
 let paperSilhouette:HTMLCanvasElement|undefined;
 
-export async function prepareArcheryStory(card:GuideCard,prior=false):Promise<void>{
+export async function prepareArcheryStory(card:GuideCard,prior=false,focused=false):Promise<void>{
+  if(focused&&card.id==='archery-figma-1-2'){
+    prepareBowDraw(await loadCutout(archer));
+    return;
+  }
+  if(focused&&card.id===arrowId){
+    prepareArcherDetail(await loadCutout(archer));
+    return;
+  }
   if(card.id===targetId&&!prior){
     prepareArcherDetail(await loadCutout(archer));
     return;
@@ -32,7 +43,7 @@ export async function prepareArcheryStory(card:GuideCard,prior=false):Promise<vo
 
 interface Point {x:number;y:number}
 interface Placement {source?:CardRect;tip?:Point;detailWidth?:number;rightSpace?:number}
-type Layout={source:CardRect;art:CardRect;impact?:Point;landedArrowLength?:number;reveal?:PaperGuideLayout['reveal']};
+type Layout=Pick<PaperGuideLayout,'source'|'art'|'impact'|'landedArrowLength'|'reveal'|'bowBox'>;
 type Shaft={x:number;y:number;length:number;angle:number};
 
 // Landmarks in the full 6888 × 1966 crop, independent of the padded acquisition
@@ -69,6 +80,23 @@ export function archeryPlacement(card:GuideCard,g:Geometry):Placement{
 const mix=(a:number,b:number,t:number)=>a+(b-a)*t;
 function ramp(t:number,start:number,end:number){return Math.max(0,Math.min(1,(t-start)/(end-start)))}
 function smooth(t:number){return t*t*(3-2*t)}
+
+export function focusedArrowLength(handLength:number,viewportWidth:number){
+  return Math.min(viewportWidth*.35,Math.max(Math.min(150,viewportWidth*.27),handLength*2.15));
+}
+
+export function focusedArrowPose(l:Layout,elapsed:number,duration:number,reduced:boolean):ArrowPose{
+  const start=archerArrowPose(l.bowBox!);
+  const fraction=elapsed/Math.max(1,duration);
+  const zoom=reduced?1:smooth(ramp(fraction,0,.15));
+  const travel=reduced?Number(fraction>=.70):ramp(fraction,.72,.88);
+  const x=mix(start.x,l.art.left,zoom),y=mix(start.y,l.art.top+l.art.height/2,zoom);
+  return {x:mix(x,l.impact!.x,travel),y:mix(y,l.impact!.y,travel),
+    length:mix(start.length,l.art.width,zoom),angle:mix(start.angle*(1-zoom),trajectory,Math.min(1,travel*4))};
+}
+function archerContextAlpha(elapsed:number,duration:number,reduced:boolean){
+  return reduced?0:1-smooth(ramp(elapsed/Math.max(1,duration),.01,.15));
+}
 
 // At normal study speed the text finishes fading at 7 s. The painted shaft
 // settles back at the hand before its one-way, constant-scale flight begins.
@@ -156,6 +184,20 @@ function hitShaft(x:number,y:number,shaft:Shaft,readingContrast=0){
 
 export function drawArcheryStory(ctx:CanvasRenderingContext2D,card:GuideCard,image:HTMLImageElement,layout:Layout,
   subject:CardRect,elapsed:number,duration:number,reduced:boolean):boolean{
+  if(layout.reveal==='archer-draw'){
+    drawBowArcher(ctx,subject,elapsed,duration,reduced);
+    return true;
+  }
+  if(layout.reveal==='arrow-release'){
+    const alpha=archerContextAlpha(elapsed,duration,reduced);
+    const pose=focusedArrowPose(layout,elapsed,duration,reduced);
+    drawArrowRim(ctx,pose,(1-alpha)*archeryTiming(elapsed,duration,reduced).boardAlpha);
+    drawReleasedArrow(ctx,pose);
+    if(alpha>0){
+      ctx.save();ctx.globalAlpha*=alpha;drawReleasedArcher(ctx,layout.bowBox!);ctx.restore();
+    }
+    return true;
+  }
   if(layout.reveal==='archer-release'&&layout.impact){
     const released=releasedPose(subject,layout.impact,elapsed,duration,reduced);
     if(!released)return false;
@@ -180,6 +222,16 @@ export function drawArcheryImpact(ctx:CanvasRenderingContext2D,card:GuideCard,su
 }
 export function hitArcheryStory(card:GuideCard,layout:Layout,subject:CardRect,x:number,y:number,
   elapsed:number,duration:number,reduced:boolean):boolean|undefined{
+  if(layout.reveal==='archer-draw')return hitDrawingArcher(card,subject,x,y,elapsed,duration,reduced);
+  if(layout.reveal==='arrow-release'){
+    const pose=focusedArrowPose(layout,elapsed,duration,reduced);
+    const alpha=archerContextAlpha(elapsed,duration,reduced);
+    if(hitReleasedArrow(pose,x,y))return true;
+    if((1-alpha)*archeryTiming(elapsed,duration,reduced).boardAlpha>.025&&hitArrowRim(pose,x,y))return true;
+    // The fading contextual silhouette is the archer's cutout, not the
+    // detached arrow entry whose gaze region and alpha mask are different.
+    return alpha>.025&&hitReleasedArcher(archerGuide,layout.bowBox!,x,y);
+  }
   if(layout.reveal==='archer-release'&&layout.impact){
     const released=releasedPose(subject,layout.impact,elapsed,duration,reduced);
     return released?hitReleasedArcher(card,subject,x,y)||hitReleasedArrow(released,x,y):undefined;

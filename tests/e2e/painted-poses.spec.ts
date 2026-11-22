@@ -41,16 +41,24 @@ for(const example of examples){
     });
     const original=id.slice(id.indexOf('figma-'))+'.webp';
     const files=[original,set+'-1.webp',set+'-2.webp'];
-    const times=set==='swing'?[4000,7300,8040]:[1510,1800,2200];
-    let previous=0,box:number[]=[];
-    for(let i=0;i<3;i++){
-      await page.clock.runFor(times[i]-previous);previous=times[i];
+    const samples=set==='swing'
+      ?[[1080,1],[1510,0],[1850,2],[2400,0],[4700,1],[8990,2]]
+      :[[1510,0],[1800,1],[2200,2]];
+    let previous=0,settledBox:number[]|undefined,entranceWidth:number|undefined;
+    for(const [time,index] of samples){
+      await page.clock.runFor(time-previous);previous=time;
       const frame=await observer.evaluate(o=>o.frame());
-      expect(frame.files).toEqual([files[i]]);
-      if(i===0)box=frame.box;
-      expect(frame.box).toEqual(box);
-      expect(frame.ink).toBe(set!=='swing'||i===0);
-      expect(frame.board).toBe(set!=='swing'||i===0);
+      expect(frame.files,'rendered pose at '+time+' ms').toEqual([files[index]]);
+      expect(frame.ink).toBe(true);
+      expect(frame.board).toBe(true);
+      if(time===1080){
+        entranceWidth=frame.box[2];
+      }else if(settledBox){
+        expect(frame.box).toEqual(settledBox);
+      }else{
+        settledBox=frame.box;
+        if(entranceWidth!==undefined)expect(settledBox[2]).toBeGreaterThan(entranceWidth);
+      }
     }
     // Read the actual three decoded sprites used on this card. Regions inside
     // the horse, head, emperor and architecture must survive all substitutions.

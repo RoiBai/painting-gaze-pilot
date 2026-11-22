@@ -2,6 +2,7 @@ import {describe,expect,it} from 'vitest';
 import {pilotConfig} from '../src/pilotMaterials';
 import {containGeometry} from '../src/geometry';
 import {archerArrowPose} from '../src/archerDetail';
+import {focusedArrowPose} from '../src/archeryNarrative';
 import {hitPaperGuide,makePaperGuide,paperFrame,validPaperGuideLayout} from '../src/paperGuide';
 
 const measure={
@@ -20,20 +21,20 @@ describe('paper illustration layout',()=>{
           const a=p.aois.find(a=>a.id===c.aoiIds[0])!;
           const l=makePaperGuide(measure,c,g,a);
           expect(validPaperGuideLayout(l),c.title).toBe(true);
-          // The small static arrow detail uses the shaft, not its padded gaze AOI.
+          // The new arrow card begins at the nocked arrow on the enlarged archer.
+          // Its old v4 layout used the shaft in the original scene.
           if(c.id==='archery-figma-1-6'){
-            expect(l.source.left).toBeCloseTo(g.left+4120*g.scale);
-            expect(l.source.width).toBeCloseTo(156*g.scale);
-            expect(l.reveal).toBe('arrow-detail');
-            expect(l.impact).toBeUndefined();
-            expect(Math.abs(l.art.left-l.source.left)).toBeLessThan(65);
-            expect(l.art.width).toBeGreaterThan(l.source.width);
-            expect(l.art.width).toBeLessThanOrEqual(Math.max(31,l.source.width*1.8));
-            expect(l.backing.top+l.backing.height).toBeLessThan(l.source.top-10);
-            expect(l.backing.width).toBeLessThanOrEqual(305);
+            expect(l.reveal).toBe('arrow-release');
+            expect(l.bowBox).toBeDefined();
+            expect(l.art.width).toBeGreaterThan(archerArrowPose(l.bowBox!).length);
             expect(paperFrame(l,2500,10000).textAlpha).toBe(1);
-            expect(paperFrame(l,8300,10000).textAlpha).toBe(1);
-            expect(paperFrame(l,8300,10000,true).textAlpha).toBe(1);
+            expect(paperFrame(l,8300,10000).textAlpha).toBe(0);
+            const archived=makePaperGuide(measure,c,g,a,'v4');
+            expect(archived.reveal).toBe('arrow-detail');
+            expect(archived.source.left).toBeCloseTo(g.left+4120*g.scale);
+            expect(archived.source.width).toBeCloseTo(156*g.scale);
+            expect(archived.art.width).toBeLessThanOrEqual(Math.max(31,archived.source.width*1.8));
+            expect(paperFrame(archived,8300,10000).textAlpha).toBe(1);
           }else{
             expect(l.source.width,c.title).toBeGreaterThanOrEqual(a.rect[2]*g.width-1e-5);
             expect(l.source.height,c.title).toBeGreaterThanOrEqual(a.rect[3]*g.height-1e-5);
@@ -54,11 +55,11 @@ describe('paper illustration layout',()=>{
       }
     });
   }
-  it('drops only the archer’s board and copy, preserving his enlarged figure and registered target',()=>{
+  it('replays the v4 release from the enlarged archer for earlier sessions',()=>{
     const scene=pilotConfig.paintings[2],card=scene.cards.find(c=>c.id==='archery-figma-1-2')!;
     for(const [vw,vh] of [[1440,900],[390,844]]){
       const g=geometry(scene,vw,vh),area=scene.aois.find(a=>a.id===card.aoiIds[0])!;
-      const l=makePaperGuide(measure,card,g,area);
+      const l=makePaperGuide(measure,card,g,area,'v4');
       const read=paperFrame(l,5000,10000),leaving=paperFrame(l,6750,10000),release=paperFrame(l,8400,10000);
       expect(l.reveal).toBe('archer-release');
       expect(l.impact!.x).toBeCloseTo(g.left+1631*g.scale);
@@ -86,11 +87,40 @@ describe('paper illustration layout',()=>{
       expect(reduced.boardDrop).toBe(0);
     }
   });
-  it('leaves the same shaft at the bullseye when opening the target explanation',()=>{
+  it('hands the drawn arrow to its reading card and registers the same enlarged shaft at the target',()=>{
+    const scene=pilotConfig.paintings.find(p=>p.paintingId==='ming-xingle-archery')!;
+    for(const [vw,vh] of [[390,844],[1440,900]]){
+      const g=geometry(scene,vw,vh);
+      const [bow,arrow,target]=scene.cards.slice(4,7).map(card=>makePaperGuide(measure,card,g,scene.aois.find(a=>a.id===card.aoiIds[0])!));
+      expect(bow.reveal).toBe('archer-draw');
+      expect(paperFrame(bow,8000,10000).textAlpha).toBe(1);
+      expect(arrow.bowBox).toEqual(bow.art);
+      expect(target.reveal).toBe('landed-arrow');
+      expect(target.landedArrowLength).toBeCloseTo(arrow.art.width);
+      const at=(ms:number,reduced=false)=>focusedArrowPose(arrow,ms,10000,reduced);
+      const start=at(0),nocked=archerArrowPose(bow.art);
+      expect(start.x).toBeCloseTo(nocked.x);expect(start.y).toBeCloseTo(nocked.y);
+      expect(start.length).toBeCloseTo(nocked.length);
+      const read=at(3000),flight=at(8300),landed=at(9400);
+      expect(read.length).toBeGreaterThan(start.length);
+      expect(landed.x).toBeCloseTo(g.left+1631*g.scale);
+      expect(landed.y).toBeCloseTo(g.top+915*g.scale);
+      expect(flight.x).toBeGreaterThan(landed.x);
+      expect(flight.x).toBeLessThan(read.x);
+      for(const ms of [3500,6800,7150,8000,9000,9500])expect(at(ms).length).toBeCloseTo(read.length);
+      const f=paperFrame(arrow,3000,10000),card=scene.cards[5];
+      const x=f.panel.left+f.panel.width/2,y=f.panel.top+f.panel.height/2;
+      expect(hitPaperGuide(x,y,card,arrow,3000,10000)).toBe(true);
+      expect(hitPaperGuide(flight.x+Math.cos(flight.angle)*flight.length*.5,
+        flight.y+Math.sin(flight.angle)*flight.length*.5,card,arrow,8300,10000)).toBe(true);
+      expect(at(9500,true).x).toBeCloseTo(landed.x);
+    }
+  });
+  it('preserves the v4 lodged shaft when opening an earlier target explanation',()=>{
     const scene=pilotConfig.paintings[2];
     for(const [vw,vh] of [[1440,900],[390,844],[1024,768]]){
       const g=geometry(scene,vw,vh);
-      const cardLayout=(id:string,edition?:'v3')=>{
+      const cardLayout=(id:string,edition:'v4'|'v3'='v4')=>{
         const c=scene.cards.find(card=>card.id===id)!;
         return makePaperGuide(measure,c,g,scene.aois.find(a=>a.id===c.aoiIds[0])!,edition);
       };
@@ -103,18 +133,37 @@ describe('paper illustration layout',()=>{
       expect(cardLayout('archery-figma-0-6','v3').landedArrowLength).toBeUndefined();
     }
   });
-  it('keeps the rider in place for the shot and reserves discrete poses for the other moving details',()=>{
-    const idLayout=(id:string,edition?:'v3')=>{
+  it('keeps the mounted polo player and his explanation together through the swing',()=>{
+    const idLayout=(id:string,edition?:'v3'|'v4')=>{
       const scene=pilotConfig.paintings.find(p=>p.cards.some(c=>c.id===id))!;
       const card=scene.cards.find(c=>c.id===id)!;
       return makePaperGuide(measure,card,geometry(scene,1440,900),scene.aois.find(a=>a.id===card.aoiIds[0])!,edition);
     };
     const swing=idLayout('polo-figma-3-23');
-    expect(swing.reveal).toBe('polo-swing');
+    expect(swing.reveal).toBe('stepped-poses');
+    const scene=pilotConfig.paintings.find(p=>p.paintingId==='ming-xingle-polo')!;
+    const rider=scene.cards.find(c=>c.id==='polo-figma-3-23')!;
+    const x=swing.panel.left+swing.panel.width/2,y=swing.panel.top+swing.panel.height/2;
+    const entry=paperFrame(swing,1080,10000);
+    expect(entry.textAlpha).toBeGreaterThan(0);
+    expect(entry.subject.width).toBeGreaterThan(swing.source.width);
+    expect(entry.subject.width).toBeLessThan(swing.art.width);
     expect(paperFrame(swing,8000,10000).subject).toEqual(paperFrame(swing,4000,10000).subject);
-    expect(paperFrame(swing,6750,10000).boardDrop).toBeGreaterThan(8);
-    expect(paperFrame(swing,8000,10000).textAlpha).toBe(0);
-    expect(paperFrame(swing,8000,10000,true).backingAlpha).toBe(0);
+    for(const ms of [1750,4000,6750,8000,9700]){
+      const f=paperFrame(swing,ms,10000);
+      expect(f.textAlpha).toBe(1);
+      expect(f.backingAlpha).toBe(1);
+      expect(f.boardDrop).toBe(0);
+      expect(hitPaperGuide(x,y,rider,swing,ms,10000)).toBe(true);
+    }
+    expect(paperFrame(swing,9700,10000).alpha).toBeLessThan(1);
+    expect(hitPaperGuide(x,y,rider,swing,10000,10000)).toBe(false);
+    expect(paperFrame(swing,8000,10000,true).textAlpha).toBe(1);
+    const archived=idLayout(rider.id,'v4');
+    expect(archived.reveal).toBe('polo-swing');
+    expect(paperFrame(archived,6750,10000).boardDrop).toBeGreaterThan(8);
+    expect(paperFrame(archived,8000,10000).textAlpha).toBe(0);
+    expect(paperFrame(archived,8000,10000,true).backingAlpha).toBe(0);
     for(const id of ['polo-figma-3-19','archery-figma-3-6','cuju-figma-1-5']){
       const l=idLayout(id);
       expect(l.reveal).toBe('stepped-poses');

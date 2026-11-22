@@ -131,6 +131,39 @@ describe('physical exposure windows and camera recording',()=>{
     now=3000;callback(500,400);engine.tick();expect(engine.activeCard?.id).toBe(engine.painting!.cards[0].id);
   });
 
+  it.each(['sequential','random','gaze'] as const)('keeps nine separate archery exposures and joins narrated shots only in sequential mode (%s)',condition=>{
+    const painting=materials.paintings.find(p=>p.paintingId==='ming-xingle-archery')!;
+    engine.begin(materials,'P00','test',{paintingId:painting.paintingId,condition});
+    image(painting);
+    let visible:string|undefined;
+    for(now=0;now<=108000;now+=100){
+      callback(500,400);
+      engine.tick();
+      const current=engine.activeCard?.id;
+      if(visible!==current){
+        if(visible)engine.cardHidden(visible);
+        if(current)engine.cardShown({left:20,top:30,width:50,height:40},current);
+        visible=current;
+      }
+      if(current)callback(50,50);
+    }
+    const {cardExposures,samples,timings}=engine.session!;
+    const exposures=cardExposures!;
+    expect(new Set(exposures.map(e=>e.cardId)).size).toBe(9);
+    expect(timings[0].activeMs).toBe(108000);
+    for(const e of exposures){
+      expect(e.hiddenMs!-e.shownMs).toBe(10000);
+      expect(samples.some(s=>s.cardExposureId===e.exposureId&&s.cardId===e.cardId&&s.onCard)).toBe(true);
+    }
+    if(condition==='sequential'){
+      expect(exposures.slice(4,7).map(e=>[e.cardId,e.shownMs,e.hiddenMs])).toEqual([
+        ['archery-figma-1-2',52000,62000],['archery-figma-1-6',62000,72000],['archery-figma-0-6',72000,82000],
+      ]);
+    }else{
+      expect(exposures.map(e=>e.shownMs)).toEqual(Array.from({length:9},(_,i)=>2000+12000*i));
+    }
+  });
+
   it.each(['gaze','random','sequential'] as const)('gives four cutouts ten seconds each for %s, with a 1.1s eligible gaze trigger',condition=>{
     const config=structuredClone(pilotConfig);
     const painting=config.paintings[0];

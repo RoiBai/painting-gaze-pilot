@@ -34,10 +34,10 @@ export function preparePaintedPoses(card:GuideCard):Promise<void>{
   return promise;
 }
 
-export function paintedFrameIndex(cardId:string,elapsed:number,duration:number,reduced:boolean):0|1|2{
+export function paintedFrameIndex(cardId:string,elapsed:number,duration:number,reduced:boolean,archivedSwing=false):0|1|2{
   if(reduced)return 0;
   const set=sets[cardId];
-  if(set==='swing'){
+  if(archivedSwing){
     const fraction=elapsed/duration;
     if(fraction<.70)return 0;
     // A lift, a stroke through the original hand position, and a follow-through.
@@ -45,6 +45,19 @@ export function paintedFrameIndex(cardId:string,elapsed:number,duration:number,r
     if(t<.056)return 1;
     if(t<.080)return 0;
     if(t<.130)return 2;
+    return 0;
+  }
+  if(set==='swing'){
+    // Sync the first lift to the zoom, then keep a steady cadence while reading.
+    // Short rehearsals compress the entrance on the same clock as paperFrame.
+    const speed=Math.min(1,duration/2700);
+    if(speed<=0)return 0;
+    const sinceLift=elapsed/speed-900;
+    if(sinceLift<0)return 0;
+    const beat=sinceLift%1800;
+    if(beat<450)return 1;
+    if(beat<670)return 0;
+    if(beat<1180)return 2;
     return 0;
   }
   if(!set||elapsed<1550)return 0;
@@ -55,8 +68,8 @@ export function paintedFrameIndex(cardId:string,elapsed:number,duration:number,r
   return 0;
 }
 
-export function drawPaintedPose(ctx:CanvasRenderingContext2D,card:GuideCard,original:HTMLImageElement,box:CardRect,elapsed:number,duration:number,reduced:boolean){
-  const frame=paintedFrameIndex(card.id,elapsed,duration,reduced);
+export function drawPaintedPose(ctx:CanvasRenderingContext2D,card:GuideCard,original:HTMLImageElement,box:CardRect,elapsed:number,duration:number,reduced:boolean,archivedSwing:boolean){
+  const frame=paintedFrameIndex(card.id,elapsed,duration,reduced,archivedSwing);
   const image=frame?images.get(sets[card.id])?.[frame-1]:original;
   ctx.drawImage(image??original,box.left,box.top,box.width,box.height);
 }
@@ -64,8 +77,8 @@ export function drawPaintedPose(ctx:CanvasRenderingContext2D,card:GuideCard,orig
 type Mask={cols:number;rows:number;bits:string};
 const silhouettes=masks as Record<string,Mask>;
 const decoded=new WeakMap<Mask,Uint8Array>();
-export function hitPaintedPose(card:GuideCard,box:CardRect,x:number,y:number,elapsed:number,duration:number,reduced:boolean){
-  const frame=paintedFrameIndex(card.id,elapsed,duration,reduced);
+export function hitPaintedPose(card:GuideCard,box:CardRect,x:number,y:number,elapsed:number,duration:number,reduced:boolean,archivedSwing:boolean){
+  const frame=paintedFrameIndex(card.id,elapsed,duration,reduced,archivedSwing);
   if(!frame)return hitCollageSubject(card,box,x,y,0,true);
   const mask=silhouettes[sets[card.id]+'-'+frame];
   const col=Math.floor((x-box.left)*mask.cols/box.width),row=Math.floor((y-box.top)*mask.rows/box.height);

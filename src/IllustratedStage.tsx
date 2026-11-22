@@ -2,7 +2,7 @@ import {useEffect,useLayoutEffect,useMemo,useRef,useState} from 'react';
 import {publicAssetUrl} from './assets';
 import {loadCutout,type GuideCard} from './cutoutCard';
 import {containGeometry} from './geometry';
-import {makePaperGuide,drawPaperGuide} from './paperGuide';
+import {makePaperGuide,drawPaperGuide,type PaperEdition} from './paperGuide';
 import {prepareCutoutMotion} from './cutoutMotion';
 import {prepareArcherDetail} from './archerDetail';
 import {preparePaintedPoses} from './paintedPoses';
@@ -20,10 +20,11 @@ export function prepareIllustrationScene(painting:Painting):Promise<void>{
   }
   return Promise.all([base,...painting.cards.filter(c=>c.art).map(card=>prepareCard(card,paperEdition(painting.materialVersion)))]).then(()=>{});
 }
-export async function prepareCard(card:GuideCard,edition?:'legacy'|'v3'):Promise<HTMLImageElement>{
+export async function prepareCard(card:GuideCard,edition?:PaperEdition):Promise<HTMLImageElement>{
+  const usesPaintedPoses=edition===undefined||edition==='v4';
   const [image]=await Promise.all([loadCutout(card.art!),prepareCutoutMotion(card,edition==='legacy'),
-    edition==='legacy'?undefined:prepareArcheryStory(card,edition==='v3'),edition?undefined:preparePaintedPoses(card)]);
-  if(!edition && card.id==='archery-figma-1-2')prepareArcherDetail(image);
+    edition==='legacy'?undefined:prepareArcheryStory(card,edition==='v3',edition===undefined),usesPaintedPoses?preparePaintedPoses(card):undefined]);
+  if(usesPaintedPoses && card.id==='archery-figma-1-2')prepareArcherDetail(image);
   return image;
 }
 

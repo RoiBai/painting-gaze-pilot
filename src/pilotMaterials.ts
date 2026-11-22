@@ -1,4 +1,5 @@
 import {hasPaintedPoses} from './paintedPoses';
+import {archerGuide} from './archeryNarrative';
 import {PAPER_MATERIAL} from './cardPresentation';
 import type {AOI,Painting,StudyConfig} from './types';
 import {defaultConfig} from './study';
@@ -28,9 +29,8 @@ const scenes:Scene[]=[
 function regionId(node:string){return 'figma-'+node.replace(':','-')}
 function makePainting({id,title,left,width,links}:Scene):Painting{
   const entries=catalogue.cards.filter(entry=>entry.scene===id);
-  // In the guided sequence, introduce each implement before the action, then
-  // show its destination. Card IDs and gaze regions stay attached to the art.
-  const order=id==='archery'?['3:16','3:5','3:6','0:5','1:6','1:2','0:6','0:4','1:3']
+  // The guided sequence follows the archer, the arrow, then its target.
+  const order=id==='archery'?['3:16','3:5','3:6','0:5','1:2','1:6','0:6','0:4','1:3']
     :id==='polo'?['0:7','3:27','3:26','3:25','3:23','0:3','3:19']:null;
   if(order)entries.sort((a,b)=>order.indexOf(a.node)-order.indexOf(b.node));
   return {
@@ -45,10 +45,11 @@ function makePainting({id,title,left,width,links}:Scene):Painting{
       id:id+'-'+regionId(entry.node),aoiIds:[regionId(entry.node)],location:entry.title,
       title:entry.title,text:entry.scene==='archery' && entry.node==='1:6'
         ? '细长的箭杆一端带着尾羽，另一端指向画面左侧、两面旗帜之间的箭靶。'+entry.text
-        : entry.text,
+        : entry.scene==='archery'&&entry.node==='1:2'?archerGuide.text:entry.text,
       art:{image:entry.image,board:entry.board,glow:entry.glow,shape:entry.shape},
       source:catalogue.document+' 「'+catalogue.tab+'」 '+entry.ranges.map(r=>r.join('–')).join(', ')+' · '+catalogue.figma+'?node-id='+entry.node.replace(':','-')
         +(entry.scene==='archery' && entry.node==='1:6'?' · 首句据原画羽箭形态和方向描述。':'')
+        +(entry.scene==='archery' && (entry.node==='1:6'||entry.node==='0:6')?' · 动画中的羽箭取自弓手抠图 '+catalogue.figma+'?node-id=1-2':'')
         +(hasPaintedPoses(id+'-'+regionId(entry.node))?' · 动作演示由原画和两张 ImageGen 局部补帧构成。':''),
     })),
     relations:links.map((link,i)=>({id:id+'-relation-'+(i+1),text:link.text,aoiIds:link.nodes.map(regionId),source:catalogue.document})),
@@ -58,7 +59,7 @@ function makePainting({id,title,left,width,links}:Scene):Painting{
 }
 
 export const pilotConfig:StudyConfig={
-  ...defaultConfig,version:'pilot-three-uci-3.3.0',pilotSurveyVersion:UCI_RECALL_VERSION,
+  ...defaultConfig,version:'pilot-three-uci-3.3.1',pilotSurveyVersion:UCI_RECALL_VERSION,
   mode:'preview',pilotProtocol:'three-condition-v1',participantPlan:undefined,questionnaireVersion:undefined,
   paintings:scenes.map(makePainting),
   copy:{

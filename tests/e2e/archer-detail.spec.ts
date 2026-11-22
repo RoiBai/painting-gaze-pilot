@@ -33,3 +33,36 @@ test('detaching the painted arrow preserves the archer, bow grip and quiver',asy
   }
   expect(sample[3][2]).toBeGreaterThan(40); // uninterrupted detached shaft
 });
+
+test('drawing the bow changes the grip and forearm but keeps the robe and feet registered',async({page})=>{
+  await page.goto('/materials/uci/figma-1-2.webp');
+  const changes=await page.evaluate(async(url:string)=>{
+    const detail:typeof import('../../src/archerDetail')=await import(url);
+    const image=document.querySelector('img')!;
+    await image.decode();detail.prepareBowDraw(image);
+    const canvas=document.createElement('canvas');canvas.width=image.naturalWidth;canvas.height=image.naturalHeight;
+    const ctx=canvas.getContext('2d',{willReadFrequently:true})!;
+    const box={left:0,top:0,width:canvas.width,height:canvas.height};
+    function pixels(ms:number){
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      detail.drawBowArcher(ctx,box,ms,10000,false);
+      return ctx.getImageData(0,0,box.width,box.height).data;
+    }
+    const poses=[1600,2300,3500,6000].map(pixels);
+    return poses.slice(1).map((pose,i)=>{
+      let moving=0,fixed=0;
+      for(let y=0;y<canvas.height;y++)for(let x=0;x<canvas.width;x++){
+        const n=(y*canvas.width+x)*4;
+        if(Math.max(pose[n+3],poses[i][n+3])<40)continue;
+        const changed=[0,1,2,3].some(c=>Math.abs(pose[n+c]-poses[i][n+c])>8);
+        if(changed && y>=550)fixed++;
+        if(changed && x<230 && y>165 && y<280)moving++;
+      }
+      return {fixed,moving};
+    });
+  },'/src/archerDetail.ts');
+  for(const pair of changes){
+    expect(pair.fixed).toBe(0);
+    expect(pair.moving).toBeGreaterThan(100);
+  }
+});

@@ -1,23 +1,28 @@
 import {hitGuide,type GuideCard} from './cutoutCard';
-import {hitPaperGuide,type PaperGuideLayout} from './paperGuide';
+import {hitPaperGuide,type PaperEdition,type PaperGuideLayout} from './paperGuide';
 import type {CardExposure} from './types';
 
 export const LEGACY_PAPER_MATERIAL='ming-uci-collage-v2';
 export const PRIOR_PAPER_MATERIAL='ming-uci-collage-v3';
-export const PAPER_MATERIAL='ming-uci-collage-v4';
+export const PAPER_MATERIAL='ming-uci-collage-v5';
 
-export function paperEdition(version:string){
-  if(version===LEGACY_PAPER_MATERIAL)return 'legacy';
-  if(version===PRIOR_PAPER_MATERIAL)return 'v3';
-  return undefined;
-}
+const paperReleases=new Map<string,{edition?:PaperEdition;app?:string}>([
+  [LEGACY_PAPER_MATERIAL,{edition:'legacy'}],
+  [PRIOR_PAPER_MATERIAL,{edition:'v3',app:'3.2.0'}],
+  ['ming-uci-collage-v4',{edition:'v4',app:'3.3.0'}],
+  [PAPER_MATERIAL,{app:'3.3.1'}],
+]);
+
+export function paperEdition(version:string){return paperReleases.get(version)?.edition}
+export function paperAppVersion(version:string){return paperReleases.get(version)?.app}
 
 export function timedPaperExit(layout:PaperGuideLayout|null){
-  return layout?.reveal==='explain-then-shoot'||layout?.reveal==='archer-release'||layout?.reveal==='polo-swing';
+  return layout?.reveal==='explain-then-shoot'||layout?.reveal==='archer-release'||layout?.reveal==='polo-swing'
+    ||layout?.reveal==='arrow-release'||layout?.reveal==='archer-draw';
 }
 
 export function hasPaperLayout(version:string){
-  return version===PAPER_MATERIAL || paperEdition(version)!==undefined;
+  return paperReleases.has(version);
 }
 
 // Hold the reading pose at a lower cadence, then follow the small arrow's return

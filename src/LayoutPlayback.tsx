@@ -1,7 +1,7 @@
 import {useEffect,useMemo,useRef,useState} from 'react';
 import type {Painting,StudyConfig} from './types';
 import {publicAssetUrl} from './assets';
-import {cardPermutation,responsiveSelectionRules} from './pilotProtocol';
+import {cardPermutation,cardWindows,responsiveSelectionRules} from './pilotProtocol';
 import IllustratedStage,{prepareIllustrationScene} from './IllustratedStage';
 import './layoutPlayback.css';
 
@@ -20,15 +20,16 @@ function makeTimeline(scenes:Painting[],config:StudyConfig,mode:PlaybackMode,see
   let start=0;
   const beats:Beat[]=[];
   for(const painting of scenes){
-    const slotLength=rules.durationMsByPainting![painting.paintingId]/painting.cards.length;
-    const wait=Math.min(slotLength*rules.blankFraction,rules.maximumSelectionMs!);
+    const duration=rules.durationMsByPainting![painting.paintingId];
+    const windows=cardWindows(painting,mode,rules,duration);
     const byId=new Map(painting.cards.map(c=>[c.id,c]));
     const ids=painting.cards.map(c=>c.id);
     const deck=mode==='random'?cardPermutation(ids,seed,painting.paintingId):ids;
-    for(const id of deck){
-      beats.push({painting,card:byId.get(id)!,start,reveal:start+wait,end:start+slotLength});
-      start+=slotLength;
-    }
+    deck.forEach((id,i)=>{
+      const window=windows[i];
+      beats.push({painting,card:byId.get(id)!,start:start+window.start,reveal:start+window.reveal,end:start+window.end});
+    });
+    start+=duration;
   }
   return beats;
 }

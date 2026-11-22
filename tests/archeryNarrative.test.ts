@@ -4,7 +4,7 @@ import {pilotConfig} from '../src/pilotMaterials';
 import {containGeometry} from '../src/geometry';
 
 const scene=pilotConfig.paintings.find(c=>c.paintingId==='ming-xingle-archery')!;
-const arrow=scene.cards[4],archer=scene.cards[5],target=scene.cards[6];
+const [archer,arrow,target]=scene.cards.slice(4,7);
 function stage(width:number,height:number){
   const g=containGeometry({version:1,paintingId:scene.paintingId,timeMs:0,viewportWidth:width,viewportHeight:height,dpr:1,
     naturalWidth:6888,naturalHeight:1966,box:{left:0,top:0,width,height}});
@@ -14,7 +14,7 @@ function stage(width:number,height:number){
 }
 const layout=stage(1440,900);
 
-it('keeps distinct AOIs for the detail, release and target',()=>{
+it('orders archer, arrow and target consecutively while retaining their distinct AOIs',()=>{
   expect([archer.id,arrow.id,target.id]).toEqual(['archery-figma-1-2','archery-figma-1-6','archery-figma-0-6']);
   expect(new Set([archer,arrow,target].map(c=>c.aoiIds[0])).size).toBe(3);
   expect(arrow.text).toContain('尾羽');
