@@ -59,7 +59,7 @@ function makePainting({id,title,left,width,links}:Scene):Painting{
 }
 
 export const pilotConfig:StudyConfig={
-  ...defaultConfig,version:'pilot-three-uci-3.3.2',pilotSurveyVersion:UCI_RECALL_VERSION,
+  ...defaultConfig,version:'pilot-three-uci-3.4.0',pilotSurveyVersion:UCI_RECALL_VERSION,
   mode:'preview',pilotProtocol:'three-condition-v1',participantPlan:undefined,questionnaireVersion:undefined,
   paintings:scenes.map(makePainting),
   copy:{

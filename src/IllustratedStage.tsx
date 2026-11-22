@@ -2,7 +2,7 @@ import {useEffect,useLayoutEffect,useMemo,useRef,useState} from 'react';
 import {publicAssetUrl} from './assets';
 import {loadCutout,type GuideCard} from './cutoutCard';
 import {containGeometry} from './geometry';
-import {makePaperGuide,drawPaperGuide,type PaperEdition} from './paperGuide';
+import {makePaperGuide,drawPaperGuide,type ArcheryHistory,type PaperEdition} from './paperGuide';
 import {prepareCutoutMotion} from './cutoutMotion';
 import {prepareArcherDetail} from './archerDetail';
 import {preparePaintedPoses} from './paintedPoses';
@@ -21,7 +21,7 @@ export function prepareIllustrationScene(painting:Painting):Promise<void>{
   return Promise.all([base,...painting.cards.filter(c=>c.art).map(card=>prepareCard(card,paperEdition(painting.materialVersion)))]).then(()=>{});
 }
 export async function prepareCard(card:GuideCard,edition?:PaperEdition):Promise<HTMLImageElement>{
-  const independentArrow=edition===undefined;
+  const independentArrow=edition===undefined||edition==='v6';
   const focused=independentArrow||edition==='v5';
   const usesPaintedPoses=focused||edition==='v4';
   const [image]=await Promise.all([loadCutout(card.art!),prepareCutoutMotion(card,edition==='legacy'),
@@ -30,9 +30,9 @@ export async function prepareCard(card:GuideCard,edition?:PaperEdition):Promise<
   return image;
 }
 
-interface Props {painting:Painting;card:GuideCard|null;elapsedMs:number;durationMs:number;className?:string}
+interface Props {painting:Painting;card:GuideCard|null;elapsedMs:number;durationMs:number;className?:string;history?:ArcheryHistory}
 
-export default function IllustratedStage({painting,card,elapsedMs,durationMs,className=''}:Props){
+export default function IllustratedStage({painting,card,elapsedMs,durationMs,className='',history}:Props){
   const canvas=useRef<HTMLCanvasElement>(null);
   const [size,setSize]=useState({w:0,h:0,dpr:1});
   const [loaded,setLoaded]=useState<{card:GuideCard;image:HTMLImageElement}|null>(null);
@@ -58,8 +58,8 @@ export default function IllustratedStage({painting,card,elapsedMs,durationMs,cla
     const ctx=canvas.current?.getContext('2d'),area=painting.aois.find(a=>card?.aoiIds.includes(a.id));
     if(!ctx||!area||!card||!size.w||!size.h)return null;
     const geom=containGeometry({version:1,paintingId:painting.paintingId,timeMs:0,viewportWidth:size.w,viewportHeight:size.h,dpr:size.dpr,naturalWidth:painting.width,naturalHeight:painting.height,box:{left:0,top:0,width:size.w,height:size.h}});
-    return makePaperGuide(ctx,card,geom,area,edition);
-  },[size,painting,card,edition]);
+    return makePaperGuide(ctx,card,geom,area,edition,history);
+  },[size,painting,card,edition,history]);
   const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
   const frameTime=reduced&&!timedPaperExit(layout)?0:paperTime(elapsedMs,durationMs,layout);
   useLayoutEffect(()=>{

@@ -1,5 +1,5 @@
 import type {AOI, CardDecision, CardRect, Condition, GazeSample, Painting, PilotMetadata, PilotTrial} from './types';
-import {PAPER_MATERIAL,V5_PAPER_MATERIAL} from './cardPresentation';
+import {PAPER_MATERIAL,V5_PAPER_MATERIAL,V6_PAPER_MATERIAL} from './cardPresentation';
 
 export type {Condition} from './types';
 export const PILOT_VERSION='three-condition-v1' as const;
@@ -36,7 +36,7 @@ export function cardWindows(painting:Painting,condition:Condition,rules:PilotMet
   const slot=duration/count;
   const wait=Math.min(slot*rules.blankFraction,rules.maximumSelectionMs??Infinity);
   const windows=Array.from({length:count},(_,i)=>({start:i*slot,reveal:i*slot+wait,end:(i+1)*slot}));
-  if(condition!=='sequential'||![V5_PAPER_MATERIAL,PAPER_MATERIAL].includes(painting.materialVersion)||painting.paintingId!=='ming-xingle-archery')return windows;
+  if(condition!=='sequential'||![V5_PAPER_MATERIAL,V6_PAPER_MATERIAL,PAPER_MATERIAL].includes(painting.materialVersion)||painting.paintingId!=='ming-xingle-archery')return windows;
 
   const first=painting.cards.findIndex(c=>c.id==='archery-figma-1-2');
   if(first<0||first+2>=count||painting.cards[first+1]?.id!=='archery-figma-1-6'||painting.cards[first+2]?.id!=='archery-figma-0-6')return windows;
@@ -132,6 +132,9 @@ interface DecisionInput {
   rules?:PilotMetadata['selectionRules'];
 }
 
+const archerAoi='figma-1-2',arrowAoi='figma-1-6';
+const archerCard='archery-'+archerAoi,arrowCard='archery-'+arrowAoi;
+
 export function selectCard(input:DecisionInput):CardDecision|null {
   const candidates=input.painting.cards.filter(card=>!input.priorIds.includes(card.id));
   if(candidates.length===0)return null;
@@ -146,7 +149,11 @@ export function selectCard(input:DecisionInput):CardDecision|null {
 
   const rule=input.rules??SELECTION_RULES;
   const earliest=Math.max(input.windowStart,input.now-rule.lookbackMs);
+  const sharedBowRegion=input.painting.materialVersion==='ming-uci-collage-v7'
+    && input.painting.paintingId==='ming-xingle-archery'
+    && input.painting.cards.some(card=>card.id===archerCard) && input.painting.cards.some(card=>card.id===arrowCard);
   let aoi:string|null=null;
+  let latestImageAoi:string|null=null,previousTarget:string|null=null;
   let oldest=0,count=0,dwell=0,offTargetMs=0;
   // Only adjacent matching callbacks contribute to dwell. New sessions allow
   // short prediction noise, without counting those intervals or crossing
@@ -155,14 +162,18 @@ export function selectCard(input:DecisionInput):CardDecision|null {
   for(let i=input.samples.length-1;i>=0;i--){
     const s=input.samples[i];
     if(s.callbackTimeMs<earliest||s.trialId!==input.trialId||s.phase!=='free_view'||s.paused||s.cardExposureId)break;
-    const target=s.predictionAvailable&&s.insideImage?s.imageAoiId:null;
+    const imageAoi=s.predictionAvailable&&s.insideImage?s.imageAoiId??null:null;
+    // Count the two authored regions together only for choosing the next
+    // explanation. The recorded sample retains its original imageAoiId.
+    const target=sharedBowRegion&&imageAoi===arrowAoi?archerAoi:imageAoi;
     if(!previousSample){
       if(!target||s.callbackTimeMs>input.now||input.now-s.callbackTimeMs>rule.maximumAgeMs)break;
       aoi=target;
+      latestImageAoi=imageAoi;
     }else{
       const interval=previousSample.callbackTimeMs-s.callbackTimeMs;
       if(interval<0||interval>rule.maximumGapMs || previousSample.calibrationVersion!==s.calibrationVersion || previousSample.geometryVersion!==s.geometryVersion)break;
-      if(target===aoi && previousSample.predictionAvailable && previousSample.insideImage && previousSample.imageAoiId===aoi)dwell+=interval;
+      if(target===aoi && previousTarget===aoi)dwell+=interval;
       else{
         offTargetMs+=interval;
         if(offTargetMs>(rule.maximumOffTargetMs??0) || oldest-s.callbackTimeMs>rule.maximumGapMs)break;
@@ -170,12 +181,18 @@ export function selectCard(input:DecisionInput):CardDecision|null {
     }
     if(target===aoi){oldest=s.callbackTimeMs;count++}
     previousSample=s;
+    previousTarget=target;
   }
   const duration=dwell;
-  const cards=aoi?candidates.filter(card=>card.aoiIds.includes(aoi!)):[];
-  const evidence={...base,validSelectionSamples:count,dwellMs:duration,selectionAoiId:aoi};
-  if(cards.length===1 && count>=rule.minimumSamples && duration>=rule.minimumDwellMs){
-    return {...evidence,cardId:cards[0].id,selectionSource:'gaze',selectionReason:'recent-stable-eligible-aoi'};
+  const evidence={...base,validSelectionSamples:count,dwellMs:duration,selectionAoiId:latestImageAoi};
+  if(aoi && count>=rule.minimumSamples && duration>=rule.minimumDwellMs){
+    if(sharedBowRegion&&aoi===archerAoi){
+      if(ids.includes(archerCard))return {...evidence,cardId:archerCard,selectionSource:'gaze',selectionReason:'shared-region-archer-first'};
+      if(ids.includes(arrowCard))return {...evidence,cardId:arrowCard,selectionSource:'gaze',selectionReason:'shared-region-arrow-follow-up'};
+    }else{
+      const cards=candidates.filter(card=>card.aoiIds.includes(aoi!));
+      if(cards.length===1)return {...evidence,cardId:cards[0].id,selectionSource:'gaze',selectionReason:'recent-stable-eligible-aoi'};
+    }
   }
   return {...evidence,cardId:randomId,selectionSource:'fallback',selectionReason:'no-stable-eligible-aoi'};
 }

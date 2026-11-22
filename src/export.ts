@@ -6,6 +6,7 @@ import {applyCorrection,buildCorrectionPlan,type CorrectionPlan,type CorrectionR
 import {renderCorrectedHeatmap,renderCorrectedScanpath} from './correctionRender';
 import {cardAttention, pilotRatings, ATTENTION_MAX_GAP_MS} from './cardMetrics';
 import {recallRows,surveyContext,workloadRows} from './pilotSurveyRecords';
+import {archerySampleLookup,hasArcheryPhases} from './pilotSegments';
 
 export const PILOT2_SURVEY_FILES = ['pilot_workload.csv','pilot_recall.csv'] as const;
 const CONTEXT_COLUMNS=['participantId','sessionId','paintingId','trialId','period','condition','questionVersion','actualCardOrder','page','questionIndex','questionId','questionPrompt'] as const;
@@ -143,9 +144,18 @@ export function buildTextExportFiles(session:Session):Record<string,Uint8Array> 
   if(session.coordinateSource==='reference-corrected')throw new Error('参考校正坐标不能作为原始数据导出；请从原始会话生成附加校正文件。');
   const scanpathParams=session.scanpath??defaultScanpath;
   const correction=buildCorrectionPlan(session);
+  const archery=session.pilot&&exportPaintings(session).some(hasArcheryPhases)?archerySampleLookup(session):null;
+  const gazeColumns=session.pilot?[...GAZE_COLUMNS,...PILOT_GAZE_COLUMNS]:GAZE_COLUMNS;
+  const gazeCsv=archery
+    ?encodeSessionCSV(session,session.samples.map(s=>({...s,...archery(s)})),[...gazeColumns,'archeryPhase','gazeInOriginalTargetAoi'])
+    :encodeSessionCSV(session,session.samples,gazeColumns);
   const snapshot={...session, scanpath:scanpathParams, exportMetadata:{
     exportedAtUtc:new Date().toISOString(),
     ...analysisClassification(session),
+    ...(archery?{archeryGaze:{
+      archeryPhase:'Presentation phase from the recorded exposure, animation clock and actual arrow_landed draw. post_impact_no_card identifies the uninterrupted blank immediately following the landed arrow card. Its samples can include time before selection opens.',
+      gazeInOriginalTargetAoi:'True when the raw gaze estimate falls in the original painting target region, even if an overlay covers it. Empty for missing or offscreen estimates. Use selectionReason and dwellMs in card_exposures.csv for the actual selection.',
+    }}:{}),
     rendererVersion:'1.3.0',
     terminology:'库输出的视线估计样本；回调接收时间不是摄像头曝光时间；不包含视频、眼部像素或推断的注视事件。',
     timestampBasis:'performance.now() in original page; UTC = timeOrigin + callbackTimeMs. Interrupted recovery event retains last persisted original-page timestamp.',
@@ -173,7 +183,7 @@ export function buildTextExportFiles(session:Session):Record<string,Uint8Array> 
     correction:{...correction,derivedFilesAvailable:correction.available,rawSamplesUnchanged:true,qualityStatusUnchanged:true,note:'事后参考校正另存；不是独立准确度验证，不替换原始数据或质量判定。'},
   }};
   return {
-    'gaze_samples.csv':encodeSessionCSV(session,session.samples,session.pilot?[...GAZE_COLUMNS,...PILOT_GAZE_COLUMNS]:GAZE_COLUMNS),
+    'gaze_samples.csv':gazeCsv,
     'phase_events.csv':encodeSessionCSV(session,session.events,EVENT_COLUMNS),
     'responses.csv':encodeSessionCSV(session,exportResponses(session),session.config.pilotSurveyVersion?[...RESPONSE_COLUMNS,'condition','period','trialId','actualCardOrder']:session.pilot?[...RESPONSE_COLUMNS,'condition','period']:RESPONSE_COLUMNS),
     'validation.csv':encodeSessionCSV(session,session.validation,VALIDATION_COLUMNS),

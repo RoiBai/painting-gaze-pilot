@@ -6,14 +6,21 @@ import {drawPaintedPose,hitPaintedPose,hasPaintedPoses} from './paintedPoses';
 import {archerArrowPose} from './archerDetail';
 import catalogue from './uciCatalogue.json' with {type:'json'};
 
-export type PaperEdition='legacy'|'v3'|'v4'|'v5';
+export type PaperEdition='legacy'|'v3'|'v4'|'v5'|'v6';
+export interface ArcheryHistory {
+  /** Previous card only when its exposure hands directly to this card without a viewing gap. */
+  previousCardId?:string;
+  arrowLanded?:boolean;
+}
 
 export interface PaperGuideLayout {
   /** Absent from the archived two-sheet presentation. */
   style?:'single-board';
-  reveal?:'explain-then-shoot'|'archer-release'|'arrow-detail'|'polo-swing'|'stepped-poses'|'landed-arrow'|'archer-draw'|'arrow-release';
+  reveal?:'explain-then-shoot'|'archer-release'|'arrow-detail'|'polo-swing'|'stepped-poses'|'unshot-target'|'landed-arrow'|'archer-draw'|'arrow-release';
   /** The enlarged bow on the preceding demonstration. Stored for faithful replay. */
   bowBox?:CardRect;
+  /** Independent arrow entrance from its actual location in the original painting. */
+  arrowOrigin?:'painting';
   /** Registered Figma cutout, with its metal point at the left edge. */
   arrowSprite?:'figma-1-6';
   landedArrowLength?:number;
@@ -109,7 +116,7 @@ const archerEntry=catalogue.cards.find(c=>c.scene==='archery'&&c.node==='1:2')!;
 const archerArea:AOI={id:'figma-1-2',label:archerEntry.title,rect:archerEntry.rect as AOI['rect']};
 
 /** Frozen viewport CSS pixels. The foreground is sized from its registered area in the original scene. */
-export function makePaperGuide(ctx:CanvasRenderingContext2D,card:GuideCard,g:Geometry,aoi:AOI,edition?:PaperEdition):PaperGuideLayout{
+export function makePaperGuide(ctx:CanvasRenderingContext2D,card:GuideCard,g:Geometry,aoi:AOI,edition?:PaperEdition,history:ArcheryHistory={}):PaperGuideLayout{
   const vw=g.viewportWidth,vh=g.viewportHeight;
   const [x,y,w,h]=aoi.rect;
   const area={left:g.left+x*g.width,top:g.top+y*g.height,width:w*g.width,height:h*g.height};
@@ -118,7 +125,8 @@ export function makePaperGuide(ctx:CanvasRenderingContext2D,card:GuideCard,g:Geo
   const cx=centerX(area),cy=centerY(area);
   const nativeW=Math.max(area.width,area.height*aspect);
   const placement=edition==='legacy'?{}:archeryPlacement(card,g);
-  const continuousShot=edition===undefined||edition==='v5';
+  const catalogueArrow=edition===undefined||edition==='v6';
+  const continuousShot=catalogueArrow||edition==='v5';
   const source=placement.source??centered(cx,cy,nativeW,nativeW/aspect);
   source.left=clamp(source.left,0,vw-source.width);
   source.top=clamp(source.top,0,vh-source.height);
@@ -128,7 +136,14 @@ export function makePaperGuide(ctx:CanvasRenderingContext2D,card:GuideCard,g:Geo
     const tip=archerArrowPose(bowBox),height=tip.length/aspect;
     const held={left:tip.x,top:tip.y-height/2,width:tip.length,height};
     const detail=arrowGuide(ctx,card,g,held,focusedArrowLength(tip.length,vw),placement.tip,bowBox);
-    if(edition===undefined)detail.arrowSprite='figma-1-6';
+    if(catalogueArrow)detail.arrowSprite='figma-1-6';
+    if(edition===undefined&&history.previousCardId!==archerGuide.id){
+      // Every order shares the same caption and enlarged arrow. Only the
+      // incoming position and contextual archer depend on the previous card.
+      detail.source=source;
+      detail.arrowOrigin='painting';
+      delete detail.bowBox;
+    }
     return detail;
   }
   // Reserve page margins and paper borders only where the original subject leaves room.
@@ -146,6 +161,7 @@ export function makePaperGuide(ctx:CanvasRenderingContext2D,card:GuideCard,g:Geo
   const seam=Math.min(25,padX+2);
   const minimumPanel=Math.min(224,safeW);
   const target=paintedEdition&&card.id==='archery-figma-0-6';
+  const lodging=target&&(edition!==undefined||history.arrowLanded===true);
   let landedArrowLength=0;
   if(target){
     const archerText=continuousShot?archerGuide:{...archerGuide,text:archerEntry.text};
@@ -201,8 +217,8 @@ export function makePaperGuide(ctx:CanvasRenderingContext2D,card:GuideCard,g:Geo
   const top=Math.min(art.top+artH*.07,panel.top);
   const bottom=Math.max(art.top+artH*.96,panel.top+panel.height);
   return {...layout,style:'single-board',backing:{left,top,width:bounds.left+bounds.width-left,height:bottom-top},
-    ...(edition===undefined&&(archer||target)?{arrowSprite:'figma-1-6' as const}:{}),
-    ...(target?{reveal:'landed-arrow',landedArrowLength}:impact?{reveal:continuousShot?'archer-draw':'archer-release',impact}:{reveal:paintedEdition?poseReveal(card.id,edition):undefined})};
+    ...(catalogueArrow&&(archer||lodging)?{arrowSprite:'figma-1-6' as const}:{}),
+    ...(lodging?{reveal:'landed-arrow',landedArrowLength}:target?{reveal:'unshot-target'}:impact?{reveal:continuousShot?'archer-draw':'archer-release',impact}:{reveal:paintedEdition?poseReveal(card.id,edition):undefined})};
 }
 function poseReveal(id:string,edition?:PaperEdition):'polo-swing'|'stepped-poses'|undefined{
   if(edition==='v4'&&id==='polo-figma-3-23')return 'polo-swing';
@@ -219,12 +235,13 @@ export function validPaperGuideLayout(value:unknown):value is PaperGuideLayout{
   if(!value||typeof value!=='object')return false;
   const l=value as PaperGuideLayout,t=l.type;
   const counts=(a:unknown)=>Array.isArray(a)&&a.length>0&&a.length<=200&&a.every(n=>Number.isInteger(n)&&n>0&&n<=2000);
-  const plainReveal=l.reveal==='arrow-detail'||l.reveal==='polo-swing'||l.reveal==='stepped-poses'
+  const plainReveal=l.reveal==='arrow-detail'||l.reveal==='polo-swing'||l.reveal==='stepped-poses'||l.reveal==='unshot-target'
     || (l.reveal==='landed-arrow'&&finite(l.landedArrowLength)&&l.landedArrowLength>0&&l.landedArrowLength<=32768);
+  const independent=l.reveal==='arrow-release'&&l.arrowOrigin==='painting'&&l.bowBox===undefined&&l.arrowSprite==='figma-1-6';
   const hasTarget=(l.reveal==='archer-release'||l.reveal==='explain-then-shoot'||l.reveal==='archer-draw'
-    ||(l.reveal==='arrow-release'&&rectValid(l.bowBox))) && !!l.impact&&finite(l.impact.x)&&finite(l.impact.y);
+    ||(l.reveal==='arrow-release'&&(independent||rectValid(l.bowBox)))) && !!l.impact&&finite(l.impact.x)&&finite(l.impact.y);
   const spriteValid=l.arrowSprite===undefined||l.arrowSprite==='figma-1-6'&&['archer-draw','arrow-release','landed-arrow'].includes(l.reveal??'');
-  return spriteValid && (l.style===undefined||l.style==='single-board') && (l.reveal===undefined||l.style==='single-board'&&(plainReveal||hasTarget))
+  return (l.arrowOrigin===undefined||independent) && spriteValid && (l.style===undefined||l.style==='single-board') && (l.reveal===undefined||l.style==='single-board'&&(plainReveal||hasTarget))
     && [l.source,l.art,l.backing,l.panel,l.bounds].every(rectValid) && !!l.viewport &&
     [l.viewport.width,l.viewport.height].every(n=>finite(n)&&n>0&&n<=32768) && !!t &&
     [t.pad,t.titleSize,t.bodySize].every(n=>finite(n)&&n>0&&n<=200) && counts(t.title)&&counts(t.body);

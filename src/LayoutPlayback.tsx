@@ -3,6 +3,7 @@ import type {Painting,StudyConfig} from './types';
 import {publicAssetUrl} from './assets';
 import {cardPermutation,cardWindows,responsiveSelectionRules} from './pilotProtocol';
 import IllustratedStage,{prepareIllustrationScene} from './IllustratedStage';
+import type {ArcheryHistory} from './paperGuide';
 import './layoutPlayback.css';
 
 type PlaybackMode='sequential'|'random';
@@ -12,6 +13,7 @@ interface Beat{
   start:number;
   reveal:number;
   end:number;
+  history:ArcheryHistory;
 }
 
 // The two passive conditions follow exactly the participant slot boundaries.
@@ -25,9 +27,12 @@ function makeTimeline(scenes:Painting[],config:StudyConfig,mode:PlaybackMode,see
     const byId=new Map(painting.cards.map(c=>[c.id,c]));
     const ids=painting.cards.map(c=>c.id);
     const deck=mode==='random'?cardPermutation(ids,seed,painting.paintingId):ids;
+    let arrowLanded=false;
     deck.forEach((id,i)=>{
       const window=windows[i];
-      beats.push({painting,card:byId.get(id)!,start:start+window.start,reveal:start+window.reveal,end:start+window.end});
+      beats.push({painting,card:byId.get(id)!,start:start+window.start,reveal:start+window.reveal,end:start+window.end,
+        history:{previousCardId:windows[i-1]?.end===window.reveal?deck[i-1]:undefined,arrowLanded}});
+      if(id==='archery-figma-1-6')arrowLanded=true;
     });
     start+=duration;
   }
@@ -44,7 +49,10 @@ export default function LayoutPlayback({config}:{config:StudyConfig}){
     return one?[one]:config.paintings;
   },[config,requestedScene]);
   const [mode,setMode]=useState<PlaybackMode>(query.get('order')==='random'?'random':'sequential');
-  const [seed,setSeed]=useState(()=>crypto.getRandomValues(new Uint32Array(1))[0]);
+  const [seed,setSeed]=useState(()=>{
+    const value=query.get('seed');
+    return value&&/^\d{1,10}$/.test(value)&&Number(value)<=0xffffffff?Number(value):crypto.getRandomValues(new Uint32Array(1))[0];
+  });
   const beats=useMemo(()=>makeTimeline(scenes,config,mode,seed),[scenes,config,mode,seed]);
   const total=beats.at(-1)!.end;
   const [loadState,setLoadState]=useState<'loading'|'ready'|'error'>('loading');
@@ -121,7 +129,7 @@ export default function LayoutPlayback({config}:{config:StudyConfig}){
   const sceneBeats=beats.filter(b=>b.painting===beat.painting);
   return <main className="layout-playback" aria-label="P00 免眼动排版预览"
     data-scene={beat.painting.paintingId} data-card={visible?beat.card.id:undefined}>
-    <IllustratedStage painting={beat.painting} card={visible?beat.card:null}
+    <IllustratedStage painting={beat.painting} card={visible?beat.card:null} history={beat.history}
       elapsedMs={visible?elapsed-beat.reveal:0} durationMs={beat.end-beat.reveal}/>
     {ended?<section className="layout-preview-end" aria-label="预览结束">
       <h1>本轮预览已结束</h1>

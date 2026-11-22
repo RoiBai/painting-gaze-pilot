@@ -5,7 +5,7 @@ import {useEffect,useMemo,useRef,useState} from 'react';
 import {publicAssetUrl} from './assets';
 import {canvasPNG,downloadFile,exportPrefix,isPracticeSession,toCSV} from './export';
 import {CONDITION_LABELS} from './cardMetrics';
-import {reviewWindows,segmentTrace} from './pilotSegments';
+import {archeryPhaseLabels,archerySampleLookup,arrowPhaseWindows,reviewWindows,segmentTrace} from './pilotSegments';
 import {drawSegment,regionColors,regionLabels} from './pilotSegmentCanvas';
 import type {Painting,Session,TrialTiming} from './types';
 import type {ReviewWindow} from './pilotSegments';
@@ -15,7 +15,9 @@ const sec=(ms:number)=>(ms/1000).toFixed(2);
 function windowLabel(window:ReviewWindow,painting:Painting,trial:TrialTiming){
   const exposure=window.exposure;
   const title=exposure?'第 '+exposure.slot+' 张卡 · '+(painting.cards.find(c=>c.id===exposure.cardId)?.title??exposure.cardId):'无卡看画';
-  return title+'（'+sec(window.start-trial.startedMs)+'–'+sec(window.end-trial.startedMs)+' 秒）';
+  const label=window.archeryPhase==='post_impact_no_card'?archeryPhaseLabels.post_impact_no_card:
+    window.archeryPhase?.startsWith('arrow_')?title+' · '+archeryPhaseLabels[window.archeryPhase]:title;
+  return label+'（'+sec(window.start-trial.startedMs)+'–'+sec(window.end-trial.startedMs)+' 秒）';
 }
 
 export default function PilotSegmentReview({session}:{session:Session}){
@@ -25,7 +27,7 @@ export default function PilotSegmentReview({session}:{session:Session}){
   const scene=session.config.paintings.find(p=>p.paintingId===sceneId)??session.config.paintings[0];
   const trials=session.timings.filter(t=>t.paintingId===scene.paintingId);
   const trial=trials.find(t=>t.trialId===trialId)??trials.findLast(t=>t.status==='completed')??trials.at(-1);
-  const windows=useMemo(()=>trial?reviewWindows(session,trial):[],[session,trial]);
+  const windows=useMemo(()=>trial?reviewWindows(session,trial).flatMap(w=>[w,...arrowPhaseWindows(w)]):[],[session,trial]);
   const window=windows.find(w=>w.key===windowKey)??windows.find(w=>w.exposure)??windows[0];
   const condition=session.pilot?.plan.find(p=>p.paintingId===scene.paintingId)?.condition;
   return <section className="segment-review" aria-label="分时段视线回看">
@@ -88,15 +90,17 @@ function SegmentPlayback({window:period,session,trial,scene,condition}:{window:R
     return ()=>window.clearInterval(timer);
   },[playing,speed,duration]);
   const label=windowLabel(period,scene,trial);
-  const basename=exportPrefix(session)+'_'+trial.trialId+'_'+(period.exposure?'card-'+period.exposure.slot:'blank')+'_'+Math.round(period.start)+'ms';
+  const basename=exportPrefix(session)+'_'+trial.trialId+'_'+(period.exposure?'card-'+period.exposure.slot:'blank')+'_'+(period.archeryPhase?period.archeryPhase+'_':'')+Math.round(period.start)+'ms';
   function downloadCSV(){
+    const archery=period.archeryPhase?archerySampleLookup(session):null;
     const rows=points.map(({sample,region,connects})=>({
       participantId:session.participantId,sessionId:session.sessionId,paintingId:scene.paintingId,trialId:trial.trialId,
       condition:sample.condition,slot:period.exposure?.slot,cardId:period.exposure?.cardId,exposureId:period.exposure?.exposureId,
       windowStartMs:period.start,windowEndMs:period.end,sampleIndex:sample.sampleIndex,callbackTimeMs:sample.callbackTimeMs,
       segmentMs:sample.callbackTimeMs-period.start,trialActiveMs:sample.trialActiveMs,viewportX:sample.viewportX,viewportY:sample.viewportY,
       imageX:sample.imageX,imageY:sample.imageY,geometryVersion:sample.geometryVersion,calibrationVersion:sample.calibrationVersion,
-      predictionAvailable:sample.predictionAvailable,onCard:sample.onCard,region,connectsToPrevious:connects,
+      predictionAvailable:sample.predictionAvailable,onCard:sample.onCard,imageAoiId:sample.imageAoiId,region,connectsToPrevious:connects,
+      ...(archery?archery(sample):{}),
     }));
     if(rows.length)downloadFile(basename+'.csv',new TextEncoder().encode('\uFEFF'+toCSV(rows,Object.keys(rows[0]) as (keyof typeof rows[number])[],session)));
   }
@@ -118,6 +122,10 @@ function SegmentPlayback({window:period,session,trial,scene,condition}:{window:R
     <p>{condition} · {valid} 个有效视口样本 / {points.length} 次回调
       {period.exposure&&valid>0&&<> · 卡片 → 画面 {trace.toPainting} 次 · 画面 → 卡片 {trace.toCard} 次</>}
     </p>
+    {period.archeryPhase&&<p>原画箭靶区域内的有效样本 {trace.targetSampleCount} / {trace.targetValidCount}
+      {trace.targetMs!==null&&<> · 连续落在靶区的观测时长 {sec(trace.targetMs)} 秒</>}
+      {trace.targetMs===null&&<> · 连续观测时长不足以估算</>}
+    </p>}
     {period.geometry?<canvas ref={canvas} className="segment-frame" aria-label={scene.title+' · '+label+' · 原始视口轨迹'}/>:<p>该时段缺少原始视口尺寸，无法重建轨迹。</p>}
     <div className="segment-legend">{Object.entries(regionColors).map(([key,color])=><span key={key}><i style={{backgroundColor:color}}/>{regionLabels[key as keyof typeof regionColors]}</span>)}</div>
     {valid===0&&<p>本时段没有可显示的视线样本。</p>}

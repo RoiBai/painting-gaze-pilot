@@ -1,5 +1,5 @@
 import {cardHitAt,paperAppVersion} from './cardPresentation';
-import type {PaperGuideLayout} from './paperGuide';
+import type {ArcheryHistory,PaperGuideLayout} from './paperGuide';
 import type {Session,StudyConfig,Phase,Geometry,ResponseRow,ValidationRow,BackgroundAnswers, ParticipantAssignment, CardDecision, CardExposure, CardRect, PilotMetadata, PilotTrial} from './types';
 import {WebGazerAdapter} from './webgazerAdapter';
 import {saveSession} from './storage';
@@ -44,6 +44,14 @@ export class StudyEngine {
  get activeCard(){
   if(this.phase!=='free_view'||this.paused||!this.visibleDecision)return null;
   return this.painting?.cards.find(card=>card.id===this.visibleDecision!.cardId)??null;
+ }
+ get archeryHistory():ArcheryHistory{
+  const trial=this.currentTiming?.trialId,slot=this.visibleDecision?.slot;
+  if(!trial||!slot)return {};
+  const prior=this.session?.cardExposures?.filter(e=>e.trialId===trial&&e.slot<slot)??[];
+  const previous=prior.at(-1);
+  const adjoining=previous?.slot===slot-1&&this.windows[slot-2]?.end===this.windows[slot-1]?.reveal;
+  return {previousCardId:adjoining?previous.cardId:undefined,arrowLanded:prior.some(e=>e.paper?.arrowLandedAtMs!==undefined)};
  }
  private get trialCondition(){return this.session?.pilot?.plan[this.trialIndex]?.condition}
  get targets(){return this.phase==='calibration'?CALIBRATION_TARGETS:this.phase==='validation'?VALIDATION_TARGETS:DRIFT_TARGETS}
@@ -267,6 +275,12 @@ export class StudyEngine {
   return exposure;
  }
  exposureTime(exposure:CardExposure){return this.clock()-exposure.shownMs}
+ arrowLanded(exposure:CardExposure){
+  if(exposure!==this.openExposure||!exposure.paper||exposure.paper.arrowLandedAtMs!==undefined)return;
+  const wasSeen=this.session?.cardExposures?.some(e=>e.trialId===exposure.trialId&&e.paper?.arrowLandedAtMs!==undefined);
+  exposure.paper.arrowLandedAtMs=this.clock();
+  if(!wasSeen)this.event('arrow_landed',{trialId:exposure.trialId,cardId:exposure.cardId,exposureId:exposure.exposureId});
+ }
  cardHidden(cardId?:string){
   const exposure=this.openExposure;
   if(!exposure||(cardId&&exposure.cardId!==cardId))return;

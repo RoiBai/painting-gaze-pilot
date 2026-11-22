@@ -4,6 +4,7 @@ import type {PaperGuideLayout} from './paperGuide';
 import {hitCollageSubject} from './cutoutMotion';
 import catalogue from './uciCatalogue.json' with {type:'json'};
 import type {CardRect,Geometry} from './types';
+import {arrowFlightStart,arrowImpactFraction} from './archeryPhase';
 
 const arrowId='archery-figma-1-6';
 const targetId='archery-figma-0-6';
@@ -47,7 +48,7 @@ async function loadArrowIllustration(){
 
 interface Point {x:number;y:number}
 interface Placement {source?:CardRect;tip?:Point;detailWidth?:number;rightSpace?:number}
-type Layout=Pick<PaperGuideLayout,'source'|'art'|'impact'|'landedArrowLength'|'reveal'|'bowBox'|'arrowSprite'>;
+type Layout=Pick<PaperGuideLayout,'source'|'art'|'impact'|'landedArrowLength'|'reveal'|'bowBox'|'arrowSprite'|'arrowOrigin'>;
 type Shaft={x:number;y:number;length:number;angle:number};
 
 // Landmarks in the full 6888 × 1966 crop, independent of the padded acquisition
@@ -90,16 +91,19 @@ export function focusedArrowLength(handLength:number,viewportWidth:number){
 }
 
 export function focusedArrowPose(l:Layout,elapsed:number,duration:number,reduced:boolean):ArrowPose{
-  const start=archerArrowPose(l.bowBox!);
+  const start=l.arrowOrigin==='painting'
+    ?{x:l.source.left,y:l.source.top+l.source.height/2,length:l.source.width,angle:0}
+    :archerArrowPose(l.bowBox!);
   const fraction=elapsed/Math.max(1,duration);
   const zoom=reduced?1:smooth(ramp(fraction,0,.15));
-  const travel=reduced?Number(fraction>=.70):ramp(fraction,.72,.88);
+  const impact=arrowImpactFraction(reduced);
+  const travel=reduced?Number(fraction>=impact):ramp(fraction,arrowFlightStart,impact);
   const x=mix(start.x,l.art.left,zoom),y=mix(start.y,l.art.top+l.art.height/2,zoom);
   return {x:mix(x,l.impact!.x,travel),y:mix(y,l.impact!.y,travel),
     length:mix(start.length,l.art.width,zoom),angle:mix(start.angle*(1-zoom),trajectory,Math.min(1,travel*4))};
 }
-function archerContextAlpha(elapsed:number,duration:number,reduced:boolean){
-  return reduced?0:1-smooth(ramp(elapsed/Math.max(1,duration),.01,.15));
+function archerContextAlpha(layout:Layout,elapsed:number,duration:number,reduced:boolean){
+  return reduced||!layout.bowBox?0:1-smooth(ramp(elapsed/Math.max(1,duration),.01,.15));
 }
 
 // At normal study speed the text finishes fading at 7 s. The painted shaft
@@ -208,7 +212,7 @@ export function drawArcheryStory(ctx:CanvasRenderingContext2D,card:GuideCard,ima
     return true;
   }
   if(layout.reveal==='arrow-release'){
-    const alpha=archerContextAlpha(elapsed,duration,reduced);
+    const alpha=archerContextAlpha(layout,elapsed,duration,reduced);
     const pose=focusedArrowPose(layout,elapsed,duration,reduced);
     const contrast=(1-alpha)*archeryTiming(elapsed,duration,reduced).boardAlpha;
     if(!layout.arrowSprite){
@@ -244,7 +248,7 @@ function targetPose(subject:CardRect,layout:Layout):ArrowPose{
   return {...tip,length:layout.landedArrowLength??tip.length};
 }
 export function drawArcheryImpact(ctx:CanvasRenderingContext2D,card:GuideCard,subject:CardRect,layout:Layout){
-  if(card.id!==targetId)return;
+  if(card.id!==targetId||layout.reveal==='unshot-target')return;
   if(layout.arrowSprite)drawCatalogueArrow(ctx,targetPose(subject,layout));
   else if(layout.reveal==='landed-arrow')drawReleasedArrow(ctx,targetPose(subject,layout));
   else if(arrowImage)drawShaft(ctx,arrowImage,lodgedArrow(subject));
@@ -254,7 +258,7 @@ export function hitArcheryStory(card:GuideCard,layout:Layout,subject:CardRect,x:
   if(layout.reveal==='archer-draw')return hitDrawingArcher(card,subject,x,y,elapsed,duration,reduced,layout.arrowSprite?hitCatalogueArrow:hitReleasedArrow);
   if(layout.reveal==='arrow-release'){
     const pose=focusedArrowPose(layout,elapsed,duration,reduced);
-    const alpha=archerContextAlpha(elapsed,duration,reduced);
+    const alpha=archerContextAlpha(layout,elapsed,duration,reduced);
     const contrast=(1-alpha)*archeryTiming(elapsed,duration,reduced).boardAlpha;
     if(layout.arrowSprite){
       if(hitCatalogueArrow(pose,x,y,contrast))return true;
@@ -267,7 +271,7 @@ export function hitArcheryStory(card:GuideCard,layout:Layout,subject:CardRect,x:
     const released=releasedPose(subject,layout.impact,elapsed,duration,reduced);
     return released?hitReleasedArcher(card,subject,x,y)||hitReleasedArrow(released,x,y):undefined;
   }
-  if(layout.reveal==='arrow-detail')return undefined;
+  if(layout.reveal==='arrow-detail'||layout.reveal==='unshot-target')return undefined;
   if(card.id===arrowId){
     const {shaft,readingContrast}=archeryFlight(layout,elapsed,duration,reduced);
     return hitShaft(x,y,shaft,readingContrast);

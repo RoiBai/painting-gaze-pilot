@@ -115,6 +115,9 @@ function checkPilot(session:Session):void {
       if(!p||!validPaperGuideLayout(p.layout)||!Number.isFinite(p.durationMs)||p.durationMs<=0||p.durationMs>3600000||
         !Number.isFinite(p.offsetMs)||p.offsetMs<0||p.offsetMs>p.durationMs||typeof p.reducedMotion!=='boolean'||
         !painting?.cards.find(c=>c.id===exposure.cardId)?.art)throw Error('剪贴画卡片的版面或动画时间无效。');
+      if(p.arrowLandedAtMs!==undefined&&(exposure.cardId!=='archery-figma-1-6'||p.layout.reveal!=='arrow-release'||
+        !Number.isFinite(p.arrowLandedAtMs)||p.arrowLandedAtMs<exposure.shownMs||
+        (exposure.hiddenMs!==null&&p.arrowLandedAtMs>exposure.hiddenMs)))throw Error('羽箭的落靶时刻超出显示记录。');
     }
     previousEnd=exposure.hiddenMs??Infinity;
     byId.set(exposure.exposureId,exposure);

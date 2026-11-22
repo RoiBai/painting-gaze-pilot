@@ -2,7 +2,7 @@ import {describe,expect,it} from 'vitest';
 import {pilotConfig} from '../src/pilotMaterials';
 import {containGeometry} from '../src/geometry';
 import {archerArrowPose} from '../src/archerDetail';
-import {focusedArrowPose} from '../src/archeryNarrative';
+import {drawArcheryImpact,focusedArrowPose,hitArcheryStory,lodgedArrow} from '../src/archeryNarrative';
 import {hitPaperGuide,makePaperGuide,paperFrame,validPaperGuideLayout} from '../src/paperGuide';
 
 const measure={
@@ -21,12 +21,11 @@ describe('paper illustration layout',()=>{
           const a=p.aois.find(a=>a.id===c.aoiIds[0])!;
           const l=makePaperGuide(measure,c,g,a);
           expect(validPaperGuideLayout(l),c.title).toBe(true);
-          // The new arrow card begins at the nocked arrow on the enlarged archer.
-          // Its old v4 layout used the shaft in the original scene.
           if(c.id==='archery-figma-1-6'){
             expect(l.reveal).toBe('arrow-release');
-            expect(l.bowBox).toBeDefined();
-            expect(l.art.width).toBeGreaterThan(archerArrowPose(l.bowBox!).length);
+            expect(l.bowBox).toBeUndefined();
+            expect(l.arrowOrigin).toBe('painting');
+            expect(l.art.width).toBeGreaterThan(l.source.width);
             expect(paperFrame(l,2500,10000).textAlpha).toBe(1);
             expect(paperFrame(l,8300,10000).textAlpha).toBe(0);
             const archived=makePaperGuide(measure,c,g,a,'v4');
@@ -92,7 +91,8 @@ describe('paper illustration layout',()=>{
     for(const [vw,vh] of [[390,844],[1440,900]]){
       const g=geometry(scene,vw,vh);
       const cards=scene.cards.slice(4,7);
-      const [bow,arrow,target]=cards.map(card=>makePaperGuide(measure,card,g,scene.aois.find(a=>a.id===card.aoiIds[0])!));
+      const [bow,arrow,target]=cards.map((card,i)=>makePaperGuide(measure,card,g,scene.aois.find(a=>a.id===card.aoiIds[0])!,undefined,
+        {previousCardId:cards[i-1]?.id,arrowLanded:i===2}));
       for(const layout of [bow,arrow,target]){
         expect(layout.arrowSprite).toBe('figma-1-6');
         expect(validPaperGuideLayout(layout)).toBe(true);
@@ -125,6 +125,38 @@ describe('paper illustration layout',()=>{
         flight.y+Math.sin(flight.angle)*flight.length*.5,card,arrow,8300,10000)).toBe(true);
       expect(at(9500,true).x).toBeCloseTo(landed.x);
     }
+  });
+  it('opens a clean target and independently picks up the arrow at its original position in any order',()=>{
+    const scene=pilotConfig.paintings[2],g=geometry(scene,1440,900);
+    const [archer,arrow,target]=scene.cards.slice(4,7);
+    const make=(card:typeof arrow,history={},edition?:'v6')=>makePaperGuide(measure,card,g,
+      scene.aois.find(a=>a.id===card.aoiIds[0])!,edition,history);
+    const first=make(target),landed=make(target,{arrowLanded:true,previousCardId:archer.id});
+    expect(first.reveal).toBe('unshot-target');
+    expect(first.landedArrowLength).toBeUndefined();
+    // A target-first card remains clean even when an earlier scene primed the sprite cache.
+    drawArcheryImpact({} as CanvasRenderingContext2D,target,first.art,first);
+    expect(landed.reveal).toBe('landed-arrow');
+    const disk=lodgedArrow(landed.art),along=landed.landedArrowLength!*.6;
+    const x=disk.x+along*Math.cos(disk.angle),y=disk.y+along*Math.sin(disk.angle);
+    expect(hitArcheryStory(target,first,first.art,x,y,2000,10000,false)).toBeUndefined();
+    expect(hitArcheryStory(target,landed,landed.art,x,y,2000,10000,false)).toBe(true);
+    expect(landed.art).toEqual(first.art);
+    const solo=make(arrow,{previousCardId:target.id});
+    const linked=make(arrow,{previousCardId:archer.id});
+    expect(solo.bowBox).toBeUndefined();
+    expect(solo.source.left).toBeCloseTo(g.left+4120*g.scale);
+    expect(solo.source.width).toBeCloseTo(156*g.scale);
+    const start=focusedArrowPose(solo,0,10000,false);
+    expect(start).toMatchObject({x:solo.source.left,length:solo.source.width,angle:0});
+    for(const ms of [2000,6000,8250,9500]){
+      expect(focusedArrowPose(solo,ms,10000,false)).toEqual(focusedArrowPose(linked,ms,10000,false));
+    }
+    expect(validPaperGuideLayout(JSON.parse(JSON.stringify(solo)))).toBe(true);
+    expect(validPaperGuideLayout({...solo,bowBox:linked.bowBox})).toBe(false);
+    expect(validPaperGuideLayout({...solo,arrowOrigin:undefined})).toBe(false);
+    expect(make(arrow,{},'v6')).toEqual(linked);
+    expect(make(target,{},'v6')).toEqual(landed);
   });
   it('preserves the v4 lodged shaft when opening an earlier target explanation',()=>{
     const scene=pilotConfig.paintings[2];

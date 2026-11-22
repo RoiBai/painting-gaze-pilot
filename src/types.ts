@@ -58,7 +58,7 @@ export interface CardDecision {
   candidateCardIds:string[];
 }
 export interface CardExposure extends CardDecision {
-  paper?:{layout:PaperGuideLayout;offsetMs:number;durationMs:number;reducedMotion:boolean};
+  paper?:{layout:PaperGuideLayout;offsetMs:number;durationMs:number;reducedMotion:boolean;arrowLandedAtMs?:number};
   entranceMs?:number;
   entranceRect?:CardRect;
   exposureId:string;

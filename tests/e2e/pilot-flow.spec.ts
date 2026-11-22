@@ -67,7 +67,10 @@ async function installCameraFixture(page:Page){
 async function observeTrial(page:Page,index=0){
   // A mutation observer sees short blank periods even when the CI browser is busy.
   const scene=pilotConfig.paintings[index];
-  await expect(page.locator('.stimulus img')).toBeVisible();
+  await expect(async()=>{
+    const heading=await page.locator('body').innerText();
+    expect(await page.locator('.stimulus img').isVisible(),`场景 ${scene.title}\n${heading}`).toBe(true);
+  }).toPass({timeout:10_000});
   const recording=page.evaluate(()=>new Promise<{id:string|null;children:string[];title:string;body:string}[]>((done,fail)=>{
     const seen:{id:string|null;children:string[];title:string;body:string}[]=[];
     let previous:Element|null=null;

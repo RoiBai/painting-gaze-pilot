@@ -1,4 +1,4 @@
-import {expect,test,type Locator} from '@playwright/test';
+import {expect,test,type Locator,type Page} from '@playwright/test';
 
 const site=process.env.PAGES_TEST_URL??'http://localhost:5173/';
 const detailLink=(id:string)=>new URL('?participant=P00&preview=layout&scene=ming-xingle-archery&card='+id,site).href;
@@ -82,6 +82,54 @@ async function observe(stage:Locator){
     } as typeof draw;
   });
 }
+
+async function randomShot(page:Page,seed:number,firstCard:string){
+  const start=new Date('2026-11-23T00:00:00Z');
+  await page.clock.install({time:start});await page.clock.pauseAt(new Date(+start+1000));
+  const url=new URL(detailLink('archery-figma-'+firstCard));
+  url.searchParams.set('order','random');url.searchParams.set('seed',String(seed));
+  await page.goto(url.href);
+  const player=page.locator('main.layout-playback'),stage=player.locator('canvas');
+  await expect(stage).toBeVisible();await observe(stage);
+  let previous=0;
+  return async(ms:number,card:string):Promise<Frame>=>{
+    await page.clock.runFor(ms-previous);previous=ms;
+    await expect(player).toHaveAttribute('data-card','archery-figma-'+card);
+    return JSON.parse((await stage.getAttribute('data-observed'))!);
+  };
+}
+
+test('random target → archer → arrow begins with the original target and plays each illustration in deck order',async({page})=>{
+  const sample=await randomShot(page,353,'0-6');
+  for(const ms of [600,2500,9000]){
+    const target=await sample(ms,'0-6');
+    expect(target.shaft).toBeUndefined();
+    if(ms>=2500)expect(target.titleY).toBeDefined();
+  }
+  const archer=await sample(14500,'1-2');
+  expect(archer.actorLayer).toBeDefined();expect(archer.titleY).toBeDefined();
+  const start=await sample(24100,'1-6');
+  // This passive random slot has a fresh painting interval after the archer.
+  expect(start.actor).toBeUndefined();expect(start.shaft).toBeDefined();
+  const landed=await sample(33300,'1-6');
+  expect(landed.shaft!.x).toBeCloseTo(1631*1440/6888,0);
+});
+
+test('random arrow → target grows directly from the painting and shows the lodged arrow when its target is selected',async({page})=>{
+  const sample=await randomShot(page,196,'1-6');
+  const entrance=await sample(100,'1-6');
+  expect(entrance.actor).toBeUndefined();
+  expect(entrance.shaft!.length).toBeCloseTo(156*1440/6888,-1);
+  expect(Math.abs(entrance.shaft!.x-4120*1440/6888)).toBeLessThan(3);
+  expect((await sample(700,'1-6')).actor).toBeUndefined();
+  const reading=await sample(2500,'1-6');
+  expect(reading.shaft!.length).toBeGreaterThan(entrance.shaft!.length);
+  expect(reading.titleY).toBeDefined();
+  const landing=await sample(9300,'1-6');
+  const target=await sample(12100,'0-6');
+  expect(Math.abs(target.shaft!.length-landing.shaft!.length)).toBeLessThan(1);
+  expect(Math.hypot(target.shaft!.x-landing.shaft!.x,target.shaft!.y-landing.shaft!.y)).toBeLessThan(1.5);
+});
 
 for(const viewport of [{width:1440,height:900},{width:390,height:844}]){
   test('P00 draws the bow, explains and releases the enlarged arrow, then explains the target at '+viewport.width+'px',async({page})=>{

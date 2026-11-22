@@ -2,6 +2,7 @@ import {useLayoutEffect,useRef,useState} from 'react';
 import {makePaperGuide,drawPaperGuide} from './paperGuide';
 import {hasPaperLayout,paperEdition,paperTime,timedPaperExit} from './cardPresentation';
 import {prepareCard} from './IllustratedStage';
+import {arrowImpactFraction} from './archeryPhase';
 import type {StudyEngine} from './engine';
 import type {Painting,CardRect} from './types';
 import {animatedRect,cardPosition,drawCutout,entranceDuration,entranceRect,loadCutout} from './cutoutCard';
@@ -25,12 +26,13 @@ function PaperCard({engine,card,painting}:Props){
       const {viewportWidth:w,viewportHeight:h,dpr}=geometry;
       el.width=Math.round(w*dpr);el.height=Math.round(h*dpr);
       ctx.setTransform(el.width/w,0,0,el.height/h,0,0);
-      const layout=makePaperGuide(ctx,card,geometry,aoi,edition);
+      const layout=makePaperGuide(ctx,card,geometry,aoi,edition,engine.archeryHistory);
       for(const [key,value] of Object.entries(layout.bounds))article.style.setProperty(key,value+'px');
       const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
       const exposure=engine.cardShown(layout.bounds,card.id,undefined,undefined,{layout,reducedMotion});
       if(!exposure?.paper)return;
       const {offsetMs,durationMs}=exposure.paper;
+      const recordLanding=edition===undefined&&layout.reveal==='arrow-release';
       const advanceClock=!reducedMotion||timedPaperExit(layout);
       let previous=-1;
       function draw(){
@@ -38,6 +40,7 @@ function PaperCard({engine,card,painting}:Props){
         if(elapsed!==previous){
           ctx!.clearRect(0,0,w,h);
           drawPaperGuide(ctx!,card,image,layout,elapsed,durationMs,reducedMotion);
+          if(recordLanding&&elapsed>=durationMs*arrowImpactFraction(reducedMotion))engine.arrowLanded(exposure!);
           previous=elapsed;
         }
         if(elapsed<durationMs&&advanceClock)frame=requestAnimationFrame(draw);

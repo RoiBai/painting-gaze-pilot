@@ -78,6 +78,24 @@ describe('P protocol and assignment',()=>{
     samples[16].imageAoiId=null;samples[17].imageAoiId=null;
     expect(selectCard(args)?.selectionSource).toBe('fallback');
   });
+  it('respects the looking location and keeps the independent random deck, last-card and fallback decisions',()=>{
+    const painting={...materials.paintings[2],materialVersion:'ming-uci-collage-v7'};
+    const archer='archery-figma-1-2',arrow='archery-figma-1-6',target='archery-figma-0-6';
+    const samples=Array.from({length:23},(_,i)=>sampleFixture({callbackTimeMs:i*50,trialId:'t',imageAoiId:'figma-0-6'}));
+    const args={painting,condition:'gaze' as const,now:1100,windowStart:0,slot:1,deck:[target,archer,arrow],
+      priorIds:[] as string[],samples,trialId:'t',qualityOK:true,rules:responsiveSelectionRules([painting],60)};
+    for(const seen of [[],[archer]])expect(selectCard({...args,priorIds:seen})).toMatchObject({cardId:target,selectionSource:'gaze'});
+    const onArrow=samples.map(s=>({...s,imageAoiId:'figma-1-6'}));
+    expect(selectCard({...args,samples:onArrow})).toMatchObject({cardId:archer,selectionReason:'shared-region-archer-first',selectionAoiId:'figma-1-6'});
+    expect(selectCard({...args,painting:{...painting,materialVersion:'ming-uci-collage-v6'},samples:onArrow})).toMatchObject({cardId:arrow,selectionReason:'recent-stable-eligible-aoi'});
+    expect(selectCard({...args,qualityOK:false})).toMatchObject({cardId:target,selectionSource:'fallback',selectionReason:'quality-not-verified'});
+    expect(selectCard({...args,priorIds:painting.cards.map(c=>c.id).filter(id=>id!==arrow)})).toMatchObject({cardId:arrow,selectionSource:'remaining'});
+    const used:string[]=[];
+    for(const id of args.deck){
+      expect(selectCard({...args,condition:'random',priorIds:used})).toMatchObject({cardId:id,selectionSource:'random'});
+      used.push(id);
+    }
+  });
 });
 
 describe('physical exposure windows and camera recording',()=>{
@@ -129,6 +147,43 @@ describe('physical exposure windows and camera recording',()=>{
     image(engine.painting!);
     now=2999;callback(500,400);engine.tick();expect(engine.activeCard).toBeNull();
     now=3000;callback(500,400);engine.tick();expect(engine.activeCard?.id).toBe(engine.painting!.cards[0].id);
+  });
+
+  it('counts a fresh shared-area dwell for the arrow and records flight-following samples without triggering another card',()=>{
+    const config=structuredClone(materials);
+    const painting=config.paintings.find(p=>p.paintingId==='ming-xingle-archery')!;
+    painting.materialVersion='ming-uci-collage-v7';
+    engine.begin(config,'P00','fixture',{paintingId:painting.paintingId,condition:'gaze'});
+    const session=engine.session!;
+    for(const kind of ['drift','validation'] as const)session.validationSummaries.push({
+      kind,status:'pass',targets:[],runId:kind,calibrationVersion:0,medianErrorPx:10,errorDiagonalRatio:.01,
+    });
+    image(painting);
+    const g=engine.geometry!;
+    const archer=[.62,.63],arrow=[.607,.558],target=[.235,.487],elsewhere=[.42,.44];
+    let visible:string|undefined;
+    for(now=0;now<=26000;now+=50){
+      // Alternate between neighbouring authored AOIs while acquiring the archer.
+      // Follow the shaft to its target while the second card is visible, then look away.
+      const xy=now<12000?(now%100===0?arrow:archer):now<14000?archer:now<23100?target:elsewhere;
+      callback(g.left+xy[0]*g.width,g.top+xy[1]*g.height);
+      engine.tick();
+      const current=engine.activeCard?.id;
+      if(current!==visible){
+        if(visible)engine.cardHidden(visible);
+        if(current)engine.cardShown({left:0,top:0,width:100,height:30},current);
+        visible=current;
+      }
+    }
+    const [first,second,third]=session.cardExposures!;
+    expect(first).toMatchObject({cardId:'archery-figma-1-2',shownMs:1100,selectionReason:'shared-region-archer-first',
+      selectionSource:'gaze',selectionAoiId:'figma-1-6',dwellMs:1100});
+    expect(second).toMatchObject({cardId:'archery-figma-1-6',shownMs:13100,selectionReason:'shared-region-arrow-follow-up',
+      selectionSource:'gaze',selectionAoiId:'figma-1-2',dwellMs:1100});
+    expect(session.samples.filter(s=>s.callbackTimeMs<=1100).map(s=>s.imageAoiId)).toEqual(
+      Array.from({length:23},(_,i)=>i%2===0?'figma-1-6':'figma-1-2'));
+    expect(session.samples.find(s=>s.callbackTimeMs===21500)).toMatchObject({cardExposureId:second.exposureId,imageAoiId:'figma-0-6'});
+    expect(third).toMatchObject({shownMs:26000,selectionSource:'fallback',selectionReason:'no-stable-eligible-aoi',dwellMs:0});
   });
 
   it.each(['sequential','random','gaze'] as const)('keeps nine separate archery exposures and joins narrated shots only in sequential mode (%s)',condition=>{
