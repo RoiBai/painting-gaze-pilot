@@ -4,7 +4,7 @@ import {pilotConfig} from '../src/pilotMaterials';
 import {containGeometry} from '../src/geometry';
 
 const scene=pilotConfig.paintings.find(c=>c.paintingId==='ming-xingle-archery')!;
-const archer=scene.cards[5],arrow=scene.cards[6],target=scene.cards[7];
+const arrow=scene.cards[4],archer=scene.cards[5],target=scene.cards[6];
 function stage(width:number,height:number){
   const g=containGeometry({version:1,paintingId:scene.paintingId,timeMs:0,viewportWidth:width,viewportHeight:height,dpr:1,
     naturalWidth:6888,naturalHeight:1966,box:{left:0,top:0,width,height}});
@@ -14,13 +14,13 @@ function stage(width:number,height:number){
 }
 const layout=stage(1440,900);
 
-it('preserves three individually selectable AOIs in their original order',()=>{
+it('keeps distinct AOIs for the detail, release and target',()=>{
   expect([archer.id,arrow.id,target.id]).toEqual(['archery-figma-1-2','archery-figma-1-6','archery-figma-0-6']);
   expect(new Set([archer,arrow,target].map(c=>c.aoiIds[0])).size).toBe(3);
   expect(arrow.text).toContain('尾羽');
 });
 
-it('only enlarges the arrow for the reading phase and returns it to the original hand',()=>{
+it('replays the v3 arrow reading and return at the original hand',()=>{
   const at=(t:number)=>archeryFlight(layout,t,10000,false).shaft;
   const original=at(0),reading=at(4000),returning=at(7350),ready=at(7700);
   expect(original.length).toBeCloseTo(156*1440/6888);

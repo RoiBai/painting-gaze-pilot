@@ -1,6 +1,6 @@
 import {useLayoutEffect,useRef,useState} from 'react';
 import {makePaperGuide,drawPaperGuide} from './paperGuide';
-import {hasPaperLayout,LEGACY_PAPER_MATERIAL,paperTime} from './cardPresentation';
+import {hasPaperLayout,paperEdition,paperTime,timedPaperExit} from './cardPresentation';
 import {prepareCard} from './IllustratedStage';
 import type {StudyEngine} from './engine';
 import type {Painting,CardRect} from './types';
@@ -19,19 +19,19 @@ function PaperCard({engine,card,painting}:Props){
     const aoi=painting.aois.find(a=>card.aoiIds.includes(a.id));
     if(!el||!article||!ctx||!geometry||!aoi)return;
     let active=true,frame=0;
-    const legacy=painting.materialVersion===LEGACY_PAPER_MATERIAL;
-    void prepareCard(card,legacy).then(image=>{
+    const edition=paperEdition(painting.materialVersion);
+    void prepareCard(card,edition).then(image=>{
       if(!active)return;
       const {viewportWidth:w,viewportHeight:h,dpr}=geometry;
       el.width=Math.round(w*dpr);el.height=Math.round(h*dpr);
       ctx.setTransform(el.width/w,0,0,el.height/h,0,0);
-      const layout=makePaperGuide(ctx,card,geometry,aoi,legacy?'legacy':undefined);
+      const layout=makePaperGuide(ctx,card,geometry,aoi,edition);
       for(const [key,value] of Object.entries(layout.bounds))article.style.setProperty(key,value+'px');
       const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
       const exposure=engine.cardShown(layout.bounds,card.id,undefined,undefined,{layout,reducedMotion});
       if(!exposure?.paper)return;
       const {offsetMs,durationMs}=exposure.paper;
-      const advanceClock=!reducedMotion||layout.reveal==='explain-then-shoot';
+      const advanceClock=!reducedMotion||timedPaperExit(layout);
       let previous=-1;
       function draw(){
         const elapsed=paperTime(engine.exposureTime(exposure!)+offsetMs,durationMs,layout);

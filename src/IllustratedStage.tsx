@@ -4,10 +4,12 @@ import {loadCutout,type GuideCard} from './cutoutCard';
 import {containGeometry} from './geometry';
 import {makePaperGuide,drawPaperGuide} from './paperGuide';
 import {prepareCutoutMotion} from './cutoutMotion';
+import {prepareArcherDetail} from './archerDetail';
+import {preparePaintedPoses} from './paintedPoses';
 import {prepareArcheryStory} from './archeryNarrative';
 import type {Painting} from './types';
 
-import {LEGACY_PAPER_MATERIAL,paperTime} from './cardPresentation';
+import {paperEdition,paperTime,timedPaperExit} from './cardPresentation';
 const backgrounds=new Map<string,Promise<HTMLImageElement>>();
 export function prepareIllustrationScene(painting:Painting):Promise<void>{
   let base=backgrounds.get(painting.image);
@@ -16,10 +18,12 @@ export function prepareIllustrationScene(painting:Painting):Promise<void>{
     base=image.decode().then(()=>image).catch(error=>{backgrounds.delete(painting.image);throw error});
     backgrounds.set(painting.image,base);
   }
-  return Promise.all([base,...painting.cards.filter(c=>c.art).map(card=>prepareCard(card,painting.materialVersion===LEGACY_PAPER_MATERIAL))]).then(()=>{});
+  return Promise.all([base,...painting.cards.filter(c=>c.art).map(card=>prepareCard(card,paperEdition(painting.materialVersion)))]).then(()=>{});
 }
-export async function prepareCard(card:GuideCard,legacy=false):Promise<HTMLImageElement>{
-  const [image]=await Promise.all([loadCutout(card.art!),prepareCutoutMotion(card,legacy),legacy?undefined:prepareArcheryStory(card)]);
+export async function prepareCard(card:GuideCard,edition?:'legacy'|'v3'):Promise<HTMLImageElement>{
+  const [image]=await Promise.all([loadCutout(card.art!),prepareCutoutMotion(card,edition==='legacy'),
+    edition==='legacy'?undefined:prepareArcheryStory(card,edition==='v3'),edition?undefined:preparePaintedPoses(card)]);
+  if(!edition && card.id==='archery-figma-1-2')prepareArcherDetail(image);
   return image;
 }
 
@@ -30,7 +34,7 @@ export default function IllustratedStage({painting,card,elapsedMs,durationMs,cla
   const [size,setSize]=useState({w:0,h:0,dpr:1});
   const [loaded,setLoaded]=useState<{card:GuideCard;image:HTMLImageElement}|null>(null);
   const [error,setError]=useState('');
-  const legacy=painting.materialVersion===LEGACY_PAPER_MATERIAL;
+  const edition=paperEdition(painting.materialVersion);
   useLayoutEffect(()=>{
     const el=canvas.current!;
     const measure=()=>{
@@ -43,18 +47,18 @@ export default function IllustratedStage({painting,card,elapsedMs,durationMs,cla
   useEffect(()=>{
     let current=true;
     setError('');
-    if(card?.art)void prepareCard(card,legacy).then(image=>{if(current)setLoaded({card,image})})
+    if(card?.art)void prepareCard(card,edition).then(image=>{if(current)setLoaded({card,image})})
       .catch(()=>{if(current)setError('讲解图未能载入，请重新打开此景。')});
     return ()=>{current=false};
-  },[card,legacy]);
+  },[card,edition]);
   const layout=useMemo(()=>{
     const ctx=canvas.current?.getContext('2d'),area=painting.aois.find(a=>card?.aoiIds.includes(a.id));
     if(!ctx||!area||!card||!size.w||!size.h)return null;
     const geom=containGeometry({version:1,paintingId:painting.paintingId,timeMs:0,viewportWidth:size.w,viewportHeight:size.h,dpr:size.dpr,naturalWidth:painting.width,naturalHeight:painting.height,box:{left:0,top:0,width:size.w,height:size.h}});
-    return makePaperGuide(ctx,card,geom,area,legacy?'legacy':undefined);
-  },[size,painting,card,legacy]);
+    return makePaperGuide(ctx,card,geom,area,edition);
+  },[size,painting,card,edition]);
   const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const frameTime=reduced&&layout?.reveal!=='explain-then-shoot'?0:paperTime(elapsedMs,durationMs,layout);
+  const frameTime=reduced&&!timedPaperExit(layout)?0:paperTime(elapsedMs,durationMs,layout);
   useLayoutEffect(()=>{
     const el=canvas.current,ctx=el?.getContext('2d');
     if(!el||!ctx||!size.w||!size.h)return;

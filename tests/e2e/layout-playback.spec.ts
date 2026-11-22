@@ -111,7 +111,8 @@ test('the six cuju cards use the selected boards and only animate the pavilion d
     await page.goto('/?participant=P00&preview=layout&scene=ming-xingle-cuju&card='+card.id);
     await expect(root).toHaveAttribute('data-card',card.id);
     const canvas=root.locator('canvas');
-    await page.clock.runFor(2010);
+    const isPavilion=card.id==='cuju-figma-1-5';
+    await page.clock.runFor(isPavilion?2400:2010);
     // The entrance has finished. The same exact pigment should run behind the
     // illustration and the text, including the large gaps in the group portrait.
     const score=await canvas.evaluate((el,board)=>{
@@ -125,7 +126,8 @@ test('the six cuju cards use the selected boards and only animate the pavilion d
     },[1,3,5].map(i=>parseInt(card.art!.board.slice(i,i+2),16)));
     expect(score,card.title).toBeGreaterThan(.015);
     const before=await canvas.evaluate(el=>(el as HTMLCanvasElement).toDataURL());
-    await page.clock.runFor(1000);
+    // Compare the pavilion's second painted pose to the resting frame.
+    await page.clock.runFor(isPavilion?1200:1000);
     const after=await canvas.evaluate(el=>(el as HTMLCanvasElement).toDataURL());
     const shouldMove=['cuju-figma-1-5','cuju-figma-1-4'].includes(card.id);
     expect(before!==after,card.title).toBe(shouldMove);

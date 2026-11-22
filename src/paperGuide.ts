@@ -1,12 +1,16 @@
 import type {AOI,CardRect,Geometry} from './types';
 import type {GuideCard} from './cutoutCard';
-import {archeryPlacement, archeryTiming, drawArcheryImpact, drawArcheryStory, hitArcheryStory} from './archeryNarrative';
+import {archeryPlacement, archeryTargetPoint, archeryTiming, drawArcheryImpact, drawArcheryStory, hitArcheryStory} from './archeryNarrative';
 import {drawCollageSubject,hitCollageSubject} from './cutoutMotion';
+import {drawPaintedPose,hitPaintedPose,hasPaintedPoses} from './paintedPoses';
+import {archerArrowPose} from './archerDetail';
+import catalogue from './uciCatalogue.json' with {type:'json'};
 
 export interface PaperGuideLayout {
   /** Absent from the archived two-sheet presentation. */
   style?:'single-board';
-  reveal?:'explain-then-shoot';
+  reveal?:'explain-then-shoot'|'archer-release'|'arrow-detail'|'polo-swing'|'stepped-poses'|'landed-arrow';
+  landedArrowLength?:number;
   impact?:{x:number;y:number};
   source:CardRect;
   art:CardRect;
@@ -61,7 +65,7 @@ function textHeight(t:PaperGuideLayout['type']){
 /** The arrow is a small detail of the bow. Place the reading board just above
  * the release hand, leaving the archer's head, hands and body visible. */
 function arrowGuide(ctx:CanvasRenderingContext2D,card:GuideCard,g:Geometry,source:CardRect,
-  impact:{x:number;y:number},width:number):PaperGuideLayout{
+  width:number,v3Impact?:{x:number;y:number}):PaperGuideLayout{
   const vw=g.viewportWidth,vh=g.viewportHeight;
   const edge=clamp(vw*.015,8,18);
   const panelWidth=Math.min(vw-edge*2,clamp(vw*.22,228,305));
@@ -76,12 +80,19 @@ function arrowGuide(ctx:CanvasRenderingContext2D,card:GuideCard,g:Geometry,sourc
   const minX=Math.min(art.left,left),minY=Math.min(art.top,top);
   const bounds={left:minX,top:minY,width:Math.max(left+panelWidth,art.left+width)-minX,
     height:Math.max(top+panelHeight,art.top+artH)-minY};
-  return {style:'single-board',reveal:'explain-then-shoot',source,art,panel,backing:panel,bounds,
-    impact,type,viewport:{width:vw,height:vh}};
+  return {style:'single-board',source,art,panel,backing:panel,bounds,type,viewport:{width:vw,height:vh},
+    ...(v3Impact?{reveal:'explain-then-shoot',impact:v3Impact}:{reveal:'arrow-detail'})};
 }
 
+// The target-only presentation (random order or a direct P00 link) still needs
+// the exact displayed shaft length from the archer's card on this viewport.
+const archerEntry=catalogue.cards.find(c=>c.scene==='archery'&&c.node==='1:2')!;
+const archerCard:GuideCard={id:'archery-figma-1-2',title:archerEntry.title,text:archerEntry.text,art:archerEntry,
+  location:archerEntry.title,aoiIds:['figma-1-2'],source:archerEntry.image};
+const archerArea:AOI={id:'figma-1-2',label:archerEntry.title,rect:archerEntry.rect as AOI['rect']};
+
 /** Frozen viewport CSS pixels. The foreground is sized from its registered area in the original scene. */
-export function makePaperGuide(ctx:CanvasRenderingContext2D,card:GuideCard,g:Geometry,aoi:AOI,edition?:'legacy'):PaperGuideLayout{
+export function makePaperGuide(ctx:CanvasRenderingContext2D,card:GuideCard,g:Geometry,aoi:AOI,edition?:'legacy'|'v3'):PaperGuideLayout{
   const vw=g.viewportWidth,vh=g.viewportHeight;
   const [x,y,w,h]=aoi.rect;
   const area={left:g.left+x*g.width,top:g.top+y*g.height,width:w*g.width,height:h*g.height};
@@ -93,7 +104,7 @@ export function makePaperGuide(ctx:CanvasRenderingContext2D,card:GuideCard,g:Geo
   const source=placement.source??centered(cx,cy,nativeW,nativeW/aspect);
   source.left=clamp(source.left,0,vw-source.width);
   source.top=clamp(source.top,0,vh-source.height);
-  if(placement.tip && placement.detailWidth)return arrowGuide(ctx,card,g,source,placement.tip,placement.detailWidth);
+  if(placement.tip && placement.detailWidth)return arrowGuide(ctx,card,g,source,placement.detailWidth,edition==='v3'?placement.tip:undefined);
   // Reserve page margins and paper borders only where the original subject leaves room.
   const edgeX=clamp(vw*.018,8,24);
   const edgeY=clamp((vh-nativeW/aspect)*.12,1,clamp(vh*.035,8,24));
@@ -101,23 +112,36 @@ export function makePaperGuide(ctx:CanvasRenderingContext2D,card:GuideCard,g:Geo
   const padY=clamp((vh-2*edgeY-nativeW/aspect)*.13,1,clamp(vh*.022,9,20));
   const safeW=vw-2*edgeX,safeH=vh-2*edgeY;
   const targetSize=clamp(Math.min(vw*.24,vh*.32),110,260);
-  const desiredW=Math.max(nativeW*1.30,Math.min(1,aspect)*targetSize);
+  const archer=!edition&&card.id==='archery-figma-1-2';
+  const poloClub=!edition&&card.id==='polo-figma-3-25';
+  // This cutout is the club visible inside the rider's larger cutout.
+  const desiredW=Math.max(nativeW*1.30,Math.min(1,aspect)*targetSize*(poloClub?.44:1));
   const seam=Math.min(25,padX+2);
   const minimumPanel=Math.min(224,safeW);
-  const extraRatio=placement.rightSpace??0;
-  const extra=desiredW/aspect*extraRatio;
+  const target=!edition&&card.id==='archery-figma-0-6';
+  const landedArrowLength=target?archerArrowPose(makePaperGuide(ctx,archerCard,g,archerArea).art).length:0;
+  const extraRatio=target?0:placement.rightSpace??0;
+  // The shaft projects to the right of the bullseye. Leave at least its full
+  // CSS-pixel length before the text column, including when the flag shrinks.
+  const shaftRoom=landedArrowLength;
+  const extra=desiredW/aspect*extraRatio+shaftRoom;
   const requiredArtW=edition!=='legacy'&&vw<520?desiredW:nativeW;
-  const stacked=(edition==='legacy' && vw<520)
-    || requiredArtW*(1+extraRatio/aspect)+2*padX+minimumPanel-seam>safeW;
-  const panelW=stacked?Math.min(safeW,510):clamp(safeW-desiredW-extra-2*padX+seam,minimumPanel,clamp(vw*.29,258,445));
-  const type=typography(ctx,card,panelW,vw,edition==='legacy');
+  const impact=archer?archeryTargetPoint(g):undefined;
+  // A row must leave some space to the LEFT of the archer for his shot.
+  // Stack the caption if a right-hand caption would put him behind the target.
+  const archerStack=impact!==undefined && vw-edgeX-minimumPanel-desiredW-2*padX<impact.x+vw*.16;
+  const stacked=archerStack || (edition==='legacy' && vw<520)
+    || requiredArtW*(1+extraRatio/aspect)+2*padX+shaftRoom+minimumPanel-seam>safeW;
+  const maxPanel=poloClub?clamp(vw*.23,228,310):clamp(vw*.29,258,445);
+  const panelW=stacked?Math.min(safeW,510):clamp(safeW-desiredW-extra-2*padX+seam,minimumPanel,maxPanel);
+  const type=typography(ctx,card,panelW,vw,edition==='legacy',poloClub);
   const minPanelH=Math.ceil(textHeight(type)+2*type.pad);
   const availableW=safeW-2*padX-(stacked?0:panelW-seam);
   const availableH=safeH-2*padY-(stacked?minPanelH-seam:0);
-  const requestedW=stacked&&edition!=='legacy'&&vw<520?Math.max(desiredW,safeW*.78):desiredW;
-  const artW=Math.max(1,Math.min(requestedW,availableW/(1+extraRatio/aspect),availableH*aspect));
+  const requestedW=stacked&&!archer&&!poloClub&&edition!=='legacy'&&vw<520?Math.max(desiredW,safeW*.78):desiredW;
+  const artW=Math.max(1,Math.min(requestedW,(availableW-shaftRoom)/(1+extraRatio/aspect),availableH*aspect));
   const artH=artW/aspect;
-  const mountW=artW+artH*extraRatio+2*padX,mountH=artH+2*padY;
+  const mountW=artW+artH*extraRatio+2*padX+shaftRoom,mountH=artH+2*padY;
   const panelH=minPanelH;
   const totalW=stacked?Math.max(mountW,panelW):mountW+panelW-seam;
   const totalH=stacked?mountH+panelH-seam:Math.max(mountH,panelH);
@@ -133,12 +157,17 @@ export function makePaperGuide(ctx:CanvasRenderingContext2D,card:GuideCard,g:Geo
 
   // A single field of pigment runs under both the art and the typesetting.
   // Wide groups overhang by less so the leftmost people keep their silhouette.
-  if(stacked)art.left=bounds.left;
+  if(stacked)art.left=archer?clamp(cx-artW/2,bounds.left,bounds.left+totalW-artW):bounds.left;
   const overhang=artW*(aspect>1.05?.065:aspect>.55?.18:.36);
   const left=stacked?Math.min(art.left+overhang,panel.left+type.pad*.65):art.left+overhang;
   const top=Math.min(art.top+artH*.07,panel.top);
   const bottom=Math.max(art.top+artH*.96,panel.top+panel.height);
-  return {...layout,style:'single-board',backing:{left,top,width:bounds.left+bounds.width-left,height:bottom-top}};
+  return {...layout,style:'single-board',backing:{left,top,width:bounds.left+bounds.width-left,height:bottom-top},
+    ...(target?{reveal:'landed-arrow',landedArrowLength}:impact?{reveal:'archer-release',impact}:{reveal:!edition?poseReveal(card.id):undefined})};
+}
+function poseReveal(id:string):'polo-swing'|'stepped-poses'|undefined{
+  if(id==='polo-figma-3-23')return 'polo-swing';
+  if(hasPaintedPoses(id))return 'stepped-poses';
 }
 
 const finite=(n:unknown):n is number=>typeof n==='number' && Number.isFinite(n);
@@ -151,9 +180,11 @@ export function validPaperGuideLayout(value:unknown):value is PaperGuideLayout{
   if(!value||typeof value!=='object')return false;
   const l=value as PaperGuideLayout,t=l.type;
   const counts=(a:unknown)=>Array.isArray(a)&&a.length>0&&a.length<=200&&a.every(n=>Number.isInteger(n)&&n>0&&n<=2000);
-  return (l.style===undefined||l.style==='single-board')
-    && (l.reveal===undefined||(l.style==='single-board'&&l.reveal==='explain-then-shoot'&&
-        !!l.impact&&finite(l.impact.x)&&finite(l.impact.y))) && [l.source,l.art,l.backing,l.panel,l.bounds].every(rectValid) && !!l.viewport &&
+  const plainReveal=l.reveal==='arrow-detail'||l.reveal==='polo-swing'||l.reveal==='stepped-poses'
+    || (l.reveal==='landed-arrow'&&finite(l.landedArrowLength)&&l.landedArrowLength>0&&l.landedArrowLength<=32768);
+  const hasTarget=(l.reveal==='archer-release'||l.reveal==='explain-then-shoot') && !!l.impact&&finite(l.impact.x)&&finite(l.impact.y);
+  return (l.style===undefined||l.style==='single-board') && (l.reveal===undefined||l.style==='single-board'&&(plainReveal||hasTarget))
+    && [l.source,l.art,l.backing,l.panel,l.bounds].every(rectValid) && !!l.viewport &&
     [l.viewport.width,l.viewport.height].every(n=>finite(n)&&n>0&&n<=32768) && !!t &&
     [t.pad,t.titleSize,t.bodySize].every(n=>finite(n)&&n>0&&n<=200) && counts(t.title)&&counts(t.body);
 }
@@ -168,7 +199,9 @@ export function paperFrame(l:PaperGuideLayout,elapsed:number,duration:number,red
   const t=reduced?1800:elapsed/Math.max(speed,.001);
   const flight=ease(t,160,1130);
   const unfold=ease(t,460,1350);
-  const boardAlpha=l.reveal==='explain-then-shoot'?archeryTiming(elapsed,duration,reduced).boardAlpha:1;
+  const dropsBoard=l.reveal==='archer-release'||l.reveal==='polo-swing';
+  const boardAlpha=dropsBoard||l.reveal==='explain-then-shoot'?archeryTiming(elapsed,duration,reduced).boardAlpha:1;
+  const boardDrop=dropsBoard&&!reduced?(1-boardAlpha)*clamp(l.backing.height*.16,18,42):0;
   const subject=interpolate(l.source,l.art,flight);
   let backing=interpolate(l.source,l.backing,flight);
   if(l.style==='single-board'){
@@ -181,11 +214,12 @@ export function paperFrame(l:PaperGuideLayout,elapsed:number,duration:number,red
   }
   const left=mix(centerX(l.source),l.panel.left,flight);
   const top=clamp(mix(centerY(l.source)-l.panel.height/2,l.panel.top,flight),0,l.viewport.height-l.panel.height);
-  const panel={left,top,width:l.panel.width*unfold,height:l.panel.height};
+  backing.top+=boardDrop;
+  const panel={left,top:top+boardDrop,width:l.panel.width*unfold,height:l.panel.height};
   const fadeOut=reduced&&l.style==='single-board'
     ?Number(elapsed<duration)
     :1-ease(elapsed,duration-(reduced?120:680)*speed,duration);
-  return {subject,backing,panel,alpha:fadeOut,backingAlpha:boardAlpha*ease(t,195,745),panelAlpha:boardAlpha*ease(t,460,890),
+  return {subject,backing,panel,boardDrop,alpha:fadeOut,backingAlpha:boardAlpha*ease(t,195,745),panelAlpha:boardAlpha*ease(t,460,890),
     textAlpha:boardAlpha*ease(t,950,1520),light:1-ease(t,220,980),veil:boardAlpha*ease(t,0,620),motionMs:reduced?0:Math.max(0,elapsed-1050*speed)};
 }
 
@@ -274,7 +308,7 @@ export function drawPaperGuide(ctx:CanvasRenderingContext2D,card:GuideCard,image
       ctx.beginPath();ctx.rect(f.panel.left,f.panel.top,f.panel.width,f.panel.height);ctx.clip();
       if(single){ctx.beginPath();ctx.rect(f.backing.left,f.backing.top,f.backing.width,f.backing.height);ctx.clip()}
       const ty=l.type,tx=l.panel.left+ty.pad+4;
-      let y=l.panel.top+(l.panel.height-textHeight(ty))/2;
+      let y=l.panel.top+f.boardDrop+(l.panel.height-textHeight(ty))/2;
       ctx.fillStyle=brightness(board)>.18?'#221c14':'#fffae9';ctx.textBaseline='top';ctx.font=titleFont(ty.titleSize);
       y=paintLines(ctx,card.title,ty.title,tx,y,ty.titleSize*1.30);
       ctx.font=bodyFont(ty.bodySize,!single);
@@ -297,9 +331,11 @@ export function drawPaperGuide(ctx:CanvasRenderingContext2D,card:GuideCard,image
   }
   if(l.reveal==='explain-then-shoot' && f.backingAlpha===0 && elapsed>duration/2)ctx.shadowColor='transparent';
   if(f.light>.01)ctx.filter='brightness('+(1+.22*f.light)+')';
-  if(!single||!drawArcheryStory(ctx,card,image,l,s,elapsed,duration,reducedMotion)){
+  if(l.reveal==='polo-swing'||l.reveal==='stepped-poses'){
+    drawPaintedPose(ctx,card,image,s,elapsed,duration,reducedMotion);
+  }else if(!single||!drawArcheryStory(ctx,card,image,l,s,elapsed,duration,reducedMotion)){
     drawCollageSubject(ctx,card,image,s,f.motionMs,reducedMotion,!single);
-    if(single)drawArcheryImpact(ctx,card,s);
+    if(single)drawArcheryImpact(ctx,card,s,l);
   }
   ctx.restore();ctx.restore();
 }
@@ -309,6 +345,7 @@ export function hitPaperGuide(x:number,y:number,card:GuideCard,l:PaperGuideLayou
   if(f.alpha<=.015)return false;
   if(f.backingAlpha>.025&&contains(f.backing,x,y))return true;
   if(!l.style&&f.panelAlpha>.025&&contains(f.panel,x,y))return true;
+  if(l.reveal==='polo-swing'||l.reveal==='stepped-poses')return hitPaintedPose(card,f.subject,x,y,elapsed,duration,reducedMotion);
   const storyHit=l.style?hitArcheryStory(card,l,f.subject,x,y,elapsed,duration,reducedMotion):undefined;
   return storyHit??hitCollageSubject(card,f.subject,x,y,f.motionMs,reducedMotion,!l.style);
 }

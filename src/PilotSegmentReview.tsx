@@ -1,4 +1,5 @@
 import {loadCutout} from './cutoutCard';
+import {paperEdition} from './cardPresentation';
 import {prepareCard} from './IllustratedStage';
 import {useEffect,useMemo,useRef,useState} from 'react';
 import {publicAssetUrl} from './assets';
@@ -69,9 +70,9 @@ function SegmentPlayback({window:period,session,trial,scene,condition}:{window:R
   },[scene.image]);
   useEffect(()=>{
     let active=true;
-    if(card&&art)void (period.exposure?.paper?prepareCard(card,period.exposure.paper.layout.style!=='single-board'):loadCutout(art)).then(img=>{if(active)setCutout(img)}).catch(()=>{if(active)setError('该版讲解抠图加载失败。')});
+    if(card&&art)void (period.exposure?.paper?prepareCard(card,paperEdition(scene.materialVersion)):loadCutout(art)).then(img=>{if(active)setCutout(img)}).catch(()=>{if(active)setError('该版讲解抠图加载失败。')});
     return ()=>{active=false};
-  },[art,card,period.exposure]);
+  },[art,card,period.exposure,scene.materialVersion]);
   useEffect(()=>{
     if(image&&(!art||cutout)&&canvas.current)drawSegment(canvas.current,image,scene,period,points,period.start+current,position!==null,cutout);
   },[image,scene,period,points,current,position,cutout,art]);
